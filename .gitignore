@@ -4,3 +4,5 @@
 
 *.pem
 /mcp/
+
+/node_modules/
