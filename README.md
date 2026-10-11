@@ -122,6 +122,15 @@ npm install
 npm start
 ```
 
+**npm 脚本：**
+
+| 命令 | 说明 |
+|------|------|
+| `npm start` | 直接运行 `src/` 源码（Node 24 原生 type stripping 支持 .ts，开发推荐） |
+| `npm run build` | tsc 编译 `src/` → `dist/`，并拷贝 SKILL.md 等非代码资源 |
+| `npm run build:watch` | watch 模式构建（资源拷贝不会自动重跑，需手动 build） |
+| `npm run start:dist` | 运行构建产物 `dist/index.js` |
+
 ### 配置
 
 所有配置集中在 `src/config.js` 中。
@@ -135,7 +144,7 @@ npm start
 | 配置项 | 说明 |
 |--------|------|
 | `token` | OneBot 鉴权 Token |
-| `targetGroupId` | 目标群 ID |
+| `targetGroupId` | 目标群 ID 列表（字符串数组） |
 | `selfId` | 机器人 QQ 号 |
 | `aiAPIKEY` | 阿里云 AI API Key |
 | `CHAT_MODEL` | 聊天模型名称 |
@@ -242,7 +251,8 @@ src/
 │
 ├── pipeline/                   # 事件处理管道
 │   ├── index.js                # 管道编排：中间件 → 处理器
-│   ├── context.js              # 上下文构建
+│   ├── context.ts              # 上下文构建（TS）
+│   ├── type.ts                 # 管道类型定义（Context / CtxEvent / Space 等）
 │   ├── middleware/              # 中间件（丰富上下文）
 │   │   ├── image-recognizer.js # 图片识别
 │   │   ├── at-detector.js      # @检测
@@ -280,8 +290,18 @@ src/
 ├── utils/                      # 工具函数
 │   ├── logger.js               # 统一日志
 │   ├── file-security.js        # 路径安全校验
+│   ├── extractText.ts          # 消息段纯文本提取（TS）
 │   ├── sleep.js / random.js / time.js / queue.js / image-type.js
 │
+```
+
+```
+scripts/
+└── copy-assets.js              # 构建后将 skills/workspace 的非 JS 资源拷贝到 dist
+
+根目录：
+tsconfig.json                   # IDE 类型检查基准配置（strict + noEmit，不产出文件）
+tsconfig.build.json             # 构建配置（noCheck 只转译，遗留 JS 不阻塞产出）
 ```
 
 ---
@@ -294,7 +314,7 @@ src/
 
 ```js
 CMD_MAP.set("关键词", async (ctx) => {
-    ctx.adapter.sendGroupMsg(ctx.event.group_id, "回复内容");
+    ctx.adapter.sendGroupMsg(ctx.space.id, "回复内容");
 });
 ```
 
@@ -340,6 +360,15 @@ AI 可通过 `list_mcp_tools` 工具动态加载该 Server 的所有工具。
 3. 在 `scripts/` 子目录中编写 JS 脚本
 
 脚本通过 `process.argv[2]` 接收 JSON 参数，通过 `console.log()` 输出结果。脚本在子进程中执行，30 秒超时。
+
+### TypeScript 开发约定
+
+项目为 JS 为主、逐步引入 TS 的混合结构，依赖 Node 24 原生 type stripping 直接运行 `.ts`：
+
+- JS 文件引用 TS 模块时，import 路径**显式写 `.ts` 后缀**；构建时 tsc 自动重写为 `.js`（`rewriteRelativeImportExtensions`）
+- 导入 interface **必须用 `import type`**，否则运行时因导出不存在而崩溃；JS 文件中引用类型用 JSDoc：`/** @typedef {import("./xxx.ts").Type} Type */`
+- `.ts` 中只允许"可擦除语法"（禁用 `enum`、构造器参数属性等，由 `erasableSyntaxOnly` 约束）
+- 类型检查由 IDE 实时提供（tsconfig.json，strict 模式）；构建走 tsconfig.build.json 的 `noCheck` 只转译，不提供 CLI 检查
 
 ### 安全设计
 
