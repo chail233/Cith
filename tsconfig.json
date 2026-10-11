@@ -1,0 +1,37 @@
+{
+  "compilerOptions": {
+    // 运行环境为 Node 24 + ESM（package.json type: "module"）
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022"],
+
+    // 编译目录与输出目录：src 下所有源码编译输出到 dist
+    "rootDir": "src",
+    "outDir": "dist",
+
+    // 项目主体为 JS，逐步引入 TS：允许编译 .js，但不检查 .js 类型
+    "allowJs": true,
+    "checkJs": false,
+
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "strict": false,
+
+    // 允许在 import 路径中写 .ts 后缀（开发时 Node 24 直接跑源码需要）
+    "allowImportingTsExtensions": true,
+    // 构建输出时把相对导入的 .ts 后缀重写为 .js，保证 dist 可运行
+    "rewriteRelativeImportExtensions": true,
+    // 只允许可擦除的 TS 语法（不用 enum/参数属性等），保证 Node 原生 type stripping 兼容
+    "erasableSyntaxOnly": true,
+
+    // 构建模式：产出 JS 到 dist（类型检查请用 npm run typecheck）
+    // noCheck：只转译不做类型检查，避免大量遗留 JS 的类型报错阻塞构建
+    "noEmit": false,
+    "noCheck": true,
+    "removeComments": true
+  },
+  "include": ["src/**/*.js", "src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "src/workspace"]
+}
