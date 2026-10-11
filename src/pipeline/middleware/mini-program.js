@@ -2,7 +2,7 @@
 
 import recorder from "../../llm/recorder.js";
 import logger from "../../utils/logger.js";
-import { formatTime } from "../../utils/time.js";
+import {nowTime} from "../../utils/time.js";
 
 /**
  * 小程序/链接分享处理中间件
@@ -11,7 +11,7 @@ import { formatTime } from "../../utils/time.js";
  * @returns {Promise<boolean>} 是否已处理（标记 ctx.handled）
  */
 export default async function miniProgram(ctx) {
-    const segments = ctx.event.message || [];
+    const segments = ctx.seg || [];
 
     for (const seg of segments) {
         if (seg.type === "json") {
@@ -26,7 +26,7 @@ export default async function miniProgram(ctx) {
                         content: {
                             name: ctx.senderName,
                             qq: ctx.userId,
-                            time: formatTime(ctx.event.time),
+                            time: nowTime(),
                             text,
                         },
                     });

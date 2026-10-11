@@ -4,7 +4,7 @@ import chatAPI from "../../llm/chat.js";
 import recorder from "../../llm/recorder.js";
 import logger from "../../utils/logger.js";
 import config from "../../config.js";
-import { formatTime } from "../../utils/time.js";
+import { nowTime} from "../../utils/time.js";
 /**
  * 主动聊天处理器
  * 当群内连续若干条消息无 AI 参与时，主动触发一次对话
@@ -22,7 +22,7 @@ export default async function proactiveChat(ctx) {
         content: {
             name: ctx.senderName,
             qq: ctx.userId,
-            time: formatTime(ctx.event.time),
+            time: nowTime(),
             text: text,
         },
     });

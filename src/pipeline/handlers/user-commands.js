@@ -248,7 +248,7 @@ export default async function userCommands(ctx) {
 
     const { cmd, args } = parseCommand(ctx.text);
     if (!cmd) {
-        ctx.adapter.sendGroupMsg(ctx.event.group_id, "指令格式无效");
+        ctx.adapter.sendGroupMsg(ctx.space.id, "指令格式无效");
         return true;
     }
 
@@ -256,13 +256,13 @@ export default async function userCommands(ctx) {
     if (!command) return false;
 
     if (command.needsAdmin && !ctx.isAdmin) {
-        ctx.adapter.sendGroupMsg(ctx.event.group_id, "无权限");
+        ctx.adapter.sendGroupMsg(ctx.space.id, "无权限");
         return true;
     }
 
     const result = await command.handler(args, ctx);
     if (result !== null && result !== undefined) {
-        ctx.adapter.sendGroupMsg(ctx.event.group_id, result);
+        ctx.adapter.sendGroupMsg(ctx.space.id, result);
     }
     return true;
 }

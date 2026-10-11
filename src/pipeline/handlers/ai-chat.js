@@ -1,7 +1,7 @@
 import chatAPI from "../../llm/chat.js";
 import logger from "../../utils/logger.js";
 import chatrecorder from "../../llm/recorder.js";
-import { formatTime } from "../../utils/time.js";
+import {nowTime} from "../../utils/time.js";
 
 /**
  * AI 对话处理器
@@ -22,7 +22,7 @@ export default async function aiChat(ctx) {
         content: {
             name: ctx.senderName,
             qq: ctx.userId,
-            time: formatTime(ctx.event.time),
+            time: nowTime(),
             text: content,
             at: "我"
         },

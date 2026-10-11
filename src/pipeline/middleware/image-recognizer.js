@@ -12,7 +12,7 @@ import fs from "fs/promises";
  * @param {object} ctx
  */
 export default async function imageRecognizer(ctx) {
-    const segments = ctx.event.message || [];
+    const segments = ctx.seg || [];
     let description = "";
 
     for (const seg of segments) {

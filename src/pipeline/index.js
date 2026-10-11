@@ -1,7 +1,7 @@
 // @ts-check
 
 import logger from "../utils/logger.js";
-import { buildContext } from "./context.js";
+import { buildContext } from "./context.ts";
 import imageRecognizer from "./middleware/image-recognizer.js";
 import atDetector from "./middleware/at-detector.js";
 import miniProgram from "./middleware/mini-program.js";
@@ -30,22 +30,17 @@ const handlers = [
 /**
  * 事件管道：接收 OneBot 事件，按中间件→处理器流水线处理
  *
- * @param {object} event OneBot 事件
- * @param {import("../bot/adapter.js").OneBotAdapter} adapter
+ * @param {object} ctxEvent OneBot 事件
  */
-export default async function runPipeline(event, adapter) {
-    // 1. 过滤：仅处理消息事件
-    if (event.post_type !== "message") return;
-
-    // 2. 构建上下文
-    const ctx = buildContext(event, adapter);
-
-    // 3. 过滤：仅处理目标群消息
-    if (!ctx.isTargetGroup) return;
+export default async function runPipeline(ctxEvent) {
+    //构建上下文
+    const ctx = buildContext(ctxEvent);
+    //过滤：仅处理目标消息
+    if (!ctx.isTarget) return;
 
     logger.debug(`处理消息: ${ctx.senderName}: ${ctx.text}`);
 
-    // 4. 运行中间件（全部执行，不阻塞管道）
+    // 运行中间件（全部执行，不阻塞管道）
     for (const mw of middlewares) {
         try {
             await mw(ctx);

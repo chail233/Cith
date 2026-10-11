@@ -31,7 +31,7 @@ const baseConfig = {
     napcatHttpHost: "127.0.0.1:3000",
 
     /** 目标群 ID */
-    targetGroupId: "your_group_id",
+    targetGroupId: ["your_group_id"],
 
     /** 机器人自身 QQ 号 */
     selfId: "your_bot_qq",

@@ -17,7 +17,7 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
-    "strict": false,
+    "strict": true,
 
     // 允许在 import 路径中写 .ts 后缀（开发时 Node 24 直接跑源码需要）
     "allowImportingTsExtensions": true,
@@ -26,10 +26,9 @@
     // 只允许可擦除的 TS 语法（不用 enum/参数属性等），保证 Node 原生 type stripping 兼容
     "erasableSyntaxOnly": true,
 
-    // 构建模式：产出 JS 到 dist（类型检查请用 npm run typecheck）
-    // noCheck：只转译不做类型检查，避免大量遗留 JS 的类型报错阻塞构建
-    "noEmit": false,
-    "noCheck": true,
+    // 本配置为类型检查/IDE 基准配置：不产出文件，实时检查 .ts
+    // 构建走 tsconfig.build.json（noCheck 只转译，放过遗留 JS）
+    "noEmit": true,
     "removeComments": true
   },
   "include": ["src/**/*.js", "src/**/*.ts"],

@@ -1,7 +1,4 @@
-// @ts-check
-
 import logger from "../utils/logger.js";
-
 /**
  * OneBot 协议适配器
  * 包装一个 WebSocket 连接，提供事件接收和动作发送的抽象接口
@@ -19,10 +16,21 @@ export class OneBotAdapter {
             try {
                 const event = JSON.parse(data.toString());
                 logger.debug("收到事件:", event);
-                if (this._eventHandler) {
-                    this._eventHandler(event);
+                if (event.post_type !== "message") return;
+                const space = event.message_type === "group" ?
+                    { from: "group", id: event.group_id.toString() } : { from: "user", id: event.user_id.toString() };
+                const ctxEvent = {
+                    adapter:this,
+                    message:event.message,
+                    space: space,
+                    userId: event.user_id.toString(),
+                    nickName:event.sender?.nickname ?? "未知"
                 }
-            } catch (err) {
+                if (this._eventHandler) {
+                    this._eventHandler(ctxEvent);
+                }
+            }
+            catch (err) {
                 logger.error("解析事件 JSON 失败:", err);
             }
         });

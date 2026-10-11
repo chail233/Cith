@@ -1,0 +1,11 @@
+{
+  // 构建专用配置：继承 tsconfig.json，放开产出并跳过类型检查
+  // 类型检查由 tsconfig.json（noEmit）负责，两者互不干扰
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    // 遗留 JS 未写类型注释，typescript@7 对 checkJs:false 的 .js 仍会报错，
+    // 因此构建时只转译不检查，避免被 JS 侧错误阻塞
+    "noCheck": true
+  }
+}

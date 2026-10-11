@@ -35,7 +35,7 @@ export default async function chat(ctx) {
     let tokenCount = 0;
 
     if (!result || typeof result === "string") {
-        await sendAiReply(ctx.adapter, ctx.event.group_id, typeof result === "string" ? "ERROR:" + result : "ERROR:AI 服务无响应");
+        await sendAiReply(ctx.adapter, ctx.space.id, typeof result === "string" ? "ERROR:" + result : "ERROR:AI 服务无响应");
         return;
     }
 
@@ -46,7 +46,7 @@ export default async function chat(ctx) {
         toolDepth++;
         let parsed = handleReply(result.message.content);
         if(parsed.length > 0){
-            await sendAiReply(ctx.adapter, ctx.event.group_id, {acts: parsed, tokens: tokenCount});
+            await sendAiReply(ctx.adapter, ctx.space.id, {acts: parsed, tokens: tokenCount});
             tokenCount = 0;
         }
         for(const tool_call of result.message.tool_calls){
@@ -60,7 +60,7 @@ export default async function chat(ctx) {
             }
             catch (err) {
                 logger.error("AI 工具调用失败:", err);
-                await sendAiReply(ctx.adapter, ctx.event.group_id, `ERROR:工具调用失败 - ${err.message}`);
+                await sendAiReply(ctx.adapter, ctx.space.id, `ERROR:工具调用失败 - ${err.message}`);
             }
         }
         // chatRecorder.add({role: "system", content: { text: "工具调用已完成，请继续以JSON格式输出回复。" }});
@@ -73,7 +73,7 @@ export default async function chat(ctx) {
             tools: getAllTools(),
         });
         if (typeof result === "string") {
-            await sendAiReply(ctx.adapter, ctx.event.group_id, "ERROR:"+result);
+            await sendAiReply(ctx.adapter, ctx.space.id, "ERROR:"+result);
             return;
         }
         tokenCount += result.totalTokens;
@@ -82,7 +82,7 @@ export default async function chat(ctx) {
     // 解析 JSON 响应
     let parsed = handleReply(result.message.content);
 
-    await sendAiReply(ctx.adapter, ctx.event.group_id, {
+    await sendAiReply(ctx.adapter, ctx.space.id, {
         acts: parsed??[],
         tokens: tokenCount,
     });
