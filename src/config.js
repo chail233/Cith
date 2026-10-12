@@ -56,7 +56,7 @@ const baseConfig = {
     PROACTIVE_CHAT_LIMIT: 15,
 
     /** LLM API 基础地址 */
-    LLM_API_URL: "https://workspace.aliyuncs.com",
+    LLM_API_URL: "https://workspace.aliyuncs.com/v1/chat/completions",
 
     /** 聊天模型名称 */
     CHAT_MODEL: "deepseek-v4.1-flash",
@@ -174,7 +174,8 @@ const baseConfig = {
         "}\n" +
         "action字段的值是一个数组，数组中每个对象有cmd和content两个字段，cmd代表消息类型，必须为text，content代表消息内容，也可以返回空数组表示不回复，但必须包含action这个字段。\n" +
         "数组中的消息将按顺序发送，每条消息内容最后不许加句号。\n" +
-        "无论action数组元素有多少，都必须严格按照上述格式输出，最外层必须加上大括号{}。"
+        "无论action数组元素有多少，都必须严格按照上述格式输出，最外层必须加上大括号{}。\n" +
+        "不要输出任何md格式的代码块，仅输出JSON对象。"
 };
 
 // DevMode 为 true 时，合并 configDev.js 中的配置

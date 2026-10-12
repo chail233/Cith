@@ -1,6 +1,5 @@
 import { getWeatherText } from "../../services/weather.js";
-import { getModelsText } from "../../services/getModels.js";
-import recorder from "../../llm/recorder.js";
+import { getRecorder, listSessions } from "../../llm/session.ts";
 import config from "../../config.js";
 import {skills} from "../../llm/skill.js";
 import {reloadSkills} from "../../llm/skill.js";
@@ -26,9 +25,10 @@ const cmds = [
         description: "清除短期记忆（管理员）",
         params: [],
         handler: async (args, ctx) => {
+            const recorder = getRecorder(ctx.space);
             const cnt = recorder.length;
             recorder.clear();
-            return `清除了${cnt}条消息。`;
+            return `清除了${cnt}条消息（会话 ${recorder.sessionId}）。`;
         }
     },
     {
@@ -48,7 +48,7 @@ const cmds = [
         description: "列出短期记录",
         params: [],
         handler: async (args, ctx) => {
-            const all = recorder.getAll();
+            const all = getRecorder(ctx.space).getAll();
             if (all.length === 0) return "短期记录为空";
             const lines = all.map((m, i) => {
                 return `[${i + 1}] ${m.role}: ${m.content}`;
@@ -62,7 +62,7 @@ const cmds = [
         description: "列出缓存记录",
         params: [],
         handler: async (args, ctx)=>{
-            const all = recorder.getCache();
+            const all = getRecorder(ctx.space).getCache();
             if (all.length === 0) return "缓存记录为空";
             const lines = all.map((m, i) => {
                 return `[${i + 1}] ${m.role}: ${m.content}`;
@@ -76,7 +76,7 @@ const cmds = [
         description: "显示中期记忆概括",
         params: [],
         handler: async (args, ctx) => {
-            const summary = recorder.getMidSummary();
+            const summary = getRecorder(ctx.space).getMidSummary();
             if (!summary) return "中期记忆为空";
             return `中期记忆（${summary.length} 字）：\n${summary}`;
         }
@@ -96,14 +96,6 @@ const cmds = [
                 config.EnableProactiveChat = false;
                 return "关闭了主动回复";
             }
-        }
-    },
-    {
-        name: "model",
-        description: "查询模型",
-        params: [],
-        handler: async (args, ctx) => {
-            return await getModelsText();
         }
     },
     {
@@ -142,7 +134,7 @@ const cmds = [
         params: [],
         handler: async (args, ctx) => {
             try {
-                await recorder.compress();
+                await getRecorder(ctx.space).compress();
                 return "压缩完成";
             }
             catch (err) {
@@ -150,6 +142,20 @@ const cmds = [
                 return "压缩失败";
             }
 
+        }
+    },
+    {
+        name: "sessions",
+        needsAdmin: true,
+        description: "列出活跃会话（管理员）",
+        params: [],
+        handler: async (args, ctx) => {
+            const list = listSessions();
+            if (list.length === 0) return "当前没有活跃会话";
+            const lines = list.map(s =>
+                `${s.id}：短期 ${s.short} 条，缓存 ${s.cache} 条，${s.hasSummary ? "有概要" : "无概要"}，空闲 ${s.idleMin} 分钟`
+            );
+            return `活跃会话（${list.length} 个）：\n${lines.join("\n")}`;
         }
     },
     {

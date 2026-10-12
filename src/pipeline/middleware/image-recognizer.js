@@ -6,12 +6,15 @@ import recognizeImage from "../../llm/image.js";
 import logger from "../../utils/logger.js";
 import fs from "fs/promises";
 
+
+const enable = true;
 /**
  * 图片识别中间件
  * 检测消息中的图片，自动识别内容并写入 context.imageDescription
  * @param {object} ctx
  */
 export default async function imageRecognizer(ctx) {
+    if(!enable) return;
     const segments = ctx.seg || [];
     let description = "";
 

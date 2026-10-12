@@ -1,9 +1,7 @@
-// @ts-check
-
 import getSentence from "../../services/hitokoto.js";
 import getAcg from "../../services/acg.js";
 import getSunGirl from "../../data/sunbatwo-girls.js";
-import recorder from "../../llm/recorder.js";
+import { getRecorder } from "../../llm/session.ts";
 import { nowTime } from "../../utils/time.js";
 
 /**
@@ -16,6 +14,7 @@ const CMD_MAP = new Map();
 CMD_MAP.set("来句台词", async (ctx) => {
     const sentence = await getSentence();
     const time = nowTime();
+    const recorder = getRecorder(ctx.space);
     if (sentence) {
         ctx.adapter.sendGroupMsg(ctx.space.id, sentence);
         recorder.add({ role: "assistant", content: { text: sentence, time } });

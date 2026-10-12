@@ -1,4 +1,4 @@
-import chatRecorder from "./recorder.js";
+import { getRecorder, sessionIdOf } from "./session.ts";
 import {makeMemoryUserId, searchMemory, getUserProfile} from "./long-term-memory.js";
 import config from "../config.js";
 import logger from "../utils/logger.js";
@@ -196,10 +196,17 @@ export function getAllTools() {
 }
 
 
-async function getMemory(param) {
+/**
+ * 搜索长期记忆（使用当前会话的短期上下文作为查询线索）
+ * @param {object} param
+ * @param {{space?: import("../pipeline/type.ts").Space}|null} [ctx]
+ */
+async function getMemory(param, ctx) {
+    if (!ctx?.space) return "无法确定当前会话，无法搜索记忆";
+    const chatRecorder = getRecorder(ctx.space);
     const shortTermMessages = chatRecorder.getAll();
     if (shortTermMessages.length > 0) {
-        const userId = makeMemoryUserId(config.targetGroupId);
+        const userId = makeMemoryUserId(sessionIdOf(ctx.space));
 
         const userMessages = shortTermMessages
             .filter((m) => m.role === "user" || m.role === "assistant")
@@ -528,7 +535,7 @@ export async function callTool(tool_call, ctx, confirmed = false){
     if (!tool) {
         throw new Error(`未知工具: ${name}`);
     }
-    return `${name}调用结果:\n${await tool(parameter)}`;
+    return `${name}调用结果:\n${await tool(parameter, ctx)}`;
 }
 
 

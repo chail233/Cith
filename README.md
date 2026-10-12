@@ -131,6 +131,15 @@ npm start
 | `npm run build:watch` | watch 模式构建（资源拷贝不会自动重跑，需手动 build） |
 | `npm run start:dist` | 运行构建产物 `dist/index.js` |
 
+> **`start` 与 `start:dist` 效果等价**：两者跑出来的机器人行为完全一致。
+> - `configDev.js` 位于 `src/` 下且被 tsc 纳入编译，构建后会自动产出 `dist/configDev.js`，所以 `start:dist` 同样能加载开发配置（DevMode 合并、mcpServers 等），无需担心产物缺配置。
+> - `app.pem`、`mcp/` 以 **cwd（项目根）** 解析，与从 `src` 还是 `dist` 启动无关。
+> - 差异仅在非行为层面：`start` 依赖 Node 24 原生擦除类型、每次现场转译、改完即生效；`start:dist` 跑预编译纯 JS、启动更快、不依赖运行时 TS 支持，但必须先 `npm run build`（产物只与上次构建同样新鲜）。
+>
+> **推荐**：日常开发直接 `npm start`；上线部署用 `npm run build && npm run start:dist`。
+>
+> **`dist/` 不提交 git**：构建产物可由 `src/` 重新生成，已在 `.gitignore` 中忽略。
+
 ### 配置
 
 所有配置集中在 `src/config.js` 中。
@@ -280,7 +289,6 @@ src/
 │   ├── acg.js                  # ACG 图片 API
 │   ├── hitokoto.js             # 一言 API
 │   ├── weather.js              # 和风天气 API
-│   └── getModels.js            # 百炼模型列表
 │
 ├── skills/                     # Skill 技能目录（AI 可读写）
 │   └── skill-manager/          # 内置：技能管理器

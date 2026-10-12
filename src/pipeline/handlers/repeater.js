@@ -1,7 +1,7 @@
 // @ts-check
 
 import needRepeat from "../../tools/repeater.js";
-import recorder from "../../llm/recorder.js";
+import { getRecorder } from "../../llm/session.ts";
 import { nowTime } from "../../utils/time.js";
 
 /**
@@ -20,7 +20,7 @@ export default async function repeater(ctx) {
 
     if (needRepeat(ctx.text)) {
         ctx.adapter.sendGroupMsg(ctx.space.id, ctx.text);
-        recorder.add({ role: "assistant", content: { text: ctx.text, time: nowTime() } });
+        getRecorder(ctx.space).add({ role: "assistant", content: { text: ctx.text, time: nowTime() } });
         return true;
     }
 

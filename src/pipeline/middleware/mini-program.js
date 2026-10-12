@@ -1,6 +1,5 @@
-// @ts-check
 
-import recorder from "../../llm/recorder.js";
+import { getRecorder } from "../../llm/session.ts";
 import logger from "../../utils/logger.js";
 import {nowTime} from "../../utils/time.js";
 
@@ -21,7 +20,7 @@ export default async function miniProgram(ctx) {
                 if (title) {
                     logger.info("小程序消息:", seg.data.data);
                     const text = `[分享了${title}消息]`;
-                    recorder.add({
+                    getRecorder(ctx.space).add({
                         role: "user",
                         content: {
                             name: ctx.senderName,

@@ -1,6 +1,6 @@
 import chatAPI from "../../llm/chat.js";
 import logger from "../../utils/logger.js";
-import chatrecorder from "../../llm/recorder.js";
+import { getRecorder } from "../../llm/session.ts";
 import {nowTime} from "../../utils/time.js";
 
 /**
@@ -27,7 +27,7 @@ export default async function aiChat(ctx) {
             at: "我"
         },
     };
-    chatrecorder.add(msg);
+    getRecorder(ctx.space).add(msg);
     logger.info("AI 对话请求:", content);
 
     await chatAPI(ctx);

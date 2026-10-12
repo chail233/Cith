@@ -15,13 +15,15 @@ import logger from "../utils/logger.js";
 export class ChatRecorder {
     /**
      * @param {number} [limit] 最大消息条数
+     * @param {string} [sessionId] 会话 ID（用于派生长期记忆实体，隔离不同群/私聊）
      */
     constructor(
-        limit = config.CHAT_HISTORY_LIMIT) {
+        limit = config.CHAT_HISTORY_LIMIT, sessionId = "default") {
         this._messages = [];
         this._cache = [];
         this._midSummary = "";
         this._limit = limit;
+        this._sessionId = sessionId;
         this._needsSummarization = false;
     }
 
@@ -33,7 +35,7 @@ export class ChatRecorder {
      * 超出短期限制的消息自动进入中期缓存
      */
     add(msg) {
-        if(msg.role==="user"){
+        if (msg.role === "user") {
             const realText = (msg.content?.text ?? "").replace(/[\s\u3000\u200b\u200c\u200d]/g, '');
             if (realText === "") return;
         }
@@ -51,13 +53,13 @@ export class ChatRecorder {
     /** 获取所有短期消息的副本（content 序列化为字符串） */
     getAll() {
         return this._messages.map((msg) => {
-            return { role: msg.role, content: JSON.stringify(msg.content) };
+            return {role: msg.role, content: JSON.stringify(msg.content)};
         });
     }
 
     getCache() {
         return this._cache.map((msg) => {
-            return { role: msg.role, content: JSON.stringify(msg.content) };
+            return {role: msg.role, content: JSON.stringify(msg.content)};
         });
     }
 
@@ -76,9 +78,9 @@ export class ChatRecorder {
 
         // 1. 如果存在旧的概括，先存入长期记忆（放在 messages 中，标注为对话摘要）
         if (this._midSummary) {
-            const userId = makeMemoryUserId(config.targetGroupId);
+            const userId = makeMemoryUserId(this._sessionId);
             await addMemory(userId, [
-                { role: "user", content: `对话摘要：${this._midSummary}` },
+                {role: "user", content: `对话摘要：${this._midSummary}`},
             ]);
         }
 
@@ -87,9 +89,9 @@ export class ChatRecorder {
 
         // 3. 生成新的概括
         let userMsgs = "";
-        for(let i=0;i<this._cache.length;i++) {
+        for (let i = 0; i < this._cache.length; i++) {
             const msg = this._cache[i];
-            userMsgs += `${i+1}.`;
+            userMsgs += `${i + 1}.`;
             userMsgs += JSON.stringify(msg) + "\n";
         }
         const result = await callLLM({
@@ -109,7 +111,7 @@ export class ChatRecorder {
                 }
             ],
             temperature: 0.2,
-            enableSearch:false
+            enableSearch: false
         });
 
         if (result) {
@@ -125,9 +127,9 @@ export class ChatRecorder {
      */
     async _extractProfilesFromCache() {
         let userMsgs = "";
-        for(let i=0;i<this._cache.length;i++) {
+        for (let i = 0; i < this._cache.length; i++) {
             const msg = this._cache[i];
-            userMsgs += `${i+1}.`;
+            userMsgs += `${i + 1}.`;
             userMsgs += JSON.stringify(msg) + "\n";
         }
         const result = await callLLM({
@@ -146,7 +148,7 @@ export class ChatRecorder {
                     content: userMsgs
                 }
             ],
-            responseFormat: { type: "json_object" },
+            responseFormat: {type: "json_object"},
         });
 
         try {
@@ -159,14 +161,13 @@ export class ChatRecorder {
             for (const profile of profiles) {
                 await extractUserProfile(profile.qq.toString(), [{role: "user", content: profile.info}]);
             }
-        }
-        catch (e) {
+        } catch (e) {
             logger.error("用户画像提取失败:", e);
         }
     }
 
-    async compress(){
-        if(this._messages.length>=10){
+    async compress() {
+        if (this._messages.length >= 10) {
             this._cache = this._cache.concat(this._messages);
             this._messages = [];
         }
@@ -186,9 +187,9 @@ export class ChatRecorder {
     get length() {
         return this._messages.length;
     }
+
+    /** 会话 ID */
+    get sessionId() {
+        return this._sessionId;
+    }
 }
-
-/** 默认单例实例 */
-export const chatRecorder = new ChatRecorder();
-
-export default chatRecorder;

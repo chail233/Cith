@@ -1,7 +1,7 @@
 // @ts-check
 
 import chatAPI from "../../llm/chat.js";
-import recorder from "../../llm/recorder.js";
+import { getRecorder } from "../../llm/session.ts";
 import logger from "../../utils/logger.js";
 import config from "../../config.js";
 import { nowTime} from "../../utils/time.js";
@@ -16,6 +16,7 @@ import { nowTime} from "../../utils/time.js";
  */
 export default async function proactiveChat(ctx) {
     if(!config.EnableProactiveChat) return false;
+    const recorder = getRecorder(ctx.space);
     const text = ctx.text + (ctx.imageDescription ? `\n${ctx.imageDescription}` : "");
     recorder.add({
         role: "user",

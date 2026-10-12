@@ -1,12 +1,12 @@
 import crypto from "node:crypto";
 import logger from "../utils/logger.js";
 import { callTool } from "./tools.js";
-import recorder from "./recorder.js";
+import { getRecorder } from "./session.ts";
 
 const TTL_MS = 10 * 60 * 1000; // 10 分钟
 const MAX_PENDING = 20;
 
-/** @type {Map<string, {toolCall: object, toolName: string, requestedBy: string, requestedByName: string, createdAt: number}>} */
+/** @type {Map<string, {toolCall: object, toolName: string, requestedBy: string, requestedByName: string, space: object|null, createdAt: number}>} */
 const pending = new Map();
 
 function sweepExpired() {
@@ -35,6 +35,7 @@ export function hold(toolCall, ctx) {
         toolName,
         requestedBy: ctx?.userId ?? "unknown",
         requestedByName: ctx?.senderName ?? "未知用户",
+        space: ctx?.space ?? null,
         createdAt: Date.now(),
     });
     logger.info(`危险操作待确认 #${id}: ${toolName}（发起人 ${ctx?.senderName ?? "?"}）`);
@@ -55,8 +56,11 @@ export async function confirm(id) {
     logger.info(`执行已确认的危险操作 #${id}: ${entry.toolName}`);
     try {
         const toolCall = entry.toolCall;
-        const result = await callTool(toolCall, null, true);
-        recorder.add({ role: "tool", content: { text: result }, tool_call_id: toolCall.id });
+        const result = await callTool(toolCall, entry.space ? { space: entry.space } : null, true);
+        // 结果注入发起会话的上下文；会话已被回收时按发起空间重建
+        if (entry.space) {
+            getRecorder(entry.space).add({ role: "tool", content: { text: result }, tool_call_id: toolCall.id });
+        }
         return { ok: true, text: `#${id} ${entry.toolName} 已执行，结果已注入对话上下文`};
     } 
     catch (err) {
