@@ -1,7 +1,7 @@
 import { WebSocketServer } from "ws";
 import config from "../config.js";
 import logger from "../utils/logger.js";
-import { OneBotAdapter } from "./adapter.js";
+import { OneBotAdapter } from "./adapter/adapter.js";
 
 /**
  * 启动 OneBot WebSocket 服务

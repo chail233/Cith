@@ -1,4 +1,4 @@
-import logger from "../utils/logger.js";
+import logger from "../../utils/logger.js";
 /**
  * 消息适配器
  * 包装一个 WebSocket 连接，提供事件接收和动作发送的抽象接口

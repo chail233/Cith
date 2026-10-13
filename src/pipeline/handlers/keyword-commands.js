@@ -1,6 +1,6 @@
 import getSentence from "../../services/hitokoto.js";
 import getAcg from "../../services/acg.js";
-import getSunGirl from "../../data/sunbatwo-girls.js";
+import getSunGirl from "../../data/assets.js";
 import { getRecorder } from "../../llm/session.ts";
 import { nowTime } from "../../utils/time.js";
 
