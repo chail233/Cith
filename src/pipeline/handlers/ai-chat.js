@@ -14,7 +14,7 @@ import {nowTime} from "../../utils/time.js";
  * @returns {Promise<boolean>}
  */
 export default async function aiChat(ctx) {
-    if (!ctx.isAtBot) return false;
+    if (ctx.space.from==="group" && !ctx.isAtBot) return false;
 
     const content = ctx.text + (ctx.imageDescription ? `\n${ctx.imageDescription}` : "");
     const msg = {

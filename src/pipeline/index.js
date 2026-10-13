@@ -50,10 +50,10 @@ export default async function runPipeline(ctxEvent) {
         }
     }
 
-    // 5. 如果中间件已标记为处理完毕（如小程序分享），则跳过处理器
+    //如果中间件已标记为处理完毕（如小程序分享），则跳过处理器
     if (ctx.handled) return;
 
-    // 6. 运行处理器，第一个返回 true 的停止后续处理器
+    //运行处理器，第一个返回 true 的停止后续处理器
     if(ctx.text.trim()==="" && !ctx.imageDescription) return;
     for (const handler of handlers) {
         try {

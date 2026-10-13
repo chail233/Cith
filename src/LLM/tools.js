@@ -6,7 +6,6 @@ import { readFile as fsReadFile, writeFile as fsWriteFile, mkdir, rm, readdir, s
 import { dirname, extname, resolve } from "node:path";
 import { execFile } from "node:child_process";
 import { resolveSrcPath, checkPathWhitelist } from "../utils/file-security.js";
-import {sendGroupMsg} from "../bot/actions.js";
 import {mcpClient} from "./mcp-client.js";
 import {hold} from "./tool-approval.js";
 
@@ -389,7 +388,6 @@ async function editFile(param) {
 
     const whitelistResult = checkPathWhitelist(pathResult.fullPath, config.editFileDirs || [], "编辑");
     if (whitelistResult.error) return whitelistResult.error;
-    if(config.agentMode) sendGroupMsg(config.targetGroupId, `编辑文件${filepath}...`);
 
     // 读取原文
     let content;
@@ -485,7 +483,6 @@ async function listFiles(param) {
 
 
 async function listMcpTools(param) {
-    if (config.agentMode) sendGroupMsg(config.targetGroupId, `获取 ${param.mcpName} 的工具列表...`);
     const newTools = await mcpClient.getToolDefinitionOfServer(param.mcpName);
     mcpTools.push(...newTools);
     return `已将 ${param.mcpName} 的工具加入工具列表`;

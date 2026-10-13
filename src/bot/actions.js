@@ -1,4 +1,3 @@
-// @ts-check
 
 /**
  * OneBot 动作构建器
@@ -14,17 +13,6 @@
  */
 export function buildAction(action, params, echo) {
     return { action, params, ...(echo ? { echo } : {}) };
-}
-
-/**
- * 发送群消息
- * @param {string|number} groupId 群号
- * @param {string|object|Array} message 消息内容
- * @param {string} [echo]
- * @returns {{action: string, params: {group_id: string|number, message: any}, echo?: string}}
- */
-export function sendGroupMsg(groupId, message, echo) {
-    return buildAction("send_group_msg", { group_id: groupId, message }, echo);
 }
 
 /**

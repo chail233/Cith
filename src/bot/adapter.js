@@ -1,6 +1,6 @@
 import logger from "../utils/logger.js";
 /**
- * OneBot 协议适配器
+ * 消息适配器
  * 包装一个 WebSocket 连接，提供事件接收和动作发送的抽象接口
  */
 export class OneBotAdapter {
@@ -68,24 +68,19 @@ export class OneBotAdapter {
     }
 
     /**
-     * 便捷方法：发送群消息
-     * @param {string|number} groupId
+     * 发送消息
+     * @param {object} space
      * @param {string|object|Array} message
      */
-    sendGroupMsg(groupId, message) {
+    sendMsg(space, message) {
         this.sendAction({
-            action: "send_group_msg",
-            params: { group_id: groupId, message },
+            action: "send_msg",
+            params: {
+                message_type: space.from==="group" ? "group" : "private",
+                group_id: space.from==="group"? space.id : null,
+                user_id: space.from==="user"?space.id : null,
+                message
+            },
         });
-    }
-
-    /** 获取原始 WebSocket 实例（用于与旧模块兼容） */
-    get rawWs() {
-        return this.ws;
-    }
-
-    /** 连接是否已关闭 */
-    get closed() {
-        return this._closed;
     }
 }

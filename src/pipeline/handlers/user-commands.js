@@ -159,23 +159,6 @@ const cmds = [
         }
     },
     {
-        name: "agent",
-        needsAdmin: true,
-        description: "agent模式开关(管理员)",
-        params: [{ name: "开关", desc: "true/false" }],
-        handler: async (args, ctx) => {
-            if (args.length === 0) return "缺少参数 true/false";
-            if (args[0] === "true") {
-                config.agentMode = true;
-                return "开启了agent模式";
-            }
-            else {
-                config.agentMode = false;
-                return "关闭了agent模式";
-            }
-        }
-    },
-    {
         name:"mcp",
         description: "列出MCP配置",
         params: [],
@@ -254,7 +237,7 @@ export default async function userCommands(ctx) {
 
     const { cmd, args } = parseCommand(ctx.text);
     if (!cmd) {
-        ctx.adapter.sendGroupMsg(ctx.space.id, "指令格式无效");
+        ctx.adapter.sendMsg(ctx.space, "指令格式无效");
         return true;
     }
 
@@ -262,13 +245,13 @@ export default async function userCommands(ctx) {
     if (!command) return false;
 
     if (command.needsAdmin && !ctx.isAdmin) {
-        ctx.adapter.sendGroupMsg(ctx.space.id, "无权限");
+        ctx.adapter.sendMsg(ctx.space, "无权限");
         return true;
     }
 
     const result = await command.handler(args, ctx);
     if (result !== null && result !== undefined) {
-        ctx.adapter.sendGroupMsg(ctx.space.id, result);
+        ctx.adapter.sendMsg(ctx.space, result);
     }
     return true;
 }

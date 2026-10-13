@@ -16,10 +16,10 @@ CMD_MAP.set("来句台词", async (ctx) => {
     const time = nowTime();
     const recorder = getRecorder(ctx.space);
     if (sentence) {
-        ctx.adapter.sendGroupMsg(ctx.space.id, sentence);
+        ctx.adapter.sendMsg(ctx.space, sentence);
         recorder.add({ role: "assistant", content: { text: sentence, time } });
     } else {
-        ctx.adapter.sendGroupMsg(ctx.space.id, "别急");
+        ctx.adapter.sendMsg(ctx.space, "别急");
         recorder.add({ role: "assistant", content: { text: "别急", time } });
     }
 });
@@ -27,18 +27,18 @@ CMD_MAP.set("来句台词", async (ctx) => {
 CMD_MAP.set("来张图", async (ctx) => {
     const img = await getAcg();
     if (img) {
-        ctx.adapter.sendGroupMsg(ctx.space.id, img);
+        ctx.adapter.sendMsg(ctx.space, img);
     }
 });
 
 CMD_MAP.set("来只孙巴二娘", async (ctx) => {
-    ctx.adapter.sendGroupMsg(ctx.space.id, [
+    ctx.adapter.sendMsg(ctx.space, [
         { type: "image", data: { file: getSunGirl() } },
     ]);
 });
 
 CMD_MAP.set("来只牛魔", async (ctx) => {
-    ctx.adapter.sendGroupMsg(ctx.space.id, [
+    ctx.adapter.sendMsg(ctx.space, [
         {
             type: "image",
             data: {

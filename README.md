@@ -322,7 +322,7 @@ tsconfig.build.json             # 构建配置（noCheck 只转译，遗留 JS �
 
 ```js
 CMD_MAP.set("关键词", async (ctx) => {
-    ctx.adapter.sendGroupMsg(ctx.space.id, "回复内容");
+    ctx.adapter.sendMsg(ctx.space, "回复内容");
 });
 ```
 

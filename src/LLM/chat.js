@@ -36,7 +36,7 @@ export default async function chat(ctx) {
     let tokenCount = 0;
 
     if (!result || typeof result === "string") {
-        await sendAiReply(ctx.adapter, ctx.space.id, typeof result === "string" ? "ERROR:" + result : "ERROR:AI 服务无响应", recorder);
+        await sendAiReply(ctx.adapter, ctx.space, typeof result === "string" ? "ERROR:" + result : "ERROR:AI 服务无响应", recorder);
         return;
     }
 
@@ -47,7 +47,7 @@ export default async function chat(ctx) {
         toolDepth++;
         let parsed = handleReply(result.message.content);
         if(parsed.length > 0){
-            await sendAiReply(ctx.adapter, ctx.space.id, {acts: parsed, tokens: tokenCount}, recorder);
+            await sendAiReply(ctx.adapter, ctx.space, {acts: parsed, tokens: tokenCount}, recorder);
             tokenCount = 0;
         }
         for(const tool_call of result.message.tool_calls){
@@ -61,7 +61,7 @@ export default async function chat(ctx) {
             }
             catch (err) {
                 logger.error("AI 工具调用失败:", err);
-                await sendAiReply(ctx.adapter, ctx.space.id, `ERROR:工具调用失败 - ${err.message}`, recorder);
+                await sendAiReply(ctx.adapter, ctx.space, `ERROR:工具调用失败 - ${err.message}`, recorder);
             }
         }
         // chatRecorder.add({role: "system", content: { text: "工具调用已完成，请继续以JSON格式输出回复。" }});
@@ -74,7 +74,7 @@ export default async function chat(ctx) {
             tools: getAllTools(),
         });
         if (typeof result === "string") {
-            await sendAiReply(ctx.adapter, ctx.space.id, "ERROR:"+result, recorder);
+            await sendAiReply(ctx.adapter, ctx.space, "ERROR:"+result, recorder);
             return;
         }
         tokenCount += result.totalTokens;
@@ -83,7 +83,7 @@ export default async function chat(ctx) {
     // 解析 JSON 响应
     let parsed = handleReply(result.message.content);
 
-    await sendAiReply(ctx.adapter, ctx.space.id, {
+    await sendAiReply(ctx.adapter, ctx.space, {
         acts: parsed??[],
         tokens: tokenCount,
     }, recorder);
@@ -104,11 +104,11 @@ function buildMessages(recorder){
 /**
  * 发送 AI 回复（支持多条消息分段发送）
  * @param {import("../../bot/adapter.js").OneBotAdapter} adapter
- * @param {string|number} groupId
+ * @param {import("../pipeline/type.ts").Space} space
  * @param {{acts: Array<{cmd: string, content: string}>, tokens: number}|string} res
  * @param {import("./recorder.js").ChatRecorder} recorder 当前会话的记忆记录器
  */
-export async function sendAiReply(adapter, groupId, res, recorder) {
+export async function sendAiReply(adapter, space, res, recorder) {
     let first = true;
     if(typeof res === "string"){
         res = {acts: [{cmd: "text", content: res}], tokens: 0};
@@ -122,7 +122,7 @@ export async function sendAiReply(adapter, groupId, res, recorder) {
                 first = false;
                 if(res.tokens)content += `(${res.tokens}tokens)`;
             }
-            adapter.sendGroupMsg(groupId, content);
+            adapter.sendMsg(space, content);
         }
         await sleep(3000 + Math.floor(Math.random() * 1000));
     }

@@ -26,11 +26,11 @@ const http = axios.create({
 
 /**
  * 构造记忆实体 ID
- * @param {string} groupId 群号
+ * @param {string} id
  * @returns {string}
  */
-export function makeMemoryUserId(groupId) {
-    return `${config.MEMORY_USER_ID_PREFIX}${groupId}`;
+export function makeMemoryUserId(id) {
+    return `${config.MEMORY_USER_ID_PREFIX}${id}`;
 }
 
 /**
@@ -120,9 +120,9 @@ export async function searchMemory(userId, messages, options = {}) {
  * 从对话中提取用户画像
  *
  * 调用 /add 接口并传入 profile_schema
- * 每个用户应使用独立的 user_id（QQ 号），以便分别维护画像。
+ * 每个用户应使用独立的 user_id，以便分别维护画像。
  *
- * @param {string} userId 用户唯一标识（QQ 号）
+ * @param {string} userId 用户唯一标识
  * @param {Array<{role: string, content: string}>} messages 该用户的对话消息列表
  * @returns {Promise<boolean>} 成功返回 true，失败返回 false
  */
@@ -158,7 +158,7 @@ export async function extractUserProfile(userId, messages) {
 /**
  * 获取用户画像
  *
- * @param {string} userId 用户唯一标识（QQ 号）
+ * @param {string} userId 用户唯一标识
  * @returns {Promise<string>} 画像内容文本，无画像时返回空字符串
  */
 export async function getUserProfile(userId) {

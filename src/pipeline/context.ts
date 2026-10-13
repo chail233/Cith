@@ -1,13 +1,13 @@
 import config from "../config.js";
-import type { Context, CtxEvent } from "./type.ts";
+import type { Context, CtxEvent, Space } from "./type.ts";
 import {extractText} from "../utils/extractText.ts";
 
 export function buildContext(event: CtxEvent): Context {
     const text = extractText(event.message || []);
     const isAdmin = event.userId === config.owner;
-    const isTarget =
-        event.space.from === "group" &&
-        config.targetGroupId.includes(event.space.id);
+    const isTarget = event.space.from === "user"
+        ? config.targetUserId.includes(event.space.id)
+        : config.targetGroupId.includes(event.space.id);
 
     return {
         adapter: event.adapter,

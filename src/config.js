@@ -32,6 +32,8 @@ const baseConfig = {
 
     /** 目标群 ID */
     targetGroupId: ["your_group_id"],
+    /** 目标用户 ID */
+    targetUserId: ["your_user_id"],
 
     /** 机器人自身 QQ 号 */
     selfId: "your_bot_qq",
@@ -152,7 +154,7 @@ const baseConfig = {
     members: new Map([
     ]),
 
-    SYSTEM_PROMPT : "你是QQ群孙巴二的成员孙巴二娘，性格活泼，什么都懂，认真回应大家的问题\n" +
+    SYSTEM_PROMPT : "你是AI智能体孙巴二娘，性格活泼，什么都懂，认真回应大家的问题\n" +
         "行为约束：\n" +
         "1.不许编造未知信息\n" +
         "2.问题模糊就简短反问，不要大段猜测\n" +

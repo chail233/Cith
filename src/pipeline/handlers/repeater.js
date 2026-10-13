@@ -19,7 +19,7 @@ export default async function repeater(ctx) {
     if (ctx.text.startsWith("#") || ctx.text.startsWith("/")) return false;
 
     if (needRepeat(ctx.text)) {
-        ctx.adapter.sendGroupMsg(ctx.space.id, ctx.text);
+        ctx.adapter.sendMsg(ctx.space, ctx.text);
         getRecorder(ctx.space).add({ role: "assistant", content: { text: ctx.text, time: nowTime() } });
         return true;
     }
