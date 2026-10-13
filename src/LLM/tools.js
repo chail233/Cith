@@ -198,7 +198,7 @@ export function getAllTools() {
 /**
  * 搜索长期记忆（使用当前会话的短期上下文作为查询线索）
  * @param {object} param
- * @param {{space?: import("../pipeline/type.ts").Space}|null} [ctx]
+ * @param {{space?: import("../types/index.ts").Space}|null} [ctx]
  */
 async function getMemory(param, ctx) {
     if (!ctx?.space) return "无法确定当前会话，无法搜索记忆";

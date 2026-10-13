@@ -104,7 +104,7 @@ function buildMessages(recorder){
 /**
  * 发送 AI 回复（支持多条消息分段发送）
  * @param {import("../../bot/adapter.js").OneBotAdapter} adapter
- * @param {import("../pipeline/type.ts").Space} space
+ * @param {import("../types/index.ts").Space} space
  * @param {{acts: Array<{cmd: string, content: string}>, tokens: number}|string} res
  * @param {import("./recorder.js").ChatRecorder} recorder 当前会话的记忆记录器
  */

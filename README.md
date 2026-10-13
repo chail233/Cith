@@ -178,7 +178,7 @@ NapCat 发送事件
 bot/server.js ─── WebSocket 服务
     │
     ▼
-bot/adapter.js ─── OneBot 协议解析
+bot/adapter/OnebotAdapter ─── OneBot 协议解析（继承 BaseAdapter）
     │
     ▼
 pipeline/index.js ─── 管道编排
@@ -255,13 +255,16 @@ src/
 │
 ├── bot/                        # 通信层
 │   ├── server.js               # WebSocket 服务
-│   ├── adapter.js              # OneBot 协议适配器（收发消息封装）
-│   └── actions.js              # OneBot 动作构建器
+│   └── adapter/                # 协议适配器（可插拔）
+│       ├── BaseAdapter.ts      # 抽象基类：定义 onMessage / sendMsg 契约
+│       └── OnebotAdapter.ts    # OneBot v11 协议实现
+│
+├── types/                      # 跨模块共用类型定义
+│   └── index.ts                # Context / CtxEvent / Space / MessageSegment
 │
 ├── pipeline/                   # 事件处理管道
 │   ├── index.js                # 管道编排：中间件 → 处理器
 │   ├── context.ts              # 上下文构建（TS）
-│   ├── type.ts                 # 管道类型定义（Context / CtxEvent / Space 等）
 │   ├── middleware/              # 中间件（丰富上下文）
 │   │   ├── image-recognizer.js # 图片识别
 │   │   ├── at-detector.js      # @检测

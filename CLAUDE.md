@@ -18,11 +18,19 @@ All config lives in `src/config.js` (defaults, shared constants, and `SYSTEM_PRO
 
 ### Event pipeline
 
-`NapCat → bot/server.js (WS) → bot/adapter.js → pipeline/index.js`.
+`NapCat → bot/server.js (WS) → bot/adapter/OnebotAdapter → pipeline/index.js`.
 
 - `pipeline/context.js` builds `ctx` for each event: `{ event, adapter, text, userId, senderName, isAdmin, isTargetGroup, isAtBot, imageDescription, handled }`. Only group messages from `config.targetGroupId` proceed. `isAdmin` = user is `config.owner`.
 - **Middleware** (`pipeline/middleware/`) all run in order and enrich `ctx`: `image-recognizer` (sets `ctx.imageDescription`), `at-detector` (sets `ctx.isAtBot`), `mini-program` (may set `ctx.handled = true` to short-circuit). Errors are caught and logged, never fatal.
 - **Handlers** (`pipeline/handlers/`) run in order and the pipeline **stops at the first that returns `true`**: `keyword-commands → user-commands → ai-chat → repeater → proactive-chat`. Add new bot behavior by inserting a handler here, not by editing the loop.
+
+### Adapters (`bot/adapter/`)
+
+Transport protocols are abstracted behind `BaseAdapter` (an abstract class). It owns the `pipeline` callback, exposes `onMessage()` (feeds a normalized `CtxEvent` into the pipeline) and declares `sendMsg()` abstract. `OnebotAdapter` implements the OneBot v11 wire format (`sendAction`/`sendMsg` over the WebSocket). To support a new chat platform, subclass `BaseAdapter` and implement `sendMsg()` — the pipeline and handlers stay unchanged because they only ever talk to the `BaseAdapter` contract. Keep transport-specific state (e.g. the `ws` socket) in the concrete subclass, not in the base.
+
+### Shared types (`src/types/`)
+
+Cross-module type contracts live in `src/types/index.ts`: `CtxEvent` (normalized inbound event), `Space` (group/private target), `Context` (pipeline ctx), and `MessageSegment`. This is the **single source of truth** — the adapter layer and the pipeline both import from it; do not redefine these interfaces locally. `CtxEvent.adapter` / `Context.adapter` are typed as `BaseAdapter` so `ctx.adapter.sendMsg()` is type-checked (type-only circular imports between `types` and `BaseAdapter` are fine — they are erased at runtime).
 
 ### Agent loop (`llm/chat.js`)
 
@@ -59,5 +67,6 @@ A skill is a directory under `src/skills/` containing `SKILL.md` with YAML front
 ## Conventions
 
 - Comments, log strings, and the `SYSTEM_PROMPT` are in Chinese; keep new code consistent.
+- New cross-module interfaces go in `src/types/index.ts` (not redefined per module); new chat platforms are added by subclassing `BaseAdapter` in `bot/adapter/`.
 - Use `utils/logger.js` rather than `console`.
 - `config.SYSTEM_PROMPT` defines both the persona and the strict JSON output contract — changes there affect every reply.

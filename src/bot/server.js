@@ -1,17 +1,10 @@
 import { WebSocketServer } from "ws";
 import config from "../config.js";
 import logger from "../utils/logger.js";
-import { OneBotAdapter } from "./adapter/adapter.js";
+import OnebotAdapter from "./adapter/OnebotAdapter.ts";
 
-/**
- * 启动 OneBot WebSocket 服务
- * NapCat 作为客户端连接到此服务
- *
- * @param {(event: object, adapter: OneBotAdapter) => void | Promise<void>} onEvent
- *   事件处理回调，收到事件时调用
- * @returns {Promise<WebSocketServer>} WebSocket 服务器实例
- */
-export function startOneBotServer(onEvent) {
+
+export function startOneBotServer(pipeline) {
     const wss = new WebSocketServer({
         port: config.wsPort,
         path: "/onebot/v11/ws",
@@ -20,16 +13,37 @@ export function startOneBotServer(onEvent) {
     wss.on("connection", (ws) => {
         logger.info(`NapCat 已连接 (端口: ${config.wsPort})`);
 
-        const adapter = new OneBotAdapter(ws);
+        const onebotAdapter = new OnebotAdapter(pipeline, ws);
 
-        adapter.onEvent(async (event) => {
+        ws.on("message", (data) => {
             try {
-                await onEvent(event, adapter);
+                const event = JSON.parse(data.toString());
+                logger.debug("收到事件:", event);
+                if (event.post_type !== "message") return;
+                const space = event.message_type === "group" ?
+                    { from: "group", id: event.group_id.toString() } : { from: "user", id: event.user_id.toString() };
+                const ctxEvent = {
+                    adapter:onebotAdapter,
+                    message:event.message,
+                    space: space,
+                    userId: event.user_id.toString(),
+                    nickName:event.sender?.nickname ?? "未知"
+                }
+                const result = onebotAdapter.onMessage(ctxEvent);
             }
             catch (err) {
-                logger.error("事件处理出错:", err);
+                logger.error("解析事件 JSON 失败:", err);
             }
         });
+
+        ws.on("close", () => {
+            logger.info("WebSocket 连接关闭");
+        });
+
+        ws.on("error", (err) => {
+            logger.error("WebSocket 连接错误:", err);
+        });
+
     });
 
     wss.on("listening", () => {

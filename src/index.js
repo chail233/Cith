@@ -1,5 +1,3 @@
-// @ts-check
-
 import logger from "./utils/logger.js";
 import { startOneBotServer } from "./bot/server.js";
 import runPipeline from "./pipeline/index.js";

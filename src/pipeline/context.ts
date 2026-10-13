@@ -1,5 +1,5 @@
 import config from "../config.js";
-import type { Context, CtxEvent, Space } from "./type.ts";
+import type { Context, CtxEvent, Space } from "../types/index.ts";
 import {extractText} from "../utils/extractText.ts";
 
 export function buildContext(event: CtxEvent): Context {

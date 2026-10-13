@@ -2,7 +2,7 @@
 
 import { ChatRecorder } from "./recorder.js";
 import logger from "../utils/logger.js";
-import type { Space } from "../pipeline/type.ts";
+import type { Space } from "../types/index.ts";
 
 // tsconfig 未配置 @types/node（历史遗留），此处按 Node 签名做最小声明
 declare const setInterval: (handler: () => void, timeout: number) => { unref(): void };
