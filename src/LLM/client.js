@@ -18,6 +18,15 @@ const http = axios.create({
     },
 });
 
+const http_vision = axios.create({
+    baseURL: config.LLM_VISION_API_URL,
+    timeout: config.LLM_TIMEOUT,
+    headers: {
+        Authorization: `Bearer ${config.visionAPIKEY}`,
+        "Content-Type": "application/json",
+    },
+});
+
 /**
  * 调用 LLM 聊天补全接口
  * @param {object} options
