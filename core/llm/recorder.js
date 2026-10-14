@@ -139,8 +139,8 @@ export class ChatRecorder {
                     role: "system",
                     content:
                         "请从以下对话历史中提取每个用户的关键信息和特征。比如家庭成员、年龄、社会关系、内容偏好、饮食习惯、年龄段、人生理想/目标、性别、爱好、居住地等\n" +
-                        "返回格式必须为JSON，包含一个提取结果的数组，数组每个元素格式如下：\n" +
-                        "{qq: \"用户QQ号\", info: \"提取出来的用户画像信息,用第一人称描述\"}\n" +
+                        "返回格式必须为 JSON 对象，顶层包含一个名为 profiles 的数组字段，数组每个元素格式如下：\n" +
+                        "{\"profiles\": [{\"qq\": \"用户QQ号\", \"info\": \"提取出来的用户画像信息,用第一人称描述\"}]}\n" +
                         "请确保返回的JSON格式正确，并且只包含提取的用户信息，不要其他内容。每个用户信息只放在一个对象里。"
                 },
                 {
@@ -153,7 +153,9 @@ export class ChatRecorder {
 
         try {
 
-            const profiles = JSON.parse(result.message.content);
+            // json_object 模式顶层是对象，取 profiles 数组字段；兼容模型直接返回数组的情况
+            const data = JSON.parse(result.message.content);
+            const profiles = Array.isArray(data) ? data : data?.profiles;
             if (!Array.isArray(profiles)) {
                 logger.warn("提取的画像不是数组格式:", result.message.content);
                 return;

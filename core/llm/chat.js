@@ -66,7 +66,6 @@ export default async function chat(ctx) {
                 await sendAiReply(ctx.adapter, ctx.space, `ERROR:工具调用失败 - ${err.message}`, recorder);
             }
         }
-        // chatRecorder.add({role: "system", content: { text: "工具调用已完成，请继续以JSON格式输出回复。" }});
         result = await callLLM({
             model: config.CHAT_MODEL,
             messages: buildMessages(recorder),
@@ -141,7 +140,8 @@ export async function sendAiReply(adapter, space, res, recorder) {
         }
         await sleep(3000 + Math.floor(Math.random() * 1000));
     }
-    recorder.add({ role: "assistant", content: res.acts });
+    // 存回模型应返回的 {action:[...]} 格式，与系统提示词一致，避免上下文格式漂移
+    recorder.add({ role: "assistant", content: { action: res.acts } });
     recorder.msgWithoutChat = 0
 }
 
