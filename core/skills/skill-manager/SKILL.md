@@ -40,6 +40,28 @@ args: { "name": "技能名称" }
 
 返回卸载结果，包含技能名称和已删除路径。
 
+### 3. 设置强加载（set-force）
+
+将指定技能标记为强加载技能（`force: true`），使其 `SKILL.md` 正文固定注入每次对话的上下文。
+
+```
+filepath: skills/skill-manager/scripts/set-force-skill.js
+args: { "name": "技能名称" }
+```
+
+参数 `name` 为 skills 目录下的文件夹名。修改后下一条消息即生效（每回合现取）。
+
+### 4. 取消强加载（unset-force）
+
+将指定技能取消强加载（`force: false`），其正文不再固定注入上下文。
+
+```
+filepath: skills/skill-manager/scripts/unset-force-skill.js
+args: { "name": "技能名称" }
+```
+
+返回操作结果，包含技能名称、force 状态和 SKILL.md 路径。
+
 ## 注意事项
 
 - 安装前会自动探测 SKILL.md 位置，兼容多种仓库结构

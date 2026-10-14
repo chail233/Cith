@@ -138,7 +138,6 @@ const baseConfig = {
         "edit_file",
         "create_file",
         "delete_file",
-        "run_JS",
     ],
 
     /** Agent模式 */
