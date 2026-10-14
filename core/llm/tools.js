@@ -48,7 +48,7 @@ const tools = [
                 properties: {
                     filepath: {
                         type: "string",
-                        description: "相对于 src/ 目录的文件路径",
+                        description: "相对于 core/ 目录的文件路径",
                     },
                 },
                 required: ["filepath"],
@@ -65,7 +65,7 @@ const tools = [
                 properties: {
                     filepath: {
                         type: "string",
-                        description: "相对于 src/ 的JavaScript 脚本文件路径",
+                        description: "相对于 core/ 的JavaScript 脚本文件路径",
                     },
                     args: {
                         type: "object",
@@ -86,7 +86,7 @@ const tools = [
                 properties: {
                     filepath: {
                         type: "string",
-                        description: "相对于 src/ 的文件路径",
+                        description: "相对于 core/ 的文件路径",
                     },
                     content: {
                         type: "string",
@@ -107,7 +107,7 @@ const tools = [
                 properties: {
                     filepath: {
                         type: "string",
-                        description: "相对于 src/ 的文件路径",
+                        description: "相对于 core/ 的文件路径",
                     },
                 },
                 required: ["filepath"],
@@ -124,7 +124,7 @@ const tools = [
                 properties: {
                     dirpath: {
                         type: "string",
-                        description: "相对于 src/ 的目录路径",
+                        description: "相对于 core/ 的目录路径",
                     },
                 },
                 required: ["dirpath"],
@@ -141,7 +141,7 @@ const tools = [
                 properties: {
                     filepath: {
                         type: "string",
-                        description: "相对于 src/ 的文件路径",
+                        description: "相对于 core/ 的文件路径",
                     },
                     edits: {
                         type: "array",

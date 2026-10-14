@@ -12,7 +12,7 @@ SunbatwoBot is a OneBot v11 QQ bot (NapCat transport) that runs an LLM **agent**
 
 ### Config
 
-All config lives in `src/config.js` (defaults, shared constants, and `SYSTEM_PROMPT`). When `DevMode: true` (the default), real secrets are loaded from `src/configDev.js` (gitignored). Merge rules: dev values overwrite base, **but `mcpServers` and `gatedTools` are concatenated** (base first). If `DevMode` is true and `configDev.js` is missing, the process exits(1) at import time. `src/app.pem` is also gitignored.
+All config lives in `core/config.js` (defaults, shared constants, and `SYSTEM_PROMPT`). When `DevMode: true` (the default), real secrets are loaded from `core/configDev.js` (gitignored). Merge rules: dev values overwrite base, **but `mcpServers` and `gatedTools` are concatenated** (base first). If `DevMode` is true and `configDev.js` is missing, the process exits(1) at import time. `core/app.pem` is also gitignored.
 
 ## Architecture
 
@@ -28,9 +28,9 @@ All config lives in `src/config.js` (defaults, shared constants, and `SYSTEM_PRO
 
 Transport protocols are abstracted behind `BaseAdapter` (an abstract class). It owns the `pipeline` callback, exposes `onMessage()` (feeds a normalized `CtxEvent` into the pipeline) and declares `sendMsg()` abstract. `OnebotAdapter` implements the OneBot v11 wire format (`sendAction`/`sendMsg` over the WebSocket). To support a new chat platform, subclass `BaseAdapter` and implement `sendMsg()` — the pipeline and handlers stay unchanged because they only ever talk to the `BaseAdapter` contract. Keep transport-specific state (e.g. the `ws` socket) in the concrete subclass, not in the base.
 
-### Shared types (`src/types/`)
+### Shared types (`core/types/`)
 
-Cross-module type contracts live in `src/types/index.ts`: `CtxEvent` (normalized inbound event), `Space` (group/private target), `Context` (pipeline ctx), and `MessageSegment`. This is the **single source of truth** — the adapter layer and the pipeline both import from it; do not redefine these interfaces locally. `CtxEvent.adapter` / `Context.adapter` are typed as `BaseAdapter` so `ctx.adapter.sendMsg()` is type-checked (type-only circular imports between `types` and `BaseAdapter` are fine — they are erased at runtime).
+Cross-module type contracts live in `core/types/index.ts`: `CtxEvent` (normalized inbound event), `Space` (group/private target), `Context` (pipeline ctx), and `MessageSegment`. This is the **single source of truth** — the adapter layer and the pipeline both import from it; do not redefine these interfaces locally. `CtxEvent.adapter` / `Context.adapter` are typed as `BaseAdapter` so `ctx.adapter.sendMsg()` is type-checked (type-only circular imports between `types` and `BaseAdapter` are fine — they are erased at runtime).
 
 ### Agent loop (`llm/chat.js`)
 
@@ -54,11 +54,11 @@ Single exported instance `chatRecorder`. Four layers: short-term `_messages` (`c
 
 ### File security (`utils/file-security.js`)
 
-Every file tool resolves its path **relative to `src/`**, rejects traversal, and enforces a per-operation whitelist from `config.readFileDirs` / `runJsDirs` / `editFileDirs` (currently `skills` and `workspace`). `run_JS` runs the script in a child process with a 30s timeout. Do not bypass these helpers to touch files outside the whitelist.
+Every file tool resolves its path **relative to `core/`**, rejects traversal, and enforces a per-operation whitelist from `config.readFileDirs` / `runJsDirs` / `editFileDirs` (currently `skills` and `workspace`). `run_JS` runs the script in a child process with a 30s timeout. Do not bypass these helpers to touch files outside the whitelist.
 
 ### Skills (`llm/skill.js`)
 
-A skill is a directory under `src/skills/` containing `SKILL.md` with YAML frontmatter (`name`, `description`); the parsed list is injected into every prompt as the "技能列表". Executable logic goes in `scripts/` and is run through `run_JS`. `reloadSkills()` re-scans at runtime (`#reloadskls`). `src/skill-manager` installs/uninstalls community skills from GitHub.
+A skill is a directory under `core/skills/` containing `SKILL.md` with YAML frontmatter (`name`, `description`); the parsed list is injected into every prompt as the "技能列表". Executable logic goes in `scripts/` and is run through `run_JS`. `reloadSkills()` re-scans at runtime (`#reloadskls`). `core/skill-manager` installs/uninstalls community skills from GitHub.
 
 ### Services and MCP
 
@@ -67,6 +67,6 @@ A skill is a directory under `src/skills/` containing `SKILL.md` with YAML front
 ## Conventions
 
 - Comments, log strings, and the `SYSTEM_PROMPT` are in Chinese; keep new code consistent.
-- New cross-module interfaces go in `src/types/index.ts` (not redefined per module); new chat platforms are added by subclassing `BaseAdapter` in `bot/adapter/`.
+- New cross-module interfaces go in `core/types/index.ts` (not redefined per module); new chat platforms are added by subclassing `BaseAdapter` in `bot/adapter/`.
 - Use `utils/logger.js` rather than `console`.
 - `config.SYSTEM_PROMPT` defines both the persona and the strict JSON output contract — changes there affect every reply.

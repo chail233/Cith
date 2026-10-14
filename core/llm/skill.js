@@ -29,7 +29,7 @@ function parseSkillMeta(content) {
 }
 
 /**
- * 扫描 src/skills 目录，加载所有 Skill 的元数据
+ * 扫描 core/skills 目录，加载所有 Skill 的元数据
  */
 async function loadSkills() {
     const result = [];

@@ -108,19 +108,19 @@ const baseConfig = {
 
     /**
      * 文件读取工具白名单
-     * 只允许读取 src/ 下这些子目录中的文件
+     * 只允许读取 core/ 下这些子目录中的文件
      */
     readFileDirs: ["skills", "workspace"],
 
     /**
      * JS 脚本执行工具白名单
-     * 只允许执行 src/ 下这些子目录中的 .js 文件
+     * 只允许执行 core/ 下这些子目录中的 .js 文件
      */
     runJsDirs: ["skills", "workspace"],
 
     /**
      * 文件编辑工具白名单
-     * 只允许编辑 src/ 下这些子目录中的文件
+     * 只允许编辑 core/ 下这些子目录中的文件
      */
     editFileDirs: ["skills", "workspace"],
 

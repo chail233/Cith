@@ -49,8 +49,9 @@ export async function callLLM({ model, messages, temperature, enableSearch, resp
             ...(responseFormat && { response_format: responseFormat }),
             ...(tools && { tools }),
         };
-        if(mode==="chat")const resp = await http.post("", data);
-        else const resp = await http_vision.post("", data);
+        let resp;
+        if (mode === "chat") resp = await http.post("", data);
+        else resp = await http_vision.post("", data);
 
         const body = resp.data;
 

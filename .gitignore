@@ -1,5 +1,5 @@
-/src/configDev.js
-/src/app.pem
+/core/configDev.js
+/core/app.pem
 /secrets/
 
 *.pem

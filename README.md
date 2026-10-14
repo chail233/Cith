@@ -126,25 +126,25 @@ npm start
 
 | 命令 | 说明 |
 |------|------|
-| `npm start` | 直接运行 `src/` 源码（Node 24 原生 type stripping 支持 .ts，开发推荐） |
-| `npm run build` | tsc 编译 `src/` → `dist/`，并拷贝 SKILL.md 等非代码资源 |
+| `npm start` | 直接运行 `core/` 源码（Node 24 原生 type stripping 支持 .ts，开发推荐） |
+| `npm run build` | tsc 编译 `core/` → `dist/`，并拷贝 SKILL.md 等非代码资源 |
 | `npm run build:watch` | watch 模式构建（资源拷贝不会自动重跑，需手动 build） |
 | `npm run start:dist` | 运行构建产物 `dist/index.js` |
 
 > **`start` 与 `start:dist` 效果等价**：两者跑出来的机器人行为完全一致。
-> - `configDev.js` 位于 `src/` 下且被 tsc 纳入编译，构建后会自动产出 `dist/configDev.js`，所以 `start:dist` 同样能加载开发配置（DevMode 合并、mcpServers 等），无需担心产物缺配置。
+> - `configDev.js` 位于 `core/` 下且被 tsc 纳入编译，构建后会自动产出 `dist/configDev.js`，所以 `start:dist` 同样能加载开发配置（DevMode 合并、mcpServers 等），无需担心产物缺配置。
 > - `app.pem`、`mcp/` 以 **cwd（项目根）** 解析，与从 `src` 还是 `dist` 启动无关。
 > - 差异仅在非行为层面：`start` 依赖 Node 24 原生擦除类型、每次现场转译、改完即生效；`start:dist` 跑预编译纯 JS、启动更快、不依赖运行时 TS 支持，但必须先 `npm run build`（产物只与上次构建同样新鲜）。
 >
 > **推荐**：日常开发直接 `npm start`；上线部署用 `npm run build && npm run start:dist`。
 >
-> **`dist/` 不提交 git**：构建产物可由 `src/` 重新生成，已在 `.gitignore` 中忽略。
+> **`dist/` 不提交 git**：构建产物可由 `core/` 重新生成，已在 `.gitignore` 中忽略。
 
 ### 配置
 
-所有配置集中在 `src/config.js` 中。
+所有配置集中在 `core/config.js` 中。
 
-**开发环境：** 将 `config.js` 中的 `DevMode` 设为 `true`，在 `src/configDev.js` 中填写真实配置。
+**开发环境：** 将 `config.js` 中的 `DevMode` 设为 `true`，在 `core/configDev.js` 中填写真实配置。
 
 **生产环境：** 将 `DevMode` 设为 `false`，直接在 `config.js` 中填写配置值。
 
@@ -366,7 +366,7 @@ AI 可通过 `list_mcp_tools` 工具动态加载该 Server 的所有工具。
 
 ### Skill 开发
 
-1. 在 `src/skills/` 下创建目录
+1. 在 `core/skills/` 下创建目录
 2. 创建 `SKILL.md`（包含 frontmatter 元数据：name、description）
 3. 在 `scripts/` 子目录中编写 JS 脚本
 
