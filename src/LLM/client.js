@@ -18,6 +18,15 @@ const http = axios.create({
     },
 });
 
+const http_vision = axios.create({
+    baseURL: config.LLM_VISION_API_URL,
+    timeout: config.LLM_TIMEOUT,
+    headers: {
+        Authorization: `Bearer ${config.visionAPIKEY}`,
+        "Content-Type": "application/json",
+    },
+});
+
 /**
  * 调用 LLM 聊天补全接口
  * @param {object} options
@@ -30,7 +39,7 @@ const http = axios.create({
  * @returns {Promise<{message: object, totalTokens: number}|string>}
  *   成功返回 { message, totalTokens }，失败返回错误字符串
  */
-export async function callLLM({ model, messages, temperature, enableSearch, responseFormat, tools}) {
+export async function callLLM({ model, messages, temperature, enableSearch, responseFormat, tools,mode = "chat"}) {
     try {
         const data = {
             model,
@@ -40,8 +49,9 @@ export async function callLLM({ model, messages, temperature, enableSearch, resp
             ...(responseFormat && { response_format: responseFormat }),
             ...(tools && { tools }),
         };
+        if(mode==="chat")const resp = await http.post("", data);
+        else const resp = await http_vision.post("", data);
 
-        const resp = await http.post("", data);
         const body = resp.data;
 
         if (!body?.choices?.[0]?.message) {

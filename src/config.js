@@ -1,5 +1,3 @@
-// @ts-check
-
 /**
  * 统一配置模块
  * 整合所有配置：基础配置、常量、成员映射
@@ -41,8 +39,11 @@ const baseConfig = {
     /** 主人 QQ 号 */
     owner: "your_owner_qq",
 
-    /** 阿里云 AI API Key */
+    /** 文本生成 API Key */
     aiAPIKEY: "your_ai_api_key",
+
+    /** 视觉 API Key */
+    visionAPIKEY: "your_vision_api_key",
 
     /** 和风天气 Key */
     qweatherKEY: "your_qweather_key",
@@ -57,8 +58,11 @@ const baseConfig = {
     /** 无主动对话时，多少条消息后触发主动聊天 */
     PROACTIVE_CHAT_LIMIT: 15,
 
-    /** LLM API 基础地址 */
+    /** LLM API 地址 */
     LLM_API_URL: "https://workspace.aliyuncs.com/v1/chat/completions",
+
+    /** 视觉LLM API 地址 */
+    LLM_VISION_API_URL: "https://workspace.aliyuncs.com/v1/chat/completions",
 
     /** 聊天模型名称 */
     CHAT_MODEL: "deepseek-v4.1-flash",
