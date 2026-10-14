@@ -1,5 +1,3 @@
-// @ts-check
-
 import config from "../config.js";
 import { callLLM } from "./client.js";
 import { addMemory, makeMemoryUserId, extractUserProfile } from "./long-term-memory.js";
@@ -29,10 +27,25 @@ export class ChatRecorder {
 
     msgWithoutChat = 0;
 
+    /** 判断一条消息是否计入短期记忆条数：工具、系统消息不计入 */
+    _isCounted(msg) {
+        return msg.role !== "tool" && msg.role !== "system";
+    }
+
+    /** 当前计入条数的消息数量 */
+    _counted() {
+        let n = 0;
+        for (const m of this._messages) {
+            if (this._isCounted(m)) n++;
+        }
+        return n;
+    }
+
     /**
      * 添加一条消息
      * content 统一为对象格式：{ text, ...其他字段 }
      * 超出短期限制的消息自动进入中期缓存
+     * 计数规则：工具、系统消息不计入条数，仅 user/assistant 等消息参与裁剪
      */
     add(msg) {
         if (msg.role === "user") {
@@ -41,7 +54,7 @@ export class ChatRecorder {
         }
 
         this._messages.push(msg);
-        while (this._messages.length > this._limit) {
+        while (this._counted() > this._limit) {
             const evicted = this._messages.shift();
             this._cache.push(evicted);
         }
@@ -169,7 +182,7 @@ export class ChatRecorder {
     }
 
     async compress() {
-        if (this._messages.length >= 10) {
+        if (this._counted() >= 10) {
             this._cache = this._cache.concat(this._messages);
             this._messages = [];
         }
@@ -185,9 +198,9 @@ export class ChatRecorder {
         this._needsSummarization = false;
     }
 
-    /** 当前短期消息数量 */
+    /** 当前计入条数的短期消息数量（工具、系统消息不计入） */
     get length() {
-        return this._messages.length;
+        return this._counted();
     }
 
     /** 会话 ID */

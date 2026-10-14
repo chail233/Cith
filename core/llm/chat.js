@@ -58,6 +58,7 @@ export default async function chat(ctx) {
                 const tool_name = tool_call.function.name;
                 const tool_args = JSON.parse(tool_call.function.arguments);
                 const tool_result = await callTool(tool_call, ctx);
+                recorder.add({role: "system", content: { text: `调用了工具 ${tool_name}，参数：${JSON.stringify(tool_args)}` }});
                 recorder.add({role: "tool", content: { text: tool_result }, tool_call_id: tool_call_id});
                 logger.info("调用工具:", tool_name, " 参数：", tool_args, " 结果：", tool_result);
             }

@@ -59,7 +59,9 @@ export async function confirm(id) {
         const result = await callTool(toolCall, entry.space ? { space: entry.space } : null, true);
         // 结果注入发起会话的上下文；会话已被回收时按发起空间重建
         if (entry.space) {
-            getRecorder(entry.space).add({ role: "tool", content: { text: result }, tool_call_id: toolCall.id });
+            const recorder = getRecorder(entry.space);
+            recorder.add({role: "system", content: { text: `调用了工具 ${entry.toolName}，参数：${toolCall.function.arguments}` }});
+            recorder.add({ role: "tool", content: { text: result }, tool_call_id: toolCall.id });
         }
         return { ok: true, text: `#${id} ${entry.toolName} 已执行，结果已注入对话上下文`};
     } 
