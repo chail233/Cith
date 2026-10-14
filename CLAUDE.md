@@ -12,7 +12,7 @@ SunbatwoBot is a OneBot v11 QQ bot (NapCat transport) that runs an LLM **agent**
 
 ### Config
 
-All config lives in `core/config.js` (defaults, shared constants, and `SYSTEM_PROMPT`). When `DevMode: true` (the default), real secrets are loaded from `core/configDev.js` (gitignored). Merge rules: dev values overwrite base, **but `mcpServers` and `gatedTools` are concatenated** (base first). If `DevMode` is true and `configDev.js` is missing, the process exits(1) at import time. `core/app.pem` is also gitignored.
+All config lives in `core/config.js` (defaults, shared constants, and `SYSTEM_PROMPT`). When `DevMode: true` (the default), real secrets are loaded from `core/configDev.js` (gitignored). Merge rules: dev values overwrite base, **but `mcpServers` is concatenated** (base first). If `DevMode` is true and `configDev.js` is missing, the process exits(1) at import time. `core/app.pem` is also gitignored.
 
 ## Architecture
 
@@ -42,11 +42,11 @@ The model must output strict JSON `{ "action": [{ "cmd": "text", "content": "...
 
 Local tools are declared in the `tools` array and dispatched through the `toolMap`; `callTool(tool_call, ctx, confirmed)` is the single entry point. MCP tools are exposed as `mcp_<originalName>` and routed by prefix to `mcpClient`. `getAllTools()` is **stateful**: it appends any dynamically-loaded MCP tools and then clears them — MCP tools only exist after the model calls `list_mcp_tools` for that server.
 
-When adding a tool, update **both** the `tools` array and `toolMap`. Keep gated write-tools in `config.gatedTools`.
+When adding a tool, update **both** the `tools` array and `toolMap`. If it is a file-path tool, also register it in `pathToolWhitelist` (a map of tool name → `{ dirKey, pathKey }` pointing at its whitelist config and its path argument) — that map drives the gate below.
 
-### Approval gate (`llm/tool-approval.js` + `config.gatedTools`)
+### Approval gate (`llm/tool-approval.js` + path-aware whitelist)
 
-`edit_file`, `create_file`, `delete_file`, `run_JS` called by a **non-admin** are held (id assigned, 10-minute timeout) and require an admin to send `#do-yes <id>` (`#do-no` cancels). Admins (`config.owner`) bypass the gate. This is a deliberate safety boundary — do not weaken it.
+The gate is centralized in `callTool()` and is **path-aware, not tool-name based** (the old `config.gatedTools` is retired). For a **non-admin** call to any file tool in `pathToolWhitelist`, the resolved target path is checked against that tool's whitelist (`readFileDirs` / `runJsDirs` / `editFileDirs`): **inside the whitelist → run immediately** (so scripts under `skills/`, writes under `workspace/`, etc. are never blocked); **outside the whitelist → held** (id assigned, 10-minute timeout) pending an admin `#do-yes <id>` (`#do-no` cancels). Admins (`config.owner`) and already-confirmed calls bypass the gate. Path traversal out of `core/` is still hard-rejected by `resolveSrcPath` (never held, never allowed). MCP tools have no local path target and are not covered by this gate.
 
 ### Memory (`llm/recorder.js` + `llm/long-term-memory.js`)
 
@@ -54,7 +54,7 @@ Single exported instance `chatRecorder`. Four layers: short-term `_messages` (`c
 
 ### File security (`utils/file-security.js`)
 
-Every file tool resolves its path **relative to `core/`**, rejects traversal, and enforces a per-operation whitelist from `config.readFileDirs` / `runJsDirs` / `editFileDirs` (currently `skills` and `workspace`). `run_JS` runs the script in a child process with a 30s timeout. Do not bypass these helpers to touch files outside the whitelist.
+Every file tool resolves its path **relative to `core/`** via `resolveSrcPath`, which rejects `..` traversal out of `core/` (hard floor). The per-operation whitelist (`config.readFileDirs` / `runJsDirs` / `editFileDirs`, default `skills` and `workspace`) is enforced **in `callTool()`'s gate** (via `checkPathWhitelist`), not inside each tool — a tool body no longer re-checks it. `run_JS` runs the script in a child process with a 30s timeout. Do not bypass these helpers to touch files outside the whitelist without going through the approval gate.
 
 ### Skills (`llm/skill.js`)
 

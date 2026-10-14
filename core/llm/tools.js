@@ -240,9 +240,6 @@ async function readFile(param) {
     const pathResult = resolveSrcPath(filepath);
     if (pathResult.error) return pathResult.error;
 
-    const whitelistResult = checkPathWhitelist(pathResult.fullPath, config.readFileDirs || [], "读取");
-    if (whitelistResult.error) return whitelistResult.error;
-
     try {
          return await fsReadFile(pathResult.fullPath, "utf-8");
     }
@@ -257,7 +254,7 @@ async function readFile(param) {
 
 /**
  * 运行指定路径的 JS 脚本并返回执行结果
- * 安全策略：路径穿越防护 + 白名单校验 + 仅限 .js 文件
+ * 安全策略：路径穿越防护 + 仅限 .js 文件（白名单门禁已上移至 callTool）
  * @param {{filepath: string, args?: object}} param
  */
 async function runJS(param) {
@@ -271,9 +268,6 @@ async function runJS(param) {
 
     const pathResult = resolveSrcPath(filepath);
     if (pathResult.error) return pathResult.error;
-
-    const whitelistResult = checkPathWhitelist(pathResult.fullPath, config.runJsDirs || [], "执行");
-    if (whitelistResult.error) return whitelistResult.error;
 
     try {
         // 在子进程中执行脚本，参数通过 process.argv[2] 以 JSON 形式传递
@@ -315,7 +309,7 @@ async function runJS(param) {
 
 /**
  * 在指定路径创建新文件
- * 安全策略：路径穿越防护 + 白名单校验 + 禁止覆盖已有文件
+ * 安全策略：路径穿越防护 + 禁止覆盖已有文件（白名单门禁已上移至 callTool）
  * @param {{filepath: string, content: string}} param
  */
 async function createFile(param) {
@@ -326,9 +320,6 @@ async function createFile(param) {
 
     const pathResult = resolveSrcPath(filepath);
     if (pathResult.error) return pathResult.error;
-
-    const whitelistResult = checkPathWhitelist(pathResult.fullPath, config.editFileDirs || [], "创建文件");
-    if (whitelistResult.error) return whitelistResult.error;
 
     try {
         // 确保父目录存在
@@ -347,7 +338,7 @@ async function createFile(param) {
 
 /**
  * 删除指定路径的文件
- * 安全策略：路径穿越防护 + 白名单校验 + 仅限文件
+ * 安全策略：路径穿越防护 + 仅限文件（白名单门禁已上移至 callTool）
  * @param {{filepath: string}} param
  */
 async function deleteFile(param) {
@@ -356,9 +347,6 @@ async function deleteFile(param) {
 
     const pathResult = resolveSrcPath(filepath);
     if (pathResult.error) return pathResult.error;
-
-    const whitelistResult = checkPathWhitelist(pathResult.fullPath, config.editFileDirs || [], "删除");
-    if (whitelistResult.error) return whitelistResult.error;
 
     try {
         await rm(pathResult.fullPath);
@@ -374,7 +362,7 @@ async function deleteFile(param) {
 
 /**
  * 通过搜索替换编辑文件内容
- * 安全策略：路径穿越防护 + 白名单校验 + 唯一匹配校验
+ * 安全策略：路径穿越防护 + 唯一匹配校验（白名单门禁已上移至 callTool）
  * @param {{filepath: string, edits: Array<{oldText: string, newText: string}>}} param
  */
 async function editFile(param) {
@@ -385,9 +373,6 @@ async function editFile(param) {
 
     const pathResult = resolveSrcPath(filepath);
     if (pathResult.error) return pathResult.error;
-
-    const whitelistResult = checkPathWhitelist(pathResult.fullPath, config.editFileDirs || [], "编辑");
-    if (whitelistResult.error) return whitelistResult.error;
 
     // 读取原文
     let content;
@@ -442,7 +427,7 @@ async function editFile(param) {
 
 /**
  * 列出指定目录下的文件和子目录
- * 安全策略：路径穿越防护 + 白名单校验
+ * 安全策略：路径穿越防护（白名单门禁已上移至 callTool）
  * @param {{dirpath: string}} param
  */
 async function listFiles(param) {
@@ -451,9 +436,6 @@ async function listFiles(param) {
 
     const pathResult = resolveSrcPath(dirpath);
     if (pathResult.error) return pathResult.error;
-
-    const whitelistResult = checkPathWhitelist(pathResult.fullPath, config.readFileDirs || [], "列出文件");
-    if (whitelistResult.error) return whitelistResult.error;
 
     try {
         const entries = await readdir(pathResult.fullPath);
@@ -503,6 +485,19 @@ const toolMap = new Map(
     ]
 );
 
+/**
+ * 细粒度文件工具 → 执行对象所属白名单目录的配置键
+ * 门禁统一在 callTool：对象在白名单内直接放行，否则挂起待管理员确认
+ */
+const pathToolWhitelist = {
+    read_file: { dirKey: "readFileDirs", pathKey: "filepath" },
+    list_files: { dirKey: "readFileDirs", pathKey: "dirpath" },
+    run_JS: { dirKey: "runJsDirs", pathKey: "filepath" },
+    create_file: { dirKey: "editFileDirs", pathKey: "filepath" },
+    delete_file: { dirKey: "editFileDirs", pathKey: "filepath" },
+    edit_file: { dirKey: "editFileDirs", pathKey: "filepath" },
+};
+
 
 /**
  * 调用工具
@@ -514,12 +509,24 @@ export async function callTool(tool_call, ctx, confirmed = false){
     const name = tool_call.function.name;
     const parameter = JSON.parse(tool_call.function.arguments);
 
-    // 危险操作门禁：非管理员发起且未确认时挂起，等待 #do-yes 确认
-    const gatedTools = config.gatedTools ?? [];
-    if (!confirmed && gatedTools.includes(name) && !ctx?.isAdmin) {
-        const id = hold(tool_call, ctx);
-        if (!id) return `${name} 被拒绝：待确认队列已满，请稍后再试`;
-        return `这是危险操作，需要管理员确认。已登记为待确认操作 #${id}。`;
+    // 安全门禁：非管理员且未确认时，文件类工具按"执行对象是否在对应白名单内"决定放行或挂起
+    if (!confirmed && !ctx?.isAdmin) {
+        const rule = pathToolWhitelist[name];
+        if (rule) {
+            // 细粒度文件工具：对象在白名单目录内 → 放行；否则挂起待确认
+            const pathArg = parameter[rule.pathKey];
+            const resolved = pathArg ? resolveSrcPath(pathArg) : null;
+            if (resolved && !resolved.error) {
+                const whitelist = config[rule.dirKey] ?? [];
+                const allowed = !checkPathWhitelist(resolved.fullPath, whitelist).error;
+                if (!allowed) {
+                    const id = hold(tool_call, ctx);
+                    if (!id) return `${name} 被拒绝：待确认队列已满，请稍后再试`;
+                    return `操作对象不在白名单目录内，需要管理员确认。已登记为待确认操作 #${id}。`;
+                }
+            }
+            // 路径非法或缺参：交由工具自身返回具体错误
+        }
     }
 
     if (name.startsWith("mcp_")) {

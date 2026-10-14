@@ -130,16 +130,6 @@ const baseConfig = {
     githubToken: null,
 
 
-    /**
-     * 需要管理员确认的工具
-     * MCP 工具用 mcp_ 前缀全名，本地工具用原始名
-     */
-    gatedTools: [
-        "edit_file",
-        "create_file",
-        "delete_file",
-    ],
-
     /** Agent模式 */
     agentMode: false,
 
@@ -191,11 +181,8 @@ if (baseConfig.DevMode) {
         // mcpServers 数组合并（dev 追加到 base 之后），其余字段直接覆盖
         const baseMcp = baseConfig.mcpServers ?? [];
         const devMcp = devConfig.mcpServers ?? [];
-        const baseGated = baseConfig.gatedTools ?? [];
-        const devGated = devConfig.gatedTools ?? [];
         Object.assign(baseConfig, devConfig);
         baseConfig.mcpServers = [...baseMcp, ...devMcp];
-        baseConfig.gatedTools = [...baseGated, ...devGated];
     }
     else {
         console.error("[config] DevMode 为 true，但找不到 configDev.js");

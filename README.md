@@ -66,14 +66,19 @@ AI 可自主判断并调用以下工具：
 
 所有文件操作都受到 **路径白名单** 和 **目录穿越防护** 的安全约束。
 
-### 危险操作门禁
+### 文件操作安全门禁
 
-写操作工具（`edit_file`、`create_file`、`delete_file`、`run_JS`）默认需要管理员确认才能执行：
+文件类工具（`read_file`、`list_files`、`run_JS`、`create_file`、`edit_file`、`delete_file`）以**执行对象所在目录**决定放行与否，而非按工具名一刀切：
 
-1. AI 发起工具调用 → 系统挂起操作，生成待确认编号
-2. 群内通知管理员：`这是危险操作，需要管理员确认。已登记为待确认操作 #xxxx`
-3. 管理员发送 `#do-yes xxxx` 确认执行，或 `#do-no xxxx` 取消
-4. 待确认项 10 分钟超时自动作废
+- 操作对象位于对应白名单目录内（读→`readFileDirs`，执行→`runJsDirs`，增删改→`editFileDirs`，默认 `skills/`、`workspace/`）→ **直接放行**，不打扰管理员（跑 skill 脚本、写 workspace 不再被挡）。
+- 操作对象在白名单之外 → **挂起待确认**，生成待确认编号：
+  1. 群内通知：`操作对象不在白名单目录内，需要管理员确认。已登记为待确认操作 #xxxx`
+  2. 管理员发送 `#do-yes xxxx` 确认后执行，或 `#do-no xxxx` 取消
+  3. 待确认项 10 分钟超时自动作废
+- 管理员本人发起、或工具调用已确认时跳过门禁。
+- `../` 等目录穿越无论如何都被 `file-security.js` 硬拦截（既不直接放行也不挂起）。
+
+> MCP 工具没有本地路径目标，不在此文件门禁范围内，按需调用。
 
 ### 用户画像
 
@@ -166,7 +171,9 @@ npm start
 | `CHAT_MODEL` | 聊天模型名称 |
 | `VISION_MODEL` | 识图模型名称 |
 | `mcpServers` | MCP Server 配置列表 |
-| `gatedTools` | 需要管理员确认的工具列表 |
+| `readFileDirs` | `read_file`/`list_files` 允许的目录（相对 `core/`） |
+| `runJsDirs` | `run_JS` 允许执行脚本的目录 |
+| `editFileDirs` | `create_file`/`edit_file`/`delete_file` 允许的目录 |
 | `agentMode` | Agent 模式开关 |
 | `members` | QQ 号 → 群昵称映射表 |
 
@@ -217,7 +224,7 @@ pipeline/index.js ─── 管道编排
     ├─ 无工具调用 → 解析 JSON 回复 → 分段发送消息
     │
     └─ 有工具调用 → 逐个执行工具
-        │           ├─ 本地工具 → 路径校验 + 白名单 + 门禁检查
+        │           ├─ 本地工具 → 路径穿越防护 + 白名单门禁（白名单内放行，否则挂起确认）
         │           └─ MCP 工具 → 路由到对应 MCP Server
         │
         ▼
@@ -391,10 +398,10 @@ AI 可通过 `list_mcp_tools` 工具动态加载该 Server 的所有工具。
 
 ### 安全设计
 
-- **路径白名单**：文件操作限制在 `skills/`、`workspace/` 等目录
-- **目录穿越防护**：`..` 等路径穿越被 `file-security.js` 拦截
+- **目录穿越防护**：`..` 等越出 `core/` 的路径被 `file-security.js` 硬拦截，是不可绕过的安全底线
+- **白名单门禁**：文件类工具按执行对象目录判定——白名单目录（默认 `skills/`、`workspace/`）内直接放行，目录外挂起待管理员确认，兼顾安全与顺畅
 - **子进程隔离**：JS 脚本在独立子进程中执行，带超时限制
-- **门禁机制**：写操作需管理员确认，防止 AI 误操作
+- **写入保护**：`create_file` 禁止覆盖已有文件，`edit_file` 要求文本唯一匹配，防误改
 
 
 ---
