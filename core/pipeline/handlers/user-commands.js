@@ -1,7 +1,7 @@
 import { getWeatherText } from "../../services/weather.js";
 import { getRecorder, listSessions } from "../../llm/session.ts";
 import config from "../../config.js";
-import {skills} from "../../llm/skill.js";
+import {skills, forceSkills} from "../../llm/skill.js";
 import {reloadSkills} from "../../llm/skill.js";
 import {mcpClient} from "../../llm/mcp-client.js";
 import {getAllTools} from "../../llm/tools.js";
@@ -118,13 +118,12 @@ const cmds = [
         }
     },
     {
-        name: "reloadskls",
-        needsAdmin: true,
-        description: "重新加载技能(管理员)",
+        name: "forceskills",
+        description: "列出当前强加载技能",
         params: [],
         handler: async (args, ctx) => {
-            await reloadSkills();
-            return "已更新，技能列表：\n" + skills.map(skill => skill.name).join("\n");
+            if (forceSkills.length === 0) return "当前没有强加载技能";
+            return "强加载技能：\n" + forceSkills.map(s => `${s.name} —— ${s.description}`).join("\n");
         }
     },
     {

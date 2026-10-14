@@ -3,7 +3,7 @@ import { getRecorder } from "./session.ts";
 import config from "../config.js";
 import logger from "../utils/logger.js";
 import {callTool, getAllTools} from "./tools.js";
-import {skills} from "./skill.js";
+import {skills, forceSkills, reloadSkills} from "./skill.js";
 import {mcpClient} from "./mcp-client.js";
 import sleep from "../utils/sleep.js";
 
@@ -23,6 +23,8 @@ export default async function chat(ctx) {
     // 触发中期记忆概括（如需）
     await recorder.summarizeCache();
 
+    // 每回合现取：开工前重新扫描 skills 目录，保证强加载/技能列表与磁盘一致
+    await reloadSkills();
 
     let result = await callLLM({
         model: config.CHAT_MODEL,
@@ -90,15 +92,28 @@ export default async function chat(ctx) {
 }
 
 function buildMessages(recorder){
-    return [
+    const messages = [
         { role: "system", content: SYSTEM_PROMPT },
+    ];
+
+    // 强加载技能（force: true）正文固定注入上下文，确保 100% 可达
+    if (forceSkills.length > 0) {
+        const forceBlock = forceSkills
+            .map(s => `### ${s.name}\n${s.content}`)
+            .join("\n\n");
+        messages.push({ role: "system", content: `强加载技能:\n${forceBlock}` });
+    }
+
+    messages.push(
         { role: "system", content: `技能列表：${JSON.stringify(skills)}`},
         { role: "system", content: `mcp列表：${JSON.stringify(mcpClient.listServers())}`},
-        ...(recorder.getMidSummary()
-            ? [{ role: "system", content: `对话历史概要：${recorder.getMidSummary()}` }]
-            : []),
-        ...recorder.getAll(),
-    ];
+    );
+
+    if (recorder.getMidSummary()) {
+        messages.push({ role: "system", content: `对话历史概要:${recorder.getMidSummary()}` });
+    }
+
+    return [...messages, ...recorder.getAll()];
 }
 
 /**

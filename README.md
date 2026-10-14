@@ -93,6 +93,13 @@ AI 可自主判断并调用以下工具：
 
 Skill 是包含 `SKILL.md` 描述文件的目录，可包含脚本供 AI 调用。AI 通过读取 SKILL.md 了解技能用法，通过 `run_JS` 执行技能脚本。
 
+`SKILL.md` 的 frontmatter 元数据包含 `name`、`description`，以及可选的 `force`（布尔值）：
+
+- **普通技能**：仅将 `name` + `description` 注入系统提示（技能列表），AI 判断相关时再用 `read_file` 按需读取正文，节省 token。
+- **强加载技能（`force: true`）**：其 `SKILL.md` 正文（去除 frontmatter 后）会**固定注入每次对话的 system prompt**，确保关键技能 100% 可达、无需额外工具调用。
+
+**每回合现取：** 每次 Agent 对话开工前都会重新扫描 `skills/` 目录，新增/删除/修改技能后下一条消息即生效，通常无需手动重载。
+
 **内置技能：**
 - `skill-manager`：从 GitHub 安装/卸载社区技能
 
@@ -202,7 +209,7 @@ pipeline/index.js ─── 管道编排
 用户消息进入 Agent 循环
     │
     ▼
-构建消息上下文（系统提示 + 技能列表 + MCP 列表 + 记忆概要 + 历史消息）
+构建消息上下文（系统提示 + 强加载技能正文 + 技能列表 + MCP 列表 + 记忆概要 + 历史消息）
     │
     ▼
 调用 LLM（携带全部工具定义）
@@ -227,6 +234,7 @@ pipeline/index.js ─── 管道编排
 | `#gw <城市>` | 所有人 | 查询天气 |
 | `#model` | 所有人 | 查询可用模型 |
 | `#skills` | 所有人 | 列出技能列表 |
+| `#forceskills` | 所有人 | 列出当前强加载技能 |
 | `#mcp` | 所有人 | 列出 MCP 连接 |
 | `#tools` | 所有人 | 列出当前可用工具 |
 | `#msgs` | 管理员 | 列出短期记忆 |
@@ -367,7 +375,7 @@ AI 可通过 `list_mcp_tools` 工具动态加载该 Server 的所有工具。
 ### Skill 开发
 
 1. 在 `core/skills/` 下创建目录
-2. 创建 `SKILL.md`（包含 frontmatter 元数据：name、description）
+2. 创建 `SKILL.md`（frontmatter 元数据：`name`、`description`，可选 `force: true` 使其正文固定注入上下文）
 3. 在 `scripts/` 子目录中编写 JS 脚本
 
 脚本通过 `process.argv[2]` 接收 JSON 参数，通过 `console.log()` 输出结果。脚本在子进程中执行，30 秒超时。
