@@ -1,7 +1,7 @@
 {
   "name": "sunbatwobot",
   "version": "1.1.0",
-  "description": "A OneBot11 QQ bot based on NapCat, supports LLM conversation, image vision capability and custom message processing.",
+  "description": "An autonomous LLM Agent QQ bot built on OneBot v11 + NapCat, featuring multi-turn tool calling, a four-tier memory system, user profiling, image vision, MCP tool extensions and a pluggable skill system.",
   "scripts": {
     "start": "node core/index.js",
     "build": "tsc -p tsconfig.build.json && node scripts/copy-assets.js",

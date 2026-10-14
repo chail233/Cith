@@ -13,7 +13,7 @@
 
 SunbatwoBot 是一个存在于聊天软件中的 **Agent**。它不只是一个聊天机器人——它拥有自主决策、工具调用、文件操作、记忆管理和技能扩展等能力，能够在聊天对话中像一个真正的"成员"一样参与交流和工作。
 
-底层通信基于 NapCat + OneBot v11 协议，AI 能力由阿里云百炼平台驱动（支持 DeepSeek / Qwen 等模型）。
+通信层采用**可插拔适配器**架构：`BaseAdapter` 抽象基类定义 `onMessage` / `sendMsg` 契约，具体协议由各自适配器实现——内置的 `OnebotAdapter` 基于 NapCat + OneBot v11 接入 QQ，理论上可替换适配任意聊天场景。AI 能力由阿里云百炼平台驱动（支持 DeepSeek / Qwen 等模型）。
 
 ## 核心能力
 
