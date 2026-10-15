@@ -118,6 +118,24 @@ AI 具备图片识别能力。当群内发送图片时，自动调用视觉模�
 
 当群内连续多条消息没有 @机器人时，AI 会根据上下文判断是否主动参与对话，行为更自然。
 
+### Web 管理面板（开发中）
+
+Bot 内置独立的 **面板 API 服务**（`core/api/`），与 Web 后端以独立进程运行，通过 WebSocket 双向通信（设计文档见 `docs/web-api-design.md`）：
+
+- **连接模型**：Bot 做 WS 服务端，仅绑定 `127.0.0.1`，默认 `ws://127.0.0.1:2145/api/v1/ws`，与 NapCat → Bot 的反向 WS 模式同构
+- **鉴权**：独立面板 token，连接后 5s 内完成 `auth` 握手，失败/超时直接断开（自定义关闭码 4401/4001）
+- **协议**：请求/响应帧按 `id` 关联 + 服务端主动推送事件帧（`{type:"event", event, ts, data}`）
+- **action 白名单**：`get_status` / `get_config` / `set_config` / `get_logs` / `list_actions`，未知 action 一律拒绝
+- **配置脱敏**：`get_config` 输出键名脱敏 + 值级黑名单 + 嵌套对象/非纯标量数组过滤，密钥不外泄；`set_config` 仅白名单字段可热改
+- **可靠性**：30s ping/pong 心跳回收死连接；日志/事件进环形缓冲，断线重连后可按时间戳补拉
+
+面板前端位于 `web/`（React 18 + Vite 5 + TypeScript），`npm run dev` 独立启动。
+
+```bash
+node scripts/test-api.js        # 面板 API 测试（需主 Bot 未同时运行，占用同端口）
+node scripts/test-api.js --slow # 附带鉴权超时场景（多等约 5s）
+```
+
 ## 快速开始
 
 ### 环境要求
@@ -174,7 +192,7 @@ npm start
 | `readFileDirs` | `read_file`/`list_files` 允许的目录（相对 `core/`） |
 | `runJsDirs` | `run_JS` 允许执行脚本的目录 |
 | `editFileDirs` | `create_file`/`edit_file`/`delete_file` 允许的目录 |
-| `agentMode` | Agent 模式开关 |
+| `web` | 面板 API 服务：`port` / `path` / `token` / `logBufferSize` |
 | `members` | QQ 号 → 群昵称映射表 |
 
 NapCat 反向 WebSocket 连接地址：`ws://127.0.0.1:8080/onebot/v11/ws`
@@ -251,7 +269,6 @@ pipeline/index.js ─── 管道编排
 | `#compress` | 管理员 | 压缩短期记忆 |
 | `#ms <模型>` | 管理员 | 切换聊天模型 |
 | `#pchat <bool>` | 管理员 | 开关主动聊天 |
-| `#agent <bool>` | 管理员 | 开关 Agent 模式 |
 | `#reloadskls` | 管理员 | 重新加载技能 |
 | `#do-yes <id>` | 管理员 | 确认执行危险操作 |
 | `#do-no <id>` | 管理员 | 取消危险操作 |
@@ -262,8 +279,8 @@ pipeline/index.js ─── 管道编排
 ## 项目结构
 
 ```
-src/
-├── index.js                    # 入口：初始化 MCP → 启动 WebSocket 服务
+core/
+├── index.js                    # 入口：初始化 MCP → 启动 WebSocket 服务 → 启动面板 API
 │
 ├── config.js                   # 统一配置（基础配置 + 常量 + 成员映射）
 ├── configDev.js                # 开发环境配置（gitignore，覆盖 config.js）
@@ -273,6 +290,16 @@ src/
 │   └── adapter/                # 协议适配器（可插拔）
 │       ├── BaseAdapter.ts      # 抽象基类：定义 onMessage / sendMsg 契约
 │       └── OnebotAdapter.ts    # OneBot v11 协议实现
+│
+├── api/                        # Web 面板 API（独立 WS 服务端）
+│   ├── server.ts               # 启动/鉴权/心跳/广播
+│   ├── router.ts               # action 白名单注册与分发
+│   ├── types.ts                # 请求/响应/事件帧类型
+│   ├── event-bus.ts            # EventEmitter 事件总线 + publish()
+│   ├── event-log.ts            # 全局事件环形缓冲
+│   ├── ring-buffer.ts          # 固定容量环形缓冲
+│   ├── runtime-state.ts        # 运行时状态快照
+│   └── actions/                # status / config / logs / meta（get_status、set_config 等）
 │
 ├── types/                      # 跨模块共用类型定义
 │   └── index.ts                # Context / CtxEvent / Space / MessageSegment
@@ -322,8 +349,11 @@ src/
 ```
 
 ```
-scripts/
+scripts/                        # 构建辅助与测试脚本（test-api.js 面板 API 测试等）
 └── copy-assets.js              # 构建后将 skills/workspace 的非 JS 资源拷贝到 dist
+
+web/                            # 面板前端（React 18 + Vite 5 + TS，独立 npm 工程）
+docs/                           # 设计文档（web-api-design.md 面板 API 设计）
 
 根目录：
 tsconfig.json                   # IDE 类型检查基准配置（strict + noEmit，不产出文件）
@@ -402,6 +432,7 @@ AI 可通过 `list_mcp_tools` 工具动态加载该 Server 的所有工具。
 - **白名单门禁**：文件类工具按执行对象目录判定——白名单目录（默认 `skills/`、`workspace/`）内直接放行，目录外挂起待管理员确认，兼顾安全与顺畅
 - **子进程隔离**：JS 脚本在独立子进程中执行，带超时限制
 - **写入保护**：`create_file` 禁止覆盖已有文件，`edit_file` 要求文本唯一匹配，防误改
+- **面板 API**：仅绑定 `127.0.0.1`、独立 token 鉴权、action 白名单分发、配置输出脱敏、热改字段白名单、全量 try/catch 故障隔离（坏帧不杀连接）
 
 
 ---

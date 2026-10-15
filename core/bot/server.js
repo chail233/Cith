@@ -2,6 +2,7 @@ import { WebSocketServer } from "ws";
 import config from "../config.js";
 import logger from "../utils/logger.js";
 import OnebotAdapter from "./adapter/OnebotAdapter.ts";
+import { runtimeState } from "../api/runtime-state.ts";
 
 
 export function startOneBotServer(pipeline) {
@@ -12,7 +13,7 @@ export function startOneBotServer(pipeline) {
 
     wss.on("connection", (ws) => {
         logger.info(`NapCat 已连接 (端口: ${config.wsPort})`);
-
+        runtimeState.onebotConnected = true;
         const onebotAdapter = new OnebotAdapter(pipeline, ws);
 
         ws.on("message", (data) => {
@@ -38,6 +39,7 @@ export function startOneBotServer(pipeline) {
 
         ws.on("close", () => {
             logger.info("WebSocket 连接关闭");
+            runtimeState.onebotConnected = false;
         });
 
         ws.on("error", (err) => {

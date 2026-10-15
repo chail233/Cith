@@ -25,8 +25,16 @@ const baseConfig = {
     /** OneBot 鉴权 Token */
     token: "your_token_here",
 
-    /** NapCat HTTP API 地址（不含协议前缀） */
+    /** NapCat 地址（不含协议前缀） */
     napcatHttpHost: "127.0.0.1:3000",
+
+    /** Web界面服务 */
+    web:{
+        port: 2145,
+        path: "/api/v1/ws",
+        token: "114514",
+        logBufferSize: 1000
+    },
 
     /** 目标群 ID */
     targetGroupId: ["your_group_id"],
@@ -129,14 +137,12 @@ const baseConfig = {
      */
     githubToken: null,
 
-
-    /** Agent模式 */
-    agentMode: false,
-
     /**
      * MCP Server 配置列表
      */
     mcpServers: [],
+
+
 
     // ========== 成员映射 ==========
 
