@@ -11,11 +11,11 @@ export default class OnebotAdapter extends BaseAdapter{
 
     sendAction(actionObj: Action) {
         const payload = JSON.stringify(actionObj);
-        logger.debug("发送动作:", actionObj.action);
+        logger.debug("onebot发送动作:", actionObj.action);
         this.ws.send(payload);
     }
 
-    sendMsg(space:Space, message:object[]|object|string) {
+    async sendMsg(space:Space, message:object[]|object|string) {
         this.sendAction({
             action: "send_msg",
             params: {

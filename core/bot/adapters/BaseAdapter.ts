@@ -10,6 +10,6 @@ export default abstract class BaseAdapter {
         return this.pipeline(ctxEvent);
     }
 
-    public abstract sendMsg(space:Space, message:object[]|object|string): void;
+    public abstract sendMsg(space:Space, message:object[]|object|string): Promise<void>;
 
 }

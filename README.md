@@ -207,7 +207,7 @@ NapCat 反向 WebSocket 连接地址：`ws://127.0.0.1:8080/onebot/v11/ws`
 NapCat 发送事件
     │
     ▼
-bot/server.js ─── WebSocket 服务
+bot/OnebotServer.js ─── WebSocket 服务
     │
     ▼
 bot/adapter/OnebotAdapter ─── OneBot 协议解析（继承 BaseAdapter）
@@ -286,7 +286,7 @@ core/
 ├── configDev.js                # 开发环境配置（gitignore，覆盖 config.js）
 │
 ├── bot/                        # 通信层
-│   ├── server.js               # WebSocket 服务
+│   ├── OnebotServer.js               # WebSocket 服务
 │   └── adapter/                # 协议适配器（可插拔）
 │       ├── BaseAdapter.ts      # 抽象基类：定义 onMessage / sendMsg 契约
 │       └── OnebotAdapter.ts    # OneBot v11 协议实现
@@ -403,7 +403,7 @@ CMD_MAP.set("关键词", async (ctx) => {
     description: "我的 MCP 服务",
     transport: "stdio",        // 或 "sse" / "old_sse"
     command: "node",
-    args: ["path/to/server.js"],
+    args: ["path/to/OnebotServer.js"],
 }
 ```
 

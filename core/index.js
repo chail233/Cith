@@ -1,8 +1,9 @@
 import logger from "./utils/logger.js";
-import { startOneBotServer } from "./bot/server.js";
+import { startOneBotServer } from "./bot/servers/OnebotServer.js";
 import runPipeline from "./pipeline/index.js";
 import {mcpClient} from "./llm/mcp-client.js";
 import { startApiServer } from "./api/server.ts";
+import startWechatBotServer from "./bot/servers/WechatBotServer.ts";
 
 logger.info("SunbatwoBot 启动中...");
 
@@ -10,6 +11,7 @@ await mcpClient.init();
 
 // 启动 WebSocket 服务，使用管道模式处理事件
 startOneBotServer(runPipeline);
+startWechatBotServer(runPipeline);
 
 // 启动面板 API WebSocket 服务
 const apiServer = startApiServer();

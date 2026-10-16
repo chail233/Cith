@@ -1,4 +1,4 @@
-import type BaseAdapter from "../bot/adapter/BaseAdapter.ts";
+import type BaseAdapter from "../bot/adapters/BaseAdapter.ts";
 
 /** 消息发生的空间（群/私聊） */
 export interface Space {
@@ -14,7 +14,7 @@ export interface MessageSegment {
     };
 }
 
-/** adapter 归一化后传给 buildContext 的事件结构 */
+/** adapters 归一化后传给 buildContext 的事件结构 */
 export interface CtxEvent {
     adapter: BaseAdapter;
     message: MessageSegment[];

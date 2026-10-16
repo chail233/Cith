@@ -1,8 +1,8 @@
 import { WebSocketServer } from "ws";
-import config from "../config.js";
-import logger from "../utils/logger.js";
-import OnebotAdapter from "./adapter/OnebotAdapter.ts";
-import { runtimeState } from "../api/runtime-state.ts";
+import config from "../../config.js";
+import logger from "../../utils/logger.js";
+import OnebotAdapter from "../adapters/OnebotAdapter.ts";
+import { runtimeState } from "../../api/runtime-state.ts";
 
 
 export function startOneBotServer(pipeline) {
@@ -38,22 +38,22 @@ export function startOneBotServer(pipeline) {
         });
 
         ws.on("close", () => {
-            logger.info("WebSocket 连接关闭");
+            logger.info("OnebotWebSocket 连接关闭");
             runtimeState.onebotConnected = false;
         });
 
         ws.on("error", (err) => {
-            logger.error("WebSocket 连接错误:", err);
+            logger.error("OnebotWebSocket 连接错误:", err);
         });
 
     });
 
     wss.on("listening", () => {
-        logger.info(`WebSocket 服务已启动: ws://0.0.0.0:${config.wsPort}/onebot/v11/ws`);
+        logger.info(`OnebotWebSocket 服务已启动: ws://0.0.0.0:${config.wsPort}/onebot/v11/ws`);
     });
 
     wss.on("error", (err) => {
-        logger.error("WebSocket 服务错误:", err);
+        logger.error("OnebotWebSocket 服务错误:", err);
     });
 
     return wss;

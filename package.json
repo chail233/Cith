@@ -23,6 +23,7 @@
   "dependencies": {
     "@modelcontextprotocol/client": "^2.3.1",
     "@modelcontextprotocol/sdk": "^1.32.1",
+    "@wechatbot/wechatbot": "^2.2.0",
     "axios": "^1.19.0",
     "express": "^5.2.1",
     "node-schedule": "^2.1.1",
