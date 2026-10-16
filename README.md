@@ -8,12 +8,13 @@
 [![License](https://img.shields.io/github/license/chail233/SunbatwoBot?style=flat-square)](https://github.com/chail233/SunbatwoBot/blob/master/LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D24-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org)
 [![OneBot](https://img.shields.io/badge/OneBot-v11-black?style=flat-square)](https://github.com/botuniverse/onebot-11)
+[![WeChat](https://img.shields.io/badge/WeChat-iLink_Bot-07C160?style=flat-square&logo=wechat&logoColor=white)](https://www.npmjs.com/package/@wechatbot/wechatbot)
 
 </div>
 
 SunbatwoBot 是一个存在于聊天软件中的 **Agent**。它不只是一个聊天机器人——它拥有自主决策、工具调用、文件操作、记忆管理和技能扩展等能力，能够在聊天对话中像一个真正的"成员"一样参与交流和工作。
 
-通信层采用**可插拔适配器**架构：`BaseAdapter` 抽象基类定义 `onMessage` / `sendMsg` 契约，具体协议由各自适配器实现——内置的 `OnebotAdapter` 基于 NapCat + OneBot v11 接入 QQ，理论上可替换适配任意聊天场景。AI 能力由阿里云百炼平台驱动（支持 DeepSeek / Qwen 等模型）。
+通信层采用**可插拔适配器**架构：`BaseAdapter` 抽象基类定义 `onMessage` / `sendMsg` 契约，具体协议由各自适配器实现——内置的 `OnebotAdapter` 基于 NapCat + OneBot v11 接入 QQ，`WechatBotAdapter` 基于微信官方 iLink Bot 协议（`@wechatbot/wechatbot` SDK，扫码登录）接入微信个人号，理论上可替换适配任意聊天场景。AI 能力由阿里云百炼平台驱动（支持 DeepSeek / Qwen 等模型）。
 
 ## 核心能力
 
@@ -118,6 +119,20 @@ AI 具备图片识别能力。当群内发送图片时，自动调用视觉模�
 
 当群内连续多条消息没有 @机器人时，AI 会根据上下文判断是否主动参与对话，行为更自然。
 
+### WeChat 接入（iLink Bot）
+
+通过 `WechatBotAdapter` + `WechatBotServer` 接入微信个人号，走官方 iLink Bot 协议（`@wechatbot/wechatbot` SDK），与 QQ 适配器共用同一条处理管道：
+
+- **扫码登录**：首次登录在 `bot.login({ callbacks })` 的 `onQrUrl` 中输出二维码链接（协议只给 URL，渲染二维码是接入方职责）；登录凭证持久化到 `~/.wechatbot`，重启自动复用。
+- **会话过期**：token 无固定有效期、协议不返回 TTL，仅在接口报 `errcode=-14` 时被动发现。SDK 会自动重新发起扫码登录，但该路径不带自定义回调，因此通过传入自定义 `logger` 截获 SDK 内部日志中的新二维码链接，配合 `session:expired` / `session:restored` 事件提示重新扫码。
+- **白名单**：微信好友第一次发消息时，从日志中复制其 `userId`（形如 `xxx@im.wechat`，是协议分配的加密 ID，**不是微信号**）加入 `config.targetUserId`，否则消息会被管道过滤。
+- **已知限制**（多为协议层约束）：
+  - 只有加密 `userId`，**拿不到用户昵称/头像**（`nickName` 以 userId 兜底）
+  - 当前仅文本消息进入管道，图片/语音/视频消息暂未接入（视觉中间件对微信侧不生效）
+  - 仅按私聊处理，未支持群聊
+  - 只能回复"先给机器人发过消息"的用户（协议要求 context_token），主动推送无上下文会失败
+  - 富消息段发送（图片/数组型 `sendMsg` 载荷）尚未实现，会记日志提示后丢弃
+
 ### Web 管理面板（开发中）
 
 Bot 内置独立的 **面板 API 服务**（`core/api/`），与 Web 后端以独立进程运行，通过 WebSocket 双向通信（设计文档见 `docs/web-api-design.md`）：
@@ -140,8 +155,8 @@ node scripts/test-api.js --slow # 附带鉴权超时场景（多等约 5s）
 
 ### 环境要求
 
-- Node.js >= 24
-- NapCat 客户端已运行并配置好反向 WebSocket 连接
+- Node.js >= 24（WeChat SDK 要求 >= 22）
+- NapCat 客户端已运行并配置好反向 WebSocket 连接（QQ 接入必需；仅运行微信适配器则不需要）
 
 ### 安装与启动
 
@@ -184,6 +199,7 @@ npm start
 |--------|------|
 | `token` | OneBot 鉴权 Token |
 | `targetGroupId` | 目标群 ID 列表（字符串数组） |
+| `targetUserId` | 目标用户 ID 列表：QQ 号（字符串）或微信加密 ID（形如 `xxx@im.wechat`，从日志复制） |
 | `selfId` | 机器人 QQ 号 |
 | `aiAPIKEY` | 阿里云 AI API Key |
 | `CHAT_MODEL` | 聊天模型名称 |
@@ -204,16 +220,18 @@ NapCat 反向 WebSocket 连接地址：`ws://127.0.0.1:8080/onebot/v11/ws`
 ### 事件处理管道
 
 ```
-NapCat 发送事件
-    │
-    ▼
-bot/OnebotServer.js ─── WebSocket 服务
-    │
-    ▼
-bot/adapter/OnebotAdapter ─── OneBot 协议解析（继承 BaseAdapter）
-    │
-    ▼
-pipeline/index.js ─── 管道编排
+QQ：NapCat 发送事件                     WeChat：iLink 长轮询收到消息
+    │                                       │
+    ▼                                       ▼
+bot/servers/OnebotServer.js            bot/servers/WechatBotServer.ts
+（反向 WebSocket 服务）                  （扫码登录 / 会话管理）
+    │                                       │
+    ▼                                       ▼
+bot/adapters/OnebotAdapter             bot/adapters/WechatBotAdapter
+（OneBot v11 协议解析）                  （归一化为 CtxEvent）
+    └──────────────────┬────────────────────┘
+                       ▼
+        pipeline/context.ts 构建 Context → pipeline/index.js 管道编排
     │
     ├─ 中间件（全部执行，丰富上下文）
     │   ├─ image-recognizer  → 识别图片 → ctx.imageDescription
@@ -285,11 +303,14 @@ core/
 ├── config.js                   # 统一配置（基础配置 + 常量 + 成员映射）
 ├── configDev.js                # 开发环境配置（gitignore，覆盖 config.js）
 │
-├── bot/                        # 通信层
-│   ├── OnebotServer.js               # WebSocket 服务
-│   └── adapter/                # 协议适配器（可插拔）
+├── bot/                        # 通信层：servers（连接/生命周期）+ adapters（协议适配，可插拔）
+│   ├── servers/
+│   │   ├── OnebotServer.js     # QQ：反向 WebSocket 服务（NapCat 接入）
+│   │   └── WechatBotServer.ts  # WeChat：iLink Bot 登录、二维码/会话事件、消息桥接
+│   └── adapters/               # 协议适配器（继承 BaseAdapter）
 │       ├── BaseAdapter.ts      # 抽象基类：定义 onMessage / sendMsg 契约
-│       └── OnebotAdapter.ts    # OneBot v11 协议实现
+│       ├── OnebotAdapter.ts    # OneBot v11 协议实现
+│       └── WechatBotAdapter.ts # 微信 iLink Bot 协议实现（@wechatbot/wechatbot）
 │
 ├── api/                        # Web 面板 API（独立 WS 服务端）
 │   ├── server.ts               # 启动/鉴权/心跳/广播
