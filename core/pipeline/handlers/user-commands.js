@@ -181,7 +181,7 @@ const cmds = [
         params: [{ name: "id", desc: "待确认操作编号" }],
         handler: async (args, ctx) => {
             if (!args[0]) return "用法：#do-yes <id>";
-            const result = await doConfirm(args[0]);
+            const result = await doConfirm(args[0], ctx);
             if (!result.ok) return result.text;
             chat(ctx).catch(err => {
                 logger.error("AI 回复失败:", err);

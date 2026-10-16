@@ -153,6 +153,9 @@ const baseConfig = {
      */
     mcpServers: [],
 
+    /** 汇报调用工具 */
+    toolOutput: false,
+
 
 
     // ========== 成员映射 ==========

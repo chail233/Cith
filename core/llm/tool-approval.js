@@ -46,9 +46,10 @@ export function hold(toolCall, ctx) {
  * 确认并执行一个挂起的写工具调用
  * 执行结果直接写入 recorder，由后续 chat() 注入 LLM 上下文
  * @param {string} id
+ * @param ctx
  * @returns {Promise<{ok: boolean, text: string}>} text 包含执行状态摘要；未找到时 ok=false
  */
-export async function confirm(id) {
+export async function confirm(id, ctx) {
     sweepExpired();
     const entry = pending.get(id);
     if (!entry) return { ok: false, text: `没有找到待确认操作 #${id}（可能已过期或已执行）`};
@@ -56,7 +57,7 @@ export async function confirm(id) {
     logger.info(`执行已确认的危险操作 #${id}: ${entry.toolName}`);
     try {
         const toolCall = entry.toolCall;
-        const result = await callTool(toolCall, entry.space ? { space: entry.space } : null, true);
+        const result = await callTool(toolCall, ctx, true);
         // 结果注入发起会话的上下文；会话已被回收时按发起空间重建
         if (entry.space) {
             const recorder = getRecorder(entry.space);

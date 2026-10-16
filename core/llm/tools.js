@@ -502,12 +502,14 @@ const pathToolWhitelist = {
 /**
  * 调用工具
  * @param {object} tool_call 完整的工具调用对象 { id, function: { name, arguments } }
- * @param {{isAdmin?: boolean, userId?: string, senderName?: string}|null} [ctx] 请求上下文
+ * @param {{isAdmin?: boolean, userId?: string, senderName?: string}} [ctx] 请求上下文
  * @param {boolean} [confirmed=false] 是否已确认
  */
 export async function callTool(tool_call, ctx, confirmed = false){
     const name = tool_call.function.name;
     const parameter = JSON.parse(tool_call.function.arguments);
+
+    if(config.toolOutput) ctx.adapter.sendMsg(ctx.space, `尝试调用${name}，参数为${JSON.stringify(parameter)}`);
 
     // 安全门禁：非管理员且未确认时，文件类工具按"执行对象是否在对应白名单内"决定放行或挂起
     if (!confirmed && !ctx?.isAdmin) {
