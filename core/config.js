@@ -5,11 +5,22 @@
  * DevMode 为 true 时，从 configDev.js 加载开发环境配置
  */
 
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, renameSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join } from "node:path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+/** 覆盖层文件：只存运行期被改过的顶层键，不进 git，启动时叠加在 base/dev 之上 */
+const overridePath = join(__dirname, "configOverride.json");
+
+/** 不参与自动持久化的键：Map 无法 JSON 化 / 合并数组 / 开关本身 */
+const NO_PERSIST_KEYS = new Set(["members", "mcpServers", "DevMode"]);
+
+/** 密钥类：可持久化但需重启才生效，落盘时提示 */
+const RESTART_KEYS = new Set([
+    "aiAPIKEY", "visionAPIKEY", "qweatherKEY", "githubToken", "token",
+]);
 
 const baseConfig = {
     // ========== 开发模式开关 ==========
@@ -196,4 +207,51 @@ if (baseConfig.DevMode) {
     }
 }
 
-export default baseConfig;
+/** 读取覆盖层；解析失败返回空对象，避免坏文件导致每次开机崩溃 */
+function readOverride() {
+    if (!existsSync(overridePath)) return {};
+    try {
+        return JSON.parse(readFileSync(overridePath, "utf8"));
+    }
+    catch (e) {
+        console.error("[config] configOverride.json 解析失败，已忽略:", e.message);
+        return {};
+    }
+}
+
+// 启动合并覆盖层：base → dev → override.json（json 只存被改过的顶层键）
+Object.assign(baseConfig, readOverride());
+
+// 用 Proxy 包裹导出：只定义 set，读自动透传到 target（零开销）。
+// 所有对 config 顶层键的赋值都会自动落盘，调用点无需任何改动。
+const config = new Proxy(baseConfig, {
+    set(target, key, value) {
+        target[key] = value; // 内存立即生效
+
+        if (typeof key !== "string" || NO_PERSIST_KEYS.has(key)) {
+            return true; // 这些键只改内存，不落盘
+        }
+
+        try {
+            JSON.stringify(value); // 序列化前校验，坏值不落盘
+        }
+        catch (e) {
+            console.error(`[config] ${key} 无法序列化，已忽略持久化:`, e.message);
+            return true;
+        }
+
+        if (RESTART_KEYS.has(key)) {
+            console.warn(`[config] ${key} 已持久化，但需重启才生效`);
+        }
+
+        const data = readOverride();
+        data[key] = value;
+        // 原子写：先写 tmp 再 rename，防止崩溃瞬间产生半截损坏文件
+        const tmp = overridePath + ".tmp";
+        writeFileSync(tmp, JSON.stringify(data, null, 2), "utf8");
+        renameSync(tmp, overridePath);
+        return true;
+    },
+});
+
+export default config;
