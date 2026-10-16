@@ -89,6 +89,8 @@ export class ChatRecorder {
     async summarizeCache() {
         if (!this._needsSummarization || this._cache.length === 0) return;
 
+        this._needsSummarization = false;
+
         // 1. 如果存在旧的概括，先存入长期记忆（放在 messages 中，标注为对话摘要）
         if (this._midSummary) {
             const userId = makeMemoryUserId(this._sessionId);
@@ -132,7 +134,6 @@ export class ChatRecorder {
         }
 
         this._cache = [];
-        this._needsSummarization = false;
     }
 
     /**
