@@ -96,7 +96,6 @@ export default async function chat(ctx) {
             tokenCount += result.totalTokens;
         }
 
-        // 解析 JSON 响应
         let parsed = handleReply(result.message.content);
 
         await sendAiReply(ctx.adapter, ctx.space, {
@@ -113,7 +112,7 @@ function buildMessages(recorder){
         { role: "system", content: SYSTEM_PROMPT },
     ];
 
-    // 强加载技能（force: true）正文固定注入上下文，确保 100% 可达
+    // 强加载技能（force: true）
     if (forceSkills.length > 0) {
         const forceBlock = forceSkills
             .map(s => `### ${s.name}\n${s.content}`)
