@@ -58,20 +58,28 @@ export default async function chat(ctx) {
                 await sendAiReply(ctx.adapter, ctx.space, {acts: parsed, tokens: tokenCount}, recorder);
                 tokenCount = 0;
             }
-            for(const tool_call of result.message.tool_calls){
-                try {
-                    const tool_call_id = tool_call.id;
+            // 同一轮多个工具调用并行执行；失败不抛断流程，错误原因回写为 tool 消息供模型自我修正
+            const toolResults = await Promise.all(
+                result.message.tool_calls.map(async (tool_call) => {
                     const tool_name = tool_call.function.name;
-                    const tool_args = JSON.parse(tool_call.function.arguments);
-                    const tool_result = await callTool(tool_call, ctx);
-                    recorder.add({role: "system", content: { text: `调用了工具 ${tool_name}，参数：${JSON.stringify(tool_args)}` }});
-                    recorder.add({role: "tool", content: { text: tool_result }, tool_call_id: tool_call_id});
-                    logger.info("调用工具:", tool_name, " 参数：", tool_args, " 结果：", tool_result);
-                }
-                catch (err) {
-                    logger.error("AI 工具调用失败:", err);
-                    await sendAiReply(ctx.adapter, ctx.space, `ERROR:工具调用失败 - ${err.message}`, recorder);
-                }
+                    let tool_args = null;
+                    let tool_result = "";
+                    try {
+                        tool_args = JSON.parse(tool_call.function.arguments);
+                        tool_result = await callTool(tool_call, ctx);
+                    }
+                    catch (err) {
+                        logger.error("AI 工具调用失败:", tool_name, err);
+                        tool_result = `工具 ${tool_name} 执行失败：${err.message}`;
+                    }
+                    return { tool_call, tool_name, tool_args, tool_result };
+                }),
+            );
+            // 按 tool_calls 原顺序回填上下文，保证 tool 消息与调用一一配对
+            for (const { tool_call, tool_name, tool_args, tool_result } of toolResults) {
+                recorder.add({role: "system", content: { text: `调用了工具 ${tool_name}，参数：${JSON.stringify(tool_args ?? tool_call.function.arguments)}` }});
+                recorder.add({ role: "tool", content: { text: tool_result }, tool_call_id: tool_call.id });
+                logger.info("调用工具:", tool_name, " 参数：", tool_args, " 结果：", tool_result);
             }
             result = await callLLM({
                 model: config.CHAT_MODEL,
