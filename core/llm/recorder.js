@@ -23,9 +23,30 @@ export class ChatRecorder {
         this._limit = limit;
         this._sessionId = sessionId;
         this._needsSummarization = false;
+        this._requesting = false;
     }
 
     msgWithoutChat = 0;
+
+    get isRequesting() {
+        return this._requesting;
+    }
+
+    /**
+     * 原子地占用本会话的模型请求名额
+     * 用于防止同一会话并发发起模型请求
+     * @returns {boolean} 已有请求进行中时返回 false
+     */
+    tryBeginRequest() {
+        if (this._requesting) return false;
+        this._requesting = true;
+        return true;
+    }
+
+    /** 释放本会话的请求名额（与 tryBeginRequest 配对，必须在 finally 中调用） */
+    endRequest() {
+        this._requesting = false;
+    }
 
     /** 判断一条消息是否计入短期记忆条数：工具、系统消息不计入 */
     _isCounted(msg) {
