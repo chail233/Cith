@@ -207,6 +207,16 @@ const cmds = [
         handler: async (args, ctx) => {
             return doList();
         }
+    },
+    {
+        name:"toolout",
+        needsAdmin: true,
+        description: "设置工具输出",
+        params: [{name:"value", desc:"bool"}],
+        handler: async (args, ctx) => {
+            config.toolOutput = args[0] === "true";
+            return "设置工具输出为" + config.toolOutput;
+        }
     }
 ];
 
