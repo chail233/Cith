@@ -4,6 +4,7 @@ import config from "../config.js";
 import logger from "../utils/logger.js";
 import {callTool, getAllTools} from "./tools.js";
 import {skills, forceSkills, reloadSkills} from "./skill.js";
+import {getActivePlan, renderPlan} from "./plan.ts";
 import {mcpClient} from "./mcp-client.js";
 import sleep from "../utils/sleep.js";
 
@@ -127,6 +128,12 @@ function buildMessages(recorder){
 
     if (recorder.getMidSummary()) {
         messages.push({ role: "system", content: `对话历史概要:${recorder.getMidSummary()}` });
+    }
+
+    // 活跃任务计划每轮回注上下文，防止长工具链中目标丢失；全部完成后不再注入
+    const plan = getActivePlan(recorder.sessionId);
+    if (plan) {
+        messages.push({ role: "system", content: `当前任务计划：\n${renderPlan(plan)}\n（随进度用 manage_plan 更新状态）` });
     }
 
     return [...messages, ...recorder.getAll()];

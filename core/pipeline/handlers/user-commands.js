@@ -5,6 +5,7 @@ import {skills, forceSkills} from "../../llm/skill.js";
 import {reloadSkills} from "../../llm/skill.js";
 import {mcpClient} from "../../llm/mcp-client.js";
 import {getAllTools} from "../../llm/tools.js";
+import {getPlan, renderPlan} from "../../llm/plan.ts";
 import {confirm as doConfirm, cancel as doCancel, list as doList} from "../../llm/tool-approval.js";
 import chat from "../../llm/chat.js";
 import logger from "../../utils/logger.js";
@@ -155,6 +156,16 @@ const cmds = [
                 `${s.id}：短期 ${s.short} 条，缓存 ${s.cache} 条，${s.hasSummary ? "有概要" : "无概要"}，空闲 ${s.idleMin} 分钟`
             );
             return `活跃会话（${list.length} 个）：\n${lines.join("\n")}`;
+        }
+    },
+    {
+        name: "plan",
+        description: "查看当前任务计划",
+        params: [],
+        handler: async (args, ctx) => {
+            const plan = getPlan(getRecorder(ctx.space).sessionId);
+            if (!plan) return "当前没有任务计划";
+            return `任务计划：\n${renderPlan(plan)}`;
         }
     },
     {

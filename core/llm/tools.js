@@ -8,6 +8,7 @@ import { execFile } from "node:child_process";
 import { resolveSrcPath, checkPathWhitelist } from "../utils/file-security.js";
 import {mcpClient} from "./mcp-client.js";
 import {hold} from "./tool-approval.js";
+import {setPlan, getPlan, renderPlan} from "./plan.ts";
 
 /**
  *模型可以调用的工具
@@ -180,6 +181,38 @@ const tools = [
                     },
                 },
                 required: ["mcpName"],
+            },
+        },
+    },
+    {
+        type: "function",
+        function: {
+            name: "manage_plan",
+            description: "创建或更新当前任务计划。每次提交完整任务清单覆盖旧计划；空数组表示任务结束并清空计划",
+            parameters: {
+                type: "object",
+                properties: {
+                    todos: {
+                        type: "array",
+                        description: "完整任务清单，按执行顺序排列",
+                        items: {
+                            type: "object",
+                            properties: {
+                                content: {
+                                    type: "string",
+                                    description: "步骤描述，简短",
+                                },
+                                status: {
+                                    type: "string",
+                                    enum: ["pending", "in_progress", "done", "cancelled"],
+                                    description: "步骤状态，同一时间最多一个 in_progress",
+                                },
+                            },
+                            required: ["content", "status"],
+                        },
+                    },
+                },
+                required: ["todos"],
             },
         },
     },
@@ -470,6 +503,23 @@ async function listMcpTools(param) {
     return `已将 ${param.mcpName} 的工具加入工具列表`;
 }
 
+/**
+ * 创建/更新当前会话的任务计划（全量覆盖，空数组清空）
+ * 计划仅供模型在多步任务中锚定目标，存内存不入会话历史之外的持久层
+ * @param {{todos: Array<{content: string, status: string}>}} param
+ * @param {{space?: import("../types/index.ts").Space}} [ctx]
+ */
+async function managePlan(param, ctx) {
+    if (!ctx?.space) return "无法确定当前会话，计划未保存";
+    const sessionId = sessionIdOf(ctx.space);
+    const todos = param?.todos;
+    if (!Array.isArray(todos)) return "缺少参数 todos（完整任务清单数组）";
+    setPlan(sessionId, todos);
+    const plan = getPlan(sessionId);
+    if (!plan) return "计划已清空";
+    return `当前计划：\n${renderPlan(plan)}`;
+}
+
 
 const toolMap = new Map(
     [
@@ -481,7 +531,8 @@ const toolMap = new Map(
         ["create_file", createFile],
         ["delete_file", deleteFile],
         ["list_files", listFiles],
-        ["list_mcp_tools", listMcpTools]
+        ["list_mcp_tools", listMcpTools],
+        ["manage_plan", managePlan]
     ]
 );
 

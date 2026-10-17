@@ -2,6 +2,7 @@
 
 import { ChatRecorder } from "./recorder.js";
 import logger from "../utils/logger.js";
+import { deletePlan } from "./plan.ts";
 import type { Space } from "../types/index.ts";
 
 // tsconfig 未配置 @types/node（历史遗留），此处按 Node 签名做最小声明
@@ -76,6 +77,7 @@ export async function retireSession(id: string): Promise<boolean> {
     const entry = sessions.get(id);
     if (!entry) return false;
     sessions.delete(id);
+    deletePlan(id);
     await safeCompress(entry.recorder, id);
     return true;
 }
@@ -91,6 +93,7 @@ function retireLeastRecent(): void {
     if (!oldest) return;
     const [id, entry] = oldest;
     sessions.delete(id);
+    deletePlan(id);
     logger.info(`会话数量达上限，回收最不活跃会话: ${id}`);
     safeCompress(entry.recorder, id);
 }
@@ -112,6 +115,7 @@ function sweepIdle(): void {
     for (const [id, entry] of sessions) {
         if (now - entry.lastActive > IDLE_TTL_MS) {
             sessions.delete(id);
+            deletePlan(id);
             logger.info(`会话空闲超时，回收: ${id}`);
             safeCompress(entry.recorder, id);
         }
