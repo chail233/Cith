@@ -25,16 +25,16 @@ const tools = [
         type: "function",
         function: {
             name: "get_user_profile",
-            description: "根据用户 QQ 号获取该用户的画像信息，可用于了解特定用户的偏好、性格等",
+            description: "根据用户 ID 获取该用户的画像信息，可用于了解特定用户的偏好、性格等",
             parameters: {
                 type: "object",
                 properties: {
-                    qq: {
+                    id: {
                         type: "string",
-                        description: "用户的 QQ 号",
+                        description: "用户的 ID（QQ 号或微信加密 ID）",
                     },
                 },
-                required: ["qq"],
+                required: ["id"],
             },
         },
     },
@@ -222,13 +222,13 @@ async function getMemory(param, ctx) {
 
 /**
  * 获取指定用户的画像信息
- * @param {{qq: string}} param
+ * @param {{id: string}} param
  */
 async function getUserProfileTool(param) {
-    const qq = param?.qq;
-    if (!qq) return "缺少 QQ 号参数";
-    const profile = await getUserProfile(qq);
-    if (!profile) return `未找到 QQ 号 ${qq} 的用户画像`;
+    const id = param?.id;
+    if (!id) return "缺少用户 ID 参数";
+    const profile = await getUserProfile(id);
+    if (!profile) return `未找到用户 ${id} 的用户画像`;
     return profile;
 }
 

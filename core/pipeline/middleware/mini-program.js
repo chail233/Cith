@@ -24,7 +24,7 @@ export default async function miniProgram(ctx) {
                         role: "user",
                         content: {
                             name: ctx.senderName,
-                            qq: ctx.userId,
+                            id: ctx.userId,
                             time: nowTime(),
                             text,
                         },

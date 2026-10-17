@@ -22,7 +22,7 @@ export default async function proactiveChat(ctx) {
         role: "user",
         content: {
             name: ctx.senderName,
-            qq: ctx.userId,
+            id: ctx.userId,
             time: nowTime(),
             text: text,
         },

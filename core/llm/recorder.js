@@ -175,7 +175,7 @@ export class ChatRecorder {
                     content:
                         "请从以下对话历史中提取每个用户的关键信息和特征。比如家庭成员、年龄、社会关系、内容偏好、饮食习惯、年龄段、人生理想/目标、性别、爱好、居住地等\n" +
                         "返回格式必须为 JSON 对象，顶层包含一个名为 profiles 的数组字段，数组每个元素格式如下：\n" +
-                        "{\"profiles\": [{\"qq\": \"用户QQ号\", \"info\": \"提取出来的用户画像信息,用第一人称描述\"}]}\n" +
+                        "{\"profiles\": [{\"id\": \"用户ID\", \"info\": \"提取出来的用户画像信息,用第一人称描述\"}]}\n" +
                         "请确保返回的JSON格式正确，并且只包含提取的用户信息，不要其他内容。每个用户信息只放在一个对象里。"
                 },
                 {
@@ -196,7 +196,7 @@ export class ChatRecorder {
                 return;
             }
             for (const profile of profiles) {
-                await extractUserProfile(profile.qq.toString(), [{role: "user", content: profile.info}]);
+                await extractUserProfile(profile.id.toString(), [{role: "user", content: profile.info}]);
             }
         } catch (e) {
             logger.error("用户画像提取失败:", e);

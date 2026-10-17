@@ -21,7 +21,7 @@ export default async function aiChat(ctx) {
         role: "user",
         content: {
             name: ctx.senderName,
-            qq: ctx.userId,
+            id: ctx.userId,
             time: nowTime(),
             text: content,
             at: "我"
