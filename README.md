@@ -1,18 +1,18 @@
-# SunbatwoBot
+# Cith
 
 <div align="center">
 
-[![GitHub Stars](https://img.shields.io/github/stars/chail233/SunbatwoBot?style=flat-square&logo=github&color=gold)](https://github.com/chail233/SunbatwoBot/stargazers)
-[![GitHub Forks](https://img.shields.io/github/forks/chail233/SunbatwoBot?style=flat-square&logo=github)](https://github.com/chail233/SunbatwoBot/forks)
-[![GitHub Issues](https://img.shields.io/github/issues/chail233/SunbatwoBot?style=flat-square&logo=github)](https://github.com/chail233/SunbatwoBot/issues)
-[![License](https://img.shields.io/github/license/chail233/SunbatwoBot?style=flat-square)](https://github.com/chail233/SunbatwoBot/blob/master/LICENSE)
+[![GitHub Stars](https://img.shields.io/github/stars/chail233/Cith?style=flat-square&logo=github&color=gold)](https://github.com/chail233/Cith/stargazers)
+[![GitHub Forks](https://img.shields.io/github/forks/chail233/Cith?style=flat-square&logo=github)](https://github.com/chail233/Cith/forks)
+[![GitHub Issues](https://img.shields.io/github/issues/chail233/Cith?style=flat-square&logo=github)](https://github.com/chail233/Cith/issues)
+[![License](https://img.shields.io/github/license/chail233/Cith?style=flat-square)](https://github.com/chail233/Cith/blob/master/LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D24-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org)
 [![OneBot](https://img.shields.io/badge/OneBot-v11-black?style=flat-square)](https://github.com/botuniverse/onebot-11)
 [![WeChat](https://img.shields.io/badge/WeChat-iLink_Bot-07C160?style=flat-square&logo=wechat&logoColor=white)](https://www.npmjs.com/package/@wechatbot/wechatbot)
 
 </div>
 
-SunbatwoBot 是一个存在于聊天软件中的 **Agent**。它不只是一个聊天机器人——它拥有自主决策、工具调用、文件操作、记忆管理和技能扩展等能力，能够在聊天对话中像一个真正的"成员"一样参与交流和工作。
+Cith（读作 /kɪθ/，曾用名 SunbatwoBot / 孙巴二娘）是一个存在于聊天软件中的 **轻量 Agent**。它不只是一个聊天机器人——它拥有自主决策、工具调用、文件操作、记忆管理和技能扩展等能力，能够在聊天对话中像一个真正的"成员"一样参与交流和工作。
 
 通信层采用**可插拔适配器**架构：`BaseAdapter` 抽象基类定义 `onMessage` / `sendMsg` 契约，具体协议由各自适配器实现——内置的 `OnebotAdapter` 基于 NapCat + OneBot v11 接入 QQ，`WechatBotAdapter` 基于微信官方 iLink Bot 协议（`@wechatbot/wechatbot` SDK，扫码登录）接入微信个人号，理论上可替换适配任意聊天场景。AI 能力由阿里云百炼平台驱动（支持 DeepSeek / Qwen 等模型）。
 
@@ -161,8 +161,8 @@ node scripts/test-api.js --slow # 附带鉴权超时场景（多等约 5s）
 ### 安装与启动
 
 ```bash
-git clone https://github.com/chail233/SunbatwoBot
-cd SunbatwoBot
+git clone https://github.com/chail233/Cith
+cd Cith
 npm install
 npm start
 ```
