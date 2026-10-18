@@ -1,6 +1,6 @@
 ---
 name: skill-manager
-description: 管理 Agent Skill 的安装和卸载。从 GitHub 仓库安装新技能，卸载已有技能。
+description: 管理 agent Skill 的安装和卸载。从 GitHub 仓库安装新技能，卸载已有技能。
 force: false
 ---
 

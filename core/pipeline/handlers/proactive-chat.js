@@ -1,7 +1,7 @@
 // @ts-check
 
-import chatAPI from "../../llm/chat.js";
-import { getRecorder } from "../../llm/session.ts";
+import { runAgent } from "../agent-runner.ts";
+import { getAgent } from "../../agent/AgentManager.ts";
 import logger from "../../utils/logger.js";
 import config from "../../config.js";
 import { nowTime} from "../../utils/time.js";
@@ -11,12 +11,12 @@ import { nowTime} from "../../utils/time.js";
  */
 
 /**
- * @param {object} ctx
+ * @param {import("../../types/index.ts").Context} ctx
  * @returns {Promise<boolean>}
  */
 export default async function proactiveChat(ctx) {
     if(!config.EnableProactiveChat) return false;
-    const recorder = getRecorder(ctx.space);
+    const recorder = getAgent(ctx.space).memory;
     const text = ctx.text + (ctx.imageDescription ? `\n${ctx.imageDescription}` : "");
     recorder.add({
         role: "user",
@@ -31,7 +31,7 @@ export default async function proactiveChat(ctx) {
     if (recorder.msgWithoutChat >= config.PROACTIVE_CHAT_LIMIT) {
         logger.info("达到主动聊天阈值，触发 AI 对话");
         recorder.msgWithoutChat = 0;
-        await chatAPI(ctx);
+        await runAgent(ctx);
         return true;
     }
 

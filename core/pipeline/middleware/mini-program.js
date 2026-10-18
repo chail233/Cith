@@ -1,5 +1,5 @@
 
-import { getRecorder } from "../../llm/session.ts";
+import { getAgent } from "../../agent/AgentManager.ts";
 import logger from "../../utils/logger.js";
 import {nowTime} from "../../utils/time.js";
 
@@ -20,7 +20,7 @@ export default async function miniProgram(ctx) {
                 if (title) {
                     logger.info("小程序消息:", seg.data.data);
                     const text = `[分享了${title}消息]`;
-                    getRecorder(ctx.space).add({
+                    getAgent(ctx.space).memory.add({
                         role: "user",
                         content: {
                             name: ctx.senderName,

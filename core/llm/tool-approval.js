@@ -1,12 +1,10 @@
 import crypto from "node:crypto";
 import logger from "../utils/logger.js";
-import { callTool } from "./tools.js";
-import { getRecorder } from "./session.ts";
 
 const TTL_MS = 10 * 60 * 1000; // 10 分钟
 const MAX_PENDING = 20;
 
-/** @type {Map<string, {toolCall: object, toolName: string, requestedBy: string, requestedByName: string, space: object|null, createdAt: number}>} */
+/** @type {Map<string, import("../types/index.ts").PendingToolCall>} */
 const pending = new Map();
 
 function sweepExpired() {
@@ -43,32 +41,16 @@ export function hold(toolCall, ctx) {
 }
 
 /**
- * 确认并执行一个挂起的写工具调用
- * 执行结果直接写入 recorder，由后续 chat() 注入 LLM 上下文
+ * 取出并移除一个挂起的写工具调用
  * @param {string} id
- * @param ctx
- * @returns {Promise<{ok: boolean, text: string}>} text 包含执行状态摘要；未找到时 ok=false
+ * @returns {{entry: import("../types/index.ts").PendingToolCall|null, error: string}} 未找到时 entry 为 null
  */
-export async function confirm(id, ctx) {
+export function take(id) {
     sweepExpired();
     const entry = pending.get(id);
-    if (!entry) return { ok: false, text: `没有找到待确认操作 #${id}（可能已过期或已执行）`};
+    if (!entry) return { entry: null, error: `没有找到待确认操作 #${id}（可能已过期或已执行）` };
     pending.delete(id);
-    logger.info(`执行已确认的危险操作 #${id}: ${entry.toolName}`);
-    try {
-        const toolCall = entry.toolCall;
-        const result = await callTool(toolCall, ctx, true);
-        // 结果注入发起会话的上下文；会话已被回收时按发起空间重建
-        if (entry.space) {
-            const recorder = getRecorder(entry.space);
-            recorder.add({role: "system", content: { text: `调用了工具 ${entry.toolName}，参数：${toolCall.function.arguments}` }});
-            recorder.add({ role: "tool", content: { text: result }, tool_call_id: toolCall.id });
-        }
-        return { ok: true, text: `#${id} ${entry.toolName} 已执行，结果已注入对话上下文`};
-    } 
-    catch (err) {
-        return { ok: false, text: `#${id} ${entry.toolName} 执行失败：${err.message}`};
-    }
+    return { entry, error: "" };
 }
 
 /**

@@ -36,7 +36,8 @@ const http_vision = axios.create({
  * @param {boolean} [options.enableSearch] 是否启用联网搜索
  * @param {object} [options.responseFormat] 响应格式，如 { type: "json_object" }
  * @param {Array<object>} [options.tools] 工具列表
- * @returns {Promise<{message: object, totalTokens: number}|string>}
+ * @param {string} [options.mode] 请求模式："chat"（默认）或 "vision"
+ * @returns {Promise<import("../types/index.ts").LlmResult|string>}
  *   成功返回 { message, totalTokens }，失败返回错误字符串
  */
 export async function callLLM({ model, messages, temperature, enableSearch, responseFormat, tools,mode = "chat"}) {

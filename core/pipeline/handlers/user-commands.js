@@ -1,13 +1,14 @@
 import { getWeatherText } from "../../services/weather.js";
-import { getRecorder, listSessions } from "../../llm/session.ts";
+import { getAgent, listAgents } from "../../agent/AgentManager.ts";
 import config from "../../config.js";
 import {skills, forceSkills} from "../../llm/skill.js";
 import {reloadSkills} from "../../llm/skill.js";
 import {mcpClient} from "../../llm/mcp-client.js";
 import {getAllTools} from "../../llm/tools.js";
 import {getPlan, renderPlan} from "../../llm/plan.ts";
-import {confirm as doConfirm, cancel as doCancel, list as doList} from "../../llm/tool-approval.js";
-import chat from "../../llm/chat.js";
+import {cancel as doCancel, list as doList} from "../../llm/tool-approval.js";
+import {confirmPending} from "../../agent/approval-runner.ts";
+import { runAgent } from "../agent-runner.ts";
 import logger from "../../utils/logger.js";
 
 const cmds = [
@@ -26,7 +27,7 @@ const cmds = [
         description: "清除短期记忆（管理员）",
         params: [],
         handler: async (args, ctx) => {
-            const recorder = getRecorder(ctx.space);
+            const recorder = getAgent(ctx.space).memory;
             const cnt = recorder.length;
             recorder.clear();
             return `清除了${cnt}条消息（会话 ${recorder.sessionId}）。`;
@@ -49,7 +50,7 @@ const cmds = [
         description: "列出短期记录",
         params: [],
         handler: async (args, ctx) => {
-            const all = getRecorder(ctx.space).getAll();
+            const all = getAgent(ctx.space).memory.getAll();
             if (all.length === 0) return "短期记录为空";
             const lines = all.map((m, i) => {
                 return `[${i + 1}] ${m.role}: ${m.content}`;
@@ -63,7 +64,7 @@ const cmds = [
         description: "列出缓存记录",
         params: [],
         handler: async (args, ctx)=>{
-            const all = getRecorder(ctx.space).getCache();
+            const all = getAgent(ctx.space).memory.getCache();
             if (all.length === 0) return "缓存记录为空";
             const lines = all.map((m, i) => {
                 return `[${i + 1}] ${m.role}: ${m.content}`;
@@ -77,7 +78,7 @@ const cmds = [
         description: "显示中期记忆概括",
         params: [],
         handler: async (args, ctx) => {
-            const summary = getRecorder(ctx.space).getMidSummary();
+            const summary = getAgent(ctx.space).memory.getMidSummary();
             if (!summary) return "中期记忆为空";
             return `中期记忆（${summary.length} 字）：\n${summary}`;
         }
@@ -134,7 +135,7 @@ const cmds = [
         params: [],
         handler: async (args, ctx) => {
             try {
-                await getRecorder(ctx.space).compress();
+                await getAgent(ctx.space).memory.compress();
                 return "压缩完成";
             }
             catch (err) {
@@ -150,7 +151,7 @@ const cmds = [
         description: "列出活跃会话（管理员）",
         params: [],
         handler: async (args, ctx) => {
-            const list = listSessions();
+            const list = listAgents();
             if (list.length === 0) return "当前没有活跃会话";
             const lines = list.map(s =>
                 `${s.id}：短期 ${s.short} 条，缓存 ${s.cache} 条，${s.hasSummary ? "有概要" : "无概要"}，空闲 ${s.idleMin} 分钟`
@@ -163,7 +164,7 @@ const cmds = [
         description: "查看当前任务计划",
         params: [],
         handler: async (args, ctx) => {
-            const plan = getPlan(getRecorder(ctx.space).sessionId);
+            const plan = getPlan(getAgent(ctx.space).sessionId);
             if (!plan) return "当前没有任务计划";
             return `任务计划：\n${renderPlan(plan)}`;
         }
@@ -192,9 +193,9 @@ const cmds = [
         params: [{ name: "id", desc: "待确认操作编号" }],
         handler: async (args, ctx) => {
             if (!args[0]) return "用法：#do-yes <id>";
-            const result = await doConfirm(args[0], ctx);
+            const result = await confirmPending(args[0], ctx);
             if (!result.ok) return result.text;
-            chat(ctx).catch(err => {
+            runAgent(ctx).catch(err => {
                 logger.error("AI 回复失败:", err);
             });
             return null;

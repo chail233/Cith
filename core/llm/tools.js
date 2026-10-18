@@ -1,4 +1,3 @@
-import { getRecorder, sessionIdOf } from "./session.ts";
 import {makeMemoryUserId, searchMemory, getUserProfile} from "./long-term-memory.js";
 import config from "../config.js";
 import logger from "../utils/logger.js";
@@ -234,15 +233,17 @@ export function getAllTools() {
 
 /**
  * 搜索长期记忆（使用当前会话的短期上下文作为查询线索）
+ * 会话上下文由调用方 Agent 通过 ctx.agent 注入
  * @param {object} param
- * @param {{space?: import("../types/index.ts").Space}|null} [ctx]
+ * @param {{agent?: import("../agent/Agent.ts").default}|null} [ctx]
  */
 async function getMemory(param, ctx) {
-    if (!ctx?.space) return "无法确定当前会话，无法搜索记忆";
-    const chatRecorder = getRecorder(ctx.space);
+    const agent = ctx?.agent;
+    if (!agent) return "无法确定当前会话，无法搜索记忆";
+    const chatRecorder = agent.memory;
     const shortTermMessages = chatRecorder.getAll();
     if (shortTermMessages.length > 0) {
-        const userId = makeMemoryUserId(sessionIdOf(ctx.space));
+        const userId = makeMemoryUserId(agent.sessionId);
 
         const userMessages = shortTermMessages
             .filter((m) => m.role === "user" || m.role === "assistant")
@@ -510,11 +511,12 @@ async function listMcpTools(param) {
 /**
  * 创建/更新当前会话的任务计划（目标 + 步骤清单全量覆盖，空数组清空）
  * @param {{goal?: string, todos: Array<{content: string, status: string}>}} param
- * @param {{space?: import("../types/index.ts").Space}} [ctx]
+ * @param {{agent?: import("../agent/Agent.ts").default}} [ctx]
  */
 async function managePlan(param, ctx) {
-    if (!ctx?.space) return "无法确定当前会话，计划未保存";
-    const sessionId = sessionIdOf(ctx.space);
+    const agent = ctx?.agent;
+    if (!agent) return "无法确定当前会话，计划未保存";
+    const sessionId = agent.sessionId;
     const todos = param?.todos;
     if (!Array.isArray(todos)) return "缺少参数 todos（完整任务清单数组）";
     setPlan(sessionId, param?.goal, todos);
@@ -555,15 +557,13 @@ const pathToolWhitelist = {
 
 /**
  * 调用工具
- * @param {object} tool_call 完整的工具调用对象 { id, function: { name, arguments } }
- * @param {{isAdmin?: boolean, userId?: string, senderName?: string}} [ctx] 请求上下文
+ * @param {import("../types/index.ts").ToolCall} tool_call 完整的工具调用对象 { id, function: { name, arguments } }
+ * @param {import("../types/index.ts").Context & {agent?: import("../agent/Agent.ts").default}} [ctx] 请求上下文
  * @param {boolean} [confirmed=false] 是否已确认
  */
 export async function callTool(tool_call, ctx, confirmed = false){
     const name = tool_call.function.name;
     const parameter = JSON.parse(tool_call.function.arguments);
-
-    if(config.toolOutput) ctx.adapter.sendMsg(ctx.space, `尝试调用${name}，参数为${JSON.stringify(parameter)}`);
 
     // 安全门禁：非管理员且未确认时，文件类工具按"执行对象是否在对应白名单内"决定放行或挂起
     if (!confirmed && !ctx?.isAdmin) {

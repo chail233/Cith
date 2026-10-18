@@ -1,7 +1,7 @@
 // @ts-check
 
 import needRepeat from "../../tools/repeater.js";
-import { getRecorder } from "../../llm/session.ts";
+import { getAgent } from "../../agent/AgentManager.ts";
 import { nowTime } from "../../utils/time.js";
 
 /**
@@ -10,7 +10,7 @@ import { nowTime } from "../../utils/time.js";
  */
 
 /**
- * @param {object} ctx
+ * @param {import("../../types/index.ts").Context} ctx
  * @returns {Promise<boolean>}
  */
 export default async function repeater(ctx) {
@@ -20,7 +20,7 @@ export default async function repeater(ctx) {
 
     if (needRepeat(ctx.text)) {
         ctx.adapter.sendMsg(ctx.space, ctx.text);
-        getRecorder(ctx.space).add({ role: "assistant", content: { text: ctx.text, time: nowTime() } });
+        getAgent(ctx.space).memory.add({ role: "assistant", content: { text: ctx.text, time: nowTime() } });
         return true;
     }
 

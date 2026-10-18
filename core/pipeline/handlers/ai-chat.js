@@ -1,6 +1,6 @@
-import chatAPI from "../../llm/chat.js";
+import { runAgent } from "../agent-runner.ts";
 import logger from "../../utils/logger.js";
-import { getRecorder } from "../../llm/session.ts";
+import { getAgent } from "../../agent/AgentManager.ts";
 import {nowTime} from "../../utils/time.js";
 
 /**
@@ -27,10 +27,10 @@ export default async function aiChat(ctx) {
             at: "我"
         },
     };
-    getRecorder(ctx.space).add(msg);
+    getAgent(ctx.space).memory.add(msg);
     logger.info("AI 对话请求:", content);
 
-    await chatAPI(ctx);
+    await runAgent(ctx);
 
     return true;
 }

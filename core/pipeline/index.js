@@ -28,9 +28,9 @@ const handlers = [
 ];
 
 /**
- * 事件管道：接收 OneBot 事件，按中间件→处理器流水线处理
+ * 事件管道：接收事件，按中间件→处理器流水线处理
  *
- * @param {object} ctxEvent OneBot 事件
+ * @param {import("../types/index.ts").CtxEvent} ctxEvent 事件
  */
 export default async function runPipeline(ctxEvent) {
     //构建上下文
