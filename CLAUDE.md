@@ -30,11 +30,11 @@ Transport protocols are abstracted behind `BaseAdapter` (an abstract class). It 
 
 ### Shared types (`core/types/`)
 
-Cross-module type contracts live in `core/types/index.ts`: `CtxEvent` (normalized inbound event), `Space` (group/private target), `Context` (pipeline ctx), and `MessageSegment`. This is the **single source of truth** — the adapter layer and the pipeline both import from it; do not redefine these interfaces locally. `CtxEvent.adapter` / `Context.adapter` are typed as `BaseAdapter` so `ctx.adapter.sendMsg()` is type-checked (type-only circular imports between `types` and `BaseAdapter` are fine — they are erased at runtime).
+Cross-module type contracts live in `core/types/index.ts`: `CtxEvent` (normalized inbound event), `Space` (group/private target), `Context` (pipeline ctx), and `MessageSegment`. This is the **single source of truth** — the adapter layer and the pipeline both import from it; do not redefine these interfaces locally. `CtxEvent.adapter` / `Context.adapter` are typed as `BaseAdapter` so `ctx.adapter.sendMsg()` is type-checked (type-only circular imports between `types` and `BaseAdapter` are fine — they are erased at runtime). Agent-specific types (`ToolCall`, `LlmResult`, `ReplyAct`, `ReplyPayload`, `PendingToolCall`, `Plan`/`PlanItem`/`PlanStatus`/`RawTodo`) live in `core/agent/types.ts` — only the AI module and its event consumers (`pipeline/agent-runner.ts`) import from there.
 
 ### Agent loop (`agent/Agent.ts`, merged AI module — former `llm/` now lives in `agent/`)
 
-`Agent` (an `EventEmitter`, one per chat session, pooled by `agent/AgentManager.ts`) owns the loop: `contextBuilder.ts` `buildMessages()` assembles system prompt + force-loaded skills + skill list + MCP server list + optional mid-summary + active plan + recorder history; the LLM is called with all tool definitions; for each `tool_calls` entry `callTool()` runs and the result is appended as a `role:"tool"` row, then the LLM is called again — looping up to `config.TOOLCHAIN_MAX_LENGTH` (30). The Agent only *thinks*: it broadcasts `reply` / `tool-call` / `tool-result` events; `pipeline/agent-runner.ts` (`runAgent(ctx)`) subscribes and sends via the adapter with ~3s random spacing. The model must output strict JSON `{ "action": [{ "cmd": "text", "content": "..." }] }`; `replyParser.ts` `parseReply()` is lenient — it also accepts a bare array and degrades malformed output to a single text message.
+`Agent` (an `EventEmitter`, one per chat session, pooled by `agent/AgentManager.ts`) owns the loop: `contextBuilder.ts` `buildMessages(agent)` (reads `agent.memory` + `agent.getActivePlan()`) assembles system prompt + force-loaded skills + skill list + MCP server list + optional mid-summary + active plan + recorder history; the LLM is called with all tool definitions; for each `tool_calls` entry `callTool()` runs and the result is appended as a `role:"tool"` row, then the LLM is called again — looping up to `config.TOOLCHAIN_MAX_LENGTH` (30). The Agent only *thinks*: it broadcasts `reply` / `tool-call` / `tool-result` events; `pipeline/agent-runner.ts` (`runAgent(ctx)`) subscribes and sends via the adapter with ~3s random spacing. The model must output strict JSON `{ "action": [{ "cmd": "text", "content": "..." }] }`; `replyParser.ts` `parseReply()` is lenient — it also accepts a bare array and degrades malformed output to a single text message.
 
 ### Tools (`agent/tools.js`)
 
@@ -65,6 +65,6 @@ A skill is a directory under `core/skills/` containing `SKILL.md` with YAML fron
 ## Conventions
 
 - Comments, log strings, and the `SYSTEM_PROMPT` are in Chinese; keep new code consistent.
-- New cross-module interfaces go in `core/types/index.ts` (not redefined per module); new chat platforms are added by subclassing `BaseAdapter` in `bot/adapter/`.
+- New cross-module interfaces go in `core/types/index.ts`, Agent-only types in `core/agent/types.ts` (not redefined per module elsewhere); new chat platforms are added by subclassing `BaseAdapter` in `bot/adapter/`.
 - Use `utils/logger.js` rather than `console`.
 - `config.SYSTEM_PROMPT` defines both the persona and the strict JSON output contract — changes there affect every reply.

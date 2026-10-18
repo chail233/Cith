@@ -5,7 +5,6 @@ import {skills, forceSkills} from "../../agent/skill.js";
 import {reloadSkills} from "../../agent/skill.js";
 import {mcpClient} from "../../agent/mcp-client.js";
 import {getAllTools} from "../../agent/tools.js";
-import {getPlan, renderPlan} from "../../agent/plan.ts";
 import {cancel as doCancel, list as doList} from "../../agent/tool-approval.js";
 import {confirmPending} from "../../agent/approval-runner.ts";
 import { runAgent } from "../agent-runner.ts";
@@ -164,9 +163,9 @@ const cmds = [
         description: "查看当前任务计划",
         params: [],
         handler: async (args, ctx) => {
-            const plan = getPlan(getAgent(ctx.space).sessionId);
-            if (!plan) return "当前没有任务计划";
-            return `任务计划：\n${renderPlan(plan)}`;
+            const text = getAgent(ctx.space).renderPlan();
+            if (!text) return "当前没有任务计划";
+            return `任务计划：\n${text}`;
         }
     },
     {

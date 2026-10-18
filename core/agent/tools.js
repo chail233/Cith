@@ -7,7 +7,6 @@ import { execFile } from "node:child_process";
 import { resolveSrcPath, checkPathWhitelist } from "../utils/file-security.js";
 import {mcpClient} from "./mcp-client.js";
 import {hold} from "./tool-approval.js";
-import {setPlan, getPlan, renderPlan} from "./plan.ts";
 
 /**
  *模型可以调用的工具
@@ -516,13 +515,12 @@ async function listMcpTools(param) {
 async function managePlan(param, ctx) {
     const agent = ctx?.agent;
     if (!agent) return "无法确定当前会话，计划未保存";
-    const sessionId = agent.sessionId;
     const todos = param?.todos;
     if (!Array.isArray(todos)) return "缺少参数 todos（完整任务清单数组）";
-    setPlan(sessionId, param?.goal, todos);
-    const plan = getPlan(sessionId);
-    if (!plan) return "计划已清空";
-    return `当前计划：\n${renderPlan(plan)}`;
+    agent.setPlan(param?.goal, todos);
+    const text = agent.renderPlan();
+    if (!text) return "计划已清空";
+    return `当前计划：\n${text}`;
 }
 
 
@@ -557,7 +555,7 @@ const pathToolWhitelist = {
 
 /**
  * 调用工具
- * @param {import("../types/index.ts").ToolCall} tool_call 完整的工具调用对象 { id, function: { name, arguments } }
+ * @param {import("./types.ts").ToolCall} tool_call 完整的工具调用对象 { id, function: { name, arguments } }
  * @param {import("../types/index.ts").Context & {agent?: import("./Agent.ts").default}} [ctx] 请求上下文
  * @param {boolean} [confirmed=false] 是否已确认
  */

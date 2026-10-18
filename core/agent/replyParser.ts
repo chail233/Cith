@@ -3,7 +3,7 @@
  * 从原 chat.js 的 handleReply 抽离，负责把模型输出解析为动作数组
  */
 import logger from "../utils/logger.js";
-import type { ReplyAct } from "../types/index.ts";
+import type { ReplyAct } from "./types.ts";
 
 /**
  * 处理 AI 回复内容

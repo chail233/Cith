@@ -324,7 +324,7 @@ core/
 │   ├── runtime-state.ts        # 运行时状态快照
 │   └── actions/                # status / config / logs / meta（get_status、set_config 等）
 │
-├── types/                      # 跨模块共用类型定义
+├── types/                      # 跨模块共用类型定义（通信/管道层；Agent 独有类型在 agent/types.ts）
 │   └── index.ts                # Context / CtxEvent / Space / MessageSegment
 │
 ├── pipeline/                   # 事件处理管道
@@ -343,15 +343,15 @@ core/
 │   └── agent-runner.ts         # Agent 事件 → 适配器分发（节流发送）
 │
 ├── agent/                      # Agent 核心（AI 相关代码全部内聚于此）
-│   ├── Agent.ts                # Agent 类：循环主体，只产出事件不碰通道
+│   ├── Agent.ts                # Agent 类：循环主体 + 会话任务计划，只产出事件不碰通道
 │   ├── AgentManager.ts         # 会话池：space → Agent 实例，空闲回收
 │   ├── contextBuilder.ts       # LLM 请求上下文组装
 │   ├── replyParser.ts          # 模型回复解析（{action:[...]}）
+│   ├── types.ts                # Agent 系统独有类型（ToolCall/ReplyPayload/Plan 等）
 │   ├── approval-runner.ts      # 危险操作确认执行链
 │   ├── client.js               # LLM API 客户端
 │   ├── tools.js                # 工具定义与调度
 │   ├── tool-approval.js        # 危险操作确认队列
-│   ├── plan.ts                 # 会话级任务计划
 │   ├── mcp-client.js           # MCP 客户端管理器
 │   ├── skill.js                # Skill 加载器
 │   ├── image.js                # 视觉 API

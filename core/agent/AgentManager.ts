@@ -3,7 +3,6 @@
  */
 import { ChatRecorder } from "./recorder.js";
 import logger from "../utils/logger.js";
-import { deletePlan } from "./plan.ts";
 import Agent from "./Agent.ts";
 import type { Space } from "../types/index.ts";
 
@@ -67,14 +66,13 @@ export function listAgents(): AgentInfo[] {
 }
 
 /**
- * 主动结束一个会话：先压缩记忆再移出会话池
+ * 主动结束一个会话：先压缩记忆再移出会话池（任务计划随实例一同释放）
  * @returns 会话不存在时返回 false
  */
 export async function retireSession(id: string): Promise<boolean> {
     const entry = agents.get(id);
     if (!entry) return false;
     agents.delete(id);
-    deletePlan(id);
     await safeCompress(entry, id);
     return true;
 }
@@ -90,7 +88,6 @@ function retireLeastRecent(): void {
     if (!oldest) return;
     const [id, entry] = oldest;
     agents.delete(id);
-    deletePlan(id);
     logger.info(`会话数量达上限，回收最不活跃会话: ${id}`);
     safeCompress(entry, id);
 }
@@ -112,7 +109,6 @@ function sweepIdle(): void {
     for (const [id, entry] of agents) {
         if (now - entry.lastActive > IDLE_TTL_MS) {
             agents.delete(id);
-            deletePlan(id);
             logger.info(`会话空闲超时，回收: ${id}`);
             safeCompress(entry, id);
         }

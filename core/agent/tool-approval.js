@@ -4,7 +4,7 @@ import logger from "../utils/logger.js";
 const TTL_MS = 10 * 60 * 1000; // 10 分钟
 const MAX_PENDING = 20;
 
-/** @type {Map<string, import("../types/index.ts").PendingToolCall>} */
+/** @type {Map<string, import("./types.ts").PendingToolCall>} */
 const pending = new Map();
 
 function sweepExpired() {
@@ -43,7 +43,7 @@ export function hold(toolCall, ctx) {
 /**
  * 取出并移除一个挂起的写工具调用
  * @param {string} id
- * @returns {{entry: import("../types/index.ts").PendingToolCall|null, error: string}} 未找到时 entry 为 null
+ * @returns {{entry: import("./types.ts").PendingToolCall|null, error: string}} 未找到时 entry 为 null
  */
 export function take(id) {
     sweepExpired();

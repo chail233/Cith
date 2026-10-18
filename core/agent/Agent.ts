@@ -11,26 +11,59 @@ import { EventEmitter } from "node:events";
 import { callLLM } from "./client.js";
 import { callTool, getAllTools } from "./tools.js";
 import { reloadSkills } from "./skill.js";
-import { buildMessages } from "./contextBuilder.ts";
+import { buildMessages, renderPlan } from "./contextBuilder.ts";
 import { parseReply } from "./replyParser.ts";
 import config from "../config.js";
 import logger from "../utils/logger.js";
 import type { ChatRecorder } from "./recorder.js";
-import type { Context, ReplyAct, ReplyPayload, ToolCall } from "../types/index.ts";
+import type { Context } from "../types/index.ts";
+import type { Plan, PlanStatus, RawTodo, ReplyAct, ReplyPayload, ToolCall } from "./types.ts";
 
 /** 传给工具层的上下文：管道上下文 + 发起本次调用的 Agent（工具据此访问记忆与会话 ID） */
 export type AgentToolContext = Context & { agent: Agent };
 
 export default class Agent extends EventEmitter {
-    /** 会话 ID（{from}:{id}），同时作为长期记忆与计划的派生键 */
+    /** 会话 ID（{from}:{id}），同时作为长期记忆的派生键 */
     readonly sessionId: string;
     /** 本会话的三层记忆记录器 */
     readonly memory: ChatRecorder;
+
+    private plan: Plan | null = null;
 
     constructor(opts: { sessionId: string; memory: ChatRecorder }) {
         super();
         this.sessionId = opts.sessionId;
         this.memory = opts.memory;
+    }
+
+    /**
+     * 覆盖写入本会话的计划（全量替换）；空步骤数组或非法输入视为清空
+     */
+    setPlan(goal: unknown, todos: RawTodo[] | null | undefined): void {
+        if (!Array.isArray(todos) || todos.length === 0) {
+            this.plan = null;
+            return;
+        }
+        this.plan = { goal: normalizeGoal(goal), items: todos.map(normalizeTodo) };
+    }
+
+    /** 获取本会话的计划，不存在时返回 null */
+    getPlan(): Plan | null {
+        return this.plan;
+    }
+
+    /**
+     * 获取未完成（存在 pending/in_progress 条目）的计划
+     */
+    getActivePlan(): Plan | null {
+        if (!this.plan) return null;
+        const finished = this.plan.items.every((t) => t.status === "done" || t.status === "cancelled");
+        return finished ? null : this.plan;
+    }
+
+    /** 渲染本会话计划为文本（目标行 + 步骤清单）；无计划时返回 null */
+    renderPlan(): string | null {
+        return this.plan ? renderPlan(this.plan) : null;
     }
 
     /**
@@ -51,7 +84,7 @@ export default class Agent extends EventEmitter {
 
             const request = () => callLLM({
                 model: config.CHAT_MODEL,
-                messages: buildMessages(this.memory),
+                messages: buildMessages(this),
                 temperature: 0.2,
                 enableSearch: true,
                 responseFormat: { type: "json_object" },
@@ -146,4 +179,24 @@ export default class Agent extends EventEmitter {
 /** 统一提取异常信息文本 */
 function errorMessage(err: unknown): string {
     return err instanceof Error ? err.message : String(err);
+}
+
+/** 判断任意值是否为合法状态（类型守卫，替代断言） */
+function isPlanStatus(value: unknown): value is PlanStatus {
+    return typeof value === "string" && value in STATUS_KEYS;
+}
+
+const STATUS_KEYS: Record<PlanStatus, true> = { pending: true, in_progress: true, done: true, cancelled: true };
+
+/** 归一化单条原始输入：状态非法回落 pending，内容截断防止上下文膨胀 */
+function normalizeTodo(raw: RawTodo): Plan["items"][number] {
+    return {
+        content: String(raw?.content ?? "").slice(0, 200),
+        status: isPlanStatus(raw?.status) ? raw.status : "pending",
+    };
+}
+
+/** 归一化目标：截断防止上下文膨胀 */
+function normalizeGoal(raw: unknown): string {
+    return String(raw ?? "").slice(0, 200);
 }

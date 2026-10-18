@@ -7,7 +7,8 @@ import logger from "../utils/logger.js";
 import sleep from "../utils/sleep.js";
 import { getAgent } from "../agent/AgentManager.ts";
 import type Agent from "../agent/Agent.ts";
-import type { Context, ReplyPayload } from "../types/index.ts";
+import type { Context } from "../types/index.ts";
+import type { ReplyPayload } from "../agent/types.ts";
 
 /**
  * 运行一次 Agent 对话，并把产生的回复经当前上下文适配器发送
