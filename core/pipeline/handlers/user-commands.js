@@ -1,12 +1,12 @@
 import { getWeatherText } from "../../services/weather.js";
 import { getAgent, listAgents } from "../../agent/AgentManager.ts";
 import config from "../../config.js";
-import {skills, forceSkills} from "../../llm/skill.js";
-import {reloadSkills} from "../../llm/skill.js";
-import {mcpClient} from "../../llm/mcp-client.js";
-import {getAllTools} from "../../llm/tools.js";
-import {getPlan, renderPlan} from "../../llm/plan.ts";
-import {cancel as doCancel, list as doList} from "../../llm/tool-approval.js";
+import {skills, forceSkills} from "../../agent/skill.js";
+import {reloadSkills} from "../../agent/skill.js";
+import {mcpClient} from "../../agent/mcp-client.js";
+import {getAllTools} from "../../agent/tools.js";
+import {getPlan, renderPlan} from "../../agent/plan.ts";
+import {cancel as doCancel, list as doList} from "../../agent/tool-approval.js";
 import {confirmPending} from "../../agent/approval-runner.ts";
 import { runAgent } from "../agent-runner.ts";
 import logger from "../../utils/logger.js";

@@ -1,9 +1,9 @@
 /**
  * Agent 会话池
  */
-import { ChatRecorder } from "../llm/recorder.js";
+import { ChatRecorder } from "./recorder.js";
 import logger from "../utils/logger.js";
-import { deletePlan } from "../llm/plan.ts";
+import { deletePlan } from "./plan.ts";
 import Agent from "./Agent.ts";
 import type { Space } from "../types/index.ts";
 

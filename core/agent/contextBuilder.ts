@@ -2,10 +2,10 @@
  * LLM 请求上下文组装
  */
 import config from "../config.js";
-import { skills, forceSkills } from "../llm/skill.js";
-import { getActivePlan, renderPlan } from "../llm/plan.ts";
-import { mcpClient } from "../llm/mcp-client.js";
-import type { ChatRecorder } from "../llm/recorder.js";
+import { skills, forceSkills } from "./skill.js";
+import { getActivePlan, renderPlan } from "./plan.ts";
+import { mcpClient } from "./mcp-client.js";
+import type { ChatRecorder } from "./recorder.js";
 
 const SYSTEM_PROMPT = config.SYSTEM_PROMPT;
 

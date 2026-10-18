@@ -8,14 +8,14 @@
  *   - "tool-result" {name, args, result} 工具执行完成的结果
  */
 import { EventEmitter } from "node:events";
-import { callLLM } from "../llm/client.js";
-import { callTool, getAllTools } from "../llm/tools.js";
-import { reloadSkills } from "../llm/skill.js";
+import { callLLM } from "./client.js";
+import { callTool, getAllTools } from "./tools.js";
+import { reloadSkills } from "./skill.js";
 import { buildMessages } from "./contextBuilder.ts";
 import { parseReply } from "./replyParser.ts";
 import config from "../config.js";
 import logger from "../utils/logger.js";
-import type { ChatRecorder } from "../llm/recorder.js";
+import type { ChatRecorder } from "./recorder.js";
 import type { Context, ReplyAct, ReplyPayload, ToolCall } from "../types/index.ts";
 
 /** 传给工具层的上下文：管道上下文 + 发起本次调用的 Agent（工具据此访问记忆与会话 ID） */

@@ -334,18 +334,24 @@ core/
 │   │   ├── image-recognizer.js # 图片识别
 │   │   ├── at-detector.js      # @检测
 │   │   └── mini-program.js     # 小程序/链接分享处理
-│   └── handlers/               # 处理器（首个命中即停止）
-│       ├── keyword-commands.js # 关键词命令
-│       ├── user-commands.js    # # 前缀命令
-│       ├── ai-chat.js          # Agent 对话入口
-│       ├── repeater.js         # 复读检测
-│       └── proactive-chat.js   # 主动聊天
+│   ├── handlers/               # 处理器（首个命中即停止）
+│   │   ├── keyword-commands.js # 关键词命令
+│   │   ├── user-commands.js    # # 前缀命令
+│   │   ├── ai-chat.js          # Agent 对话入口
+│   │   ├── repeater.js         # 复读检测
+│   │   └── proactive-chat.js   # 主动聊天
+│   └── agent-runner.ts         # Agent 事件 → 适配器分发（节流发送）
 │
-├── llm/                        # Agent 核心
+├── agent/                      # Agent 核心（AI 相关代码全部内聚于此）
+│   ├── Agent.ts                # Agent 类：循环主体，只产出事件不碰通道
+│   ├── AgentManager.ts         # 会话池：space → Agent 实例，空闲回收
+│   ├── contextBuilder.ts       # LLM 请求上下文组装
+│   ├── replyParser.ts          # 模型回复解析（{action:[...]}）
+│   ├── approval-runner.ts      # 危险操作确认执行链
 │   ├── client.js               # LLM API 客户端
-│   ├── chat.js                 # Agent 循环（工具调用 + 多轮推理）
 │   ├── tools.js                # 工具定义与调度
 │   ├── tool-approval.js        # 危险操作确认队列
+│   ├── plan.ts                 # 会话级任务计划
 │   ├── mcp-client.js           # MCP 客户端管理器
 │   ├── skill.js                # Skill 加载器
 │   ├── image.js                # 视觉 API
@@ -414,7 +420,7 @@ CMD_MAP.set("关键词", async (ctx) => {
 
 ### 添加新工具
 
-在 `llm/tools.js` 的 `tools` 数组中添加工具定义，在 `toolMap` 中注册处理函数。新工具会自动出现在 AI 的可用工具列表中。
+在 `agent/tools.js` 的 `tools` 数组中添加工具定义，在 `toolMap` 中注册处理函数。新工具会自动出现在 AI 的可用工具列表中。
 
 ### 添加 MCP Server
 

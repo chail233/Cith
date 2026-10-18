@@ -32,37 +32,35 @@ Transport protocols are abstracted behind `BaseAdapter` (an abstract class). It 
 
 Cross-module type contracts live in `core/types/index.ts`: `CtxEvent` (normalized inbound event), `Space` (group/private target), `Context` (pipeline ctx), and `MessageSegment`. This is the **single source of truth** — the adapter layer and the pipeline both import from it; do not redefine these interfaces locally. `CtxEvent.adapter` / `Context.adapter` are typed as `BaseAdapter` so `ctx.adapter.sendMsg()` is type-checked (type-only circular imports between `types` and `BaseAdapter` are fine — they are erased at runtime).
 
-### Agent loop (`llm/chat.js`)
+### Agent loop (`agent/Agent.ts`, merged AI module — former `llm/` now lives in `agent/`)
 
-`buildMessages()` assembles: system prompt, skill list, MCP server list, optional mid-summary, then recorder history. The LLM is called with all tool definitions; for each `tool_calls` entry `callTool()` runs and the result is appended as a `role:"tool"` row, then the LLM is called again — looping up to `config.TOOLCHAIN_MAX_LENGTH` (30).
+`Agent` (an `EventEmitter`, one per chat session, pooled by `agent/AgentManager.ts`) owns the loop: `contextBuilder.ts` `buildMessages()` assembles system prompt + force-loaded skills + skill list + MCP server list + optional mid-summary + active plan + recorder history; the LLM is called with all tool definitions; for each `tool_calls` entry `callTool()` runs and the result is appended as a `role:"tool"` row, then the LLM is called again — looping up to `config.TOOLCHAIN_MAX_LENGTH` (30). The Agent only *thinks*: it broadcasts `reply` / `tool-call` / `tool-result` events; `pipeline/agent-runner.ts` (`runAgent(ctx)`) subscribes and sends via the adapter with ~3s random spacing. The model must output strict JSON `{ "action": [{ "cmd": "text", "content": "..." }] }`; `replyParser.ts` `parseReply()` is lenient — it also accepts a bare array and degrades malformed output to a single text message.
 
-The model must output strict JSON `{ "action": [{ "cmd": "text", "content": "..." }] }`. `handleReply()` is lenient: it also accepts a bare array and degrades malformed output to a single text message. Multiple actions are sent with ~3s random spacing.
-
-### Tools (`llm/tools.js`)
+### Tools (`agent/tools.js`)
 
 Local tools are declared in the `tools` array and dispatched through the `toolMap`; `callTool(tool_call, ctx, confirmed)` is the single entry point. MCP tools are exposed as `mcp_<originalName>` and routed by prefix to `mcpClient`. `getAllTools()` is **stateful**: it appends any dynamically-loaded MCP tools and then clears them — MCP tools only exist after the model calls `list_mcp_tools` for that server.
 
 When adding a tool, update **both** the `tools` array and `toolMap`. If it is a file-path tool, also register it in `pathToolWhitelist` (a map of tool name → `{ dirKey, pathKey }` pointing at its whitelist config and its path argument) — that map drives the gate below.
 
-### Approval gate (`llm/tool-approval.js` + path-aware whitelist)
+### Approval gate (`agent/tool-approval.js` + path-aware whitelist)
 
-The gate is centralized in `callTool()` and is **path-aware, not tool-name based** (the old `config.gatedTools` is retired). For a **non-admin** call to any file tool in `pathToolWhitelist`, the resolved target path is checked against that tool's whitelist (`readFileDirs` / `runJsDirs` / `editFileDirs`): **inside the whitelist → run immediately** (so scripts under `skills/`, writes under `workspace/`, etc. are never blocked); **outside the whitelist → held** (id assigned, 10-minute timeout) pending an admin `#do-yes <id>` (`#do-no` cancels). Admins (`config.owner`) and already-confirmed calls bypass the gate. Path traversal out of `core/` is still hard-rejected by `resolveSrcPath` (never held, never allowed). MCP tools have no local path target and are not covered by this gate.
+The gate is centralized in `callTool()` and is **path-aware, not tool-name based** (the old `config.gatedTools` is retired). For a **non-admin** call to any file tool in `pathToolWhitelist`, the resolved target path is checked against that tool's whitelist (`readFileDirs` / `runJsDirs` / `editFileDirs`): **inside the whitelist → run immediately** (so scripts under `skills/`, writes under `workspace/`, etc. are never blocked); **outside the whitelist → held** (id assigned, 10-minute timeout) pending an admin `#do-yes <id>` (`#do-no` cancels); the confirmed-execution chain lives in `agent/approval-runner.ts` (`take()` dequeues, the target session's Agent executes and writes the result back to memory). Admins (`config.owner`) and already-confirmed calls bypass the gate. Path traversal out of `core/` is still hard-rejected by `resolveSrcPath` (never held, never allowed). MCP tools have no local path target and are not covered by this gate.
 
-### Memory (`llm/recorder.js` + `llm/long-term-memory.js`)
+### Memory (`agent/recorder.js` + `agent/long-term-memory.js`)
 
-Single exported instance `chatRecorder`. Four layers: short-term `_messages` (`config.CHAT_HISTORY_LIMIT`) → evicted into `_cache` → once cache reaches the limit, `summarizeCache()` (invoked at the top of each `chat()`) LLM-summarizes it into `_midSummary` → before an old summary is overwritten it is written to the cloud long-term memory along with extracted per-user profiles. The model recalls via the `get_memory` and `get_user_profile` tools. `compress()` and `clear()` are wired to `#compress` / `#clear`.
+Each `Agent` holds its own `ChatRecorder` (session pool with idle-recapture in `AgentManager.ts`). Four layers: short-term `_messages` (`config.CHAT_HISTORY_LIMIT`) → evicted into `_cache` → once cache reaches the limit, `summarizeCache()` (invoked at the top of each `Agent.run()`) LLM-summarizes it into `_midSummary` → before an old summary is overwritten it is written to the cloud long-term memory along with extracted per-user profiles. The model recalls via the `get_memory` and `get_user_profile` tools (session access comes from `ctx.agent`). `compress()` and `clear()` are wired to `#compress` / `#clear`.
 
 ### File security (`utils/file-security.js`)
 
 Every file tool resolves its path **relative to `core/`** via `resolveSrcPath`, which rejects `..` traversal out of `core/` (hard floor). The per-operation whitelist (`config.readFileDirs` / `runJsDirs` / `editFileDirs`, default `skills` and `workspace`) is enforced **in `callTool()`'s gate** (via `checkPathWhitelist`), not inside each tool — a tool body no longer re-checks it. `run_JS` runs the script in a child process with a 30s timeout. Do not bypass these helpers to touch files outside the whitelist without going through the approval gate.
 
-### Skills (`llm/skill.js`)
+### Skills (`agent/skill.js`)
 
 A skill is a directory under `core/skills/` containing `SKILL.md` with YAML frontmatter (`name`, `description`); the parsed list is injected into every prompt as the "技能列表". Executable logic goes in `scripts/` and is run through `run_JS`. `reloadSkills()` re-scans at runtime (`#reloadskls`). `core/skill-manager` installs/uninstalls community skills from GitHub.
 
 ### Services and MCP
 
-`services/` holds thin HTTP wrappers (napcat, acg, hitokoto, qweather, Bailian model list). `llm/mcp-client.js` manages MCP connections over `stdio` / `old_sse` (SSE) / `sse` (Streamable HTTP); `shutdown()` is called on SIGINT/SIGTERM/uncaughtException in `index.js` to avoid zombie child processes. `mcp/` is **gitignored** — it holds local MCP servers (e.g. `mcp/github-server`).
+`services/` holds thin HTTP wrappers (napcat, acg, hitokoto, qweather, Bailian model list). `agent/mcp-client.js` manages MCP connections over `stdio` / `old_sse` (SSE) / `sse` (Streamable HTTP); `shutdown()` is called on SIGINT/SIGTERM/uncaughtException in `index.js` to avoid zombie child processes. `mcp/` is **gitignored** — it holds local MCP servers (e.g. `mcp/github-server`).
 
 ## Conventions
 

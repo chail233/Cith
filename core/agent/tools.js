@@ -235,7 +235,7 @@ export function getAllTools() {
  * 搜索长期记忆（使用当前会话的短期上下文作为查询线索）
  * 会话上下文由调用方 Agent 通过 ctx.agent 注入
  * @param {object} param
- * @param {{agent?: import("../agent/Agent.ts").default}|null} [ctx]
+ * @param {{agent?: import("./Agent.ts").default}|null} [ctx]
  */
 async function getMemory(param, ctx) {
     const agent = ctx?.agent;
@@ -511,7 +511,7 @@ async function listMcpTools(param) {
 /**
  * 创建/更新当前会话的任务计划（目标 + 步骤清单全量覆盖，空数组清空）
  * @param {{goal?: string, todos: Array<{content: string, status: string}>}} param
- * @param {{agent?: import("../agent/Agent.ts").default}} [ctx]
+ * @param {{agent?: import("./Agent.ts").default}} [ctx]
  */
 async function managePlan(param, ctx) {
     const agent = ctx?.agent;
@@ -558,7 +558,7 @@ const pathToolWhitelist = {
 /**
  * 调用工具
  * @param {import("../types/index.ts").ToolCall} tool_call 完整的工具调用对象 { id, function: { name, arguments } }
- * @param {import("../types/index.ts").Context & {agent?: import("../agent/Agent.ts").default}} [ctx] 请求上下文
+ * @param {import("../types/index.ts").Context & {agent?: import("./Agent.ts").default}} [ctx] 请求上下文
  * @param {boolean} [confirmed=false] 是否已确认
  */
 export async function callTool(tool_call, ctx, confirmed = false){

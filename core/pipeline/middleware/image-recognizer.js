@@ -2,7 +2,7 @@
 
 import { getImage } from "../../services/napcat.js";
 import getImageType from "../../utils/image-type.js";
-import recognizeImage from "../../llm/image.js";
+import recognizeImage from "../../agent/image.js";
 import logger from "../../utils/logger.js";
 import fs from "fs/promises";
 

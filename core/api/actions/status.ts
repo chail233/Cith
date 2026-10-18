@@ -1,7 +1,7 @@
 /**
  * status action：Bot 运行状态只读查询
  */
-import { mcpClient } from "../../llm/mcp-client.js";
+import { mcpClient } from "../../agent/mcp-client.js";
 import { runtimeState } from "../runtime-state.ts";
 import { registerAction } from "../router.ts";
 

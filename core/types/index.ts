@@ -1,6 +1,6 @@
 import type BaseAdapter from "../bot/adapters/BaseAdapter.ts";
 
-/** 消息发生的空间（群/私聊） */
+/** 消息发生的空间 */
 export interface Space {
     from: "user" | "group";
     id: string;

@@ -20,7 +20,7 @@ export async function runAgent(ctx: Context): Promise<void> {
     let tail = Promise.resolve();
     const onReply = (payload: ReplyPayload) => {
         tail = tail
-            .then(() => deliverReply(ctx, payload))//追加任务
+            .then(() => deliverReply(ctx, payload))//追加
             .catch((err) => logger.error("AI 回复分发失败:", err));
     };
     // 工具调用透明化通知（config.toolOutput 开启时）
@@ -34,7 +34,8 @@ export async function runAgent(ctx: Context): Promise<void> {
     try {
         await agent.run(ctx);
         await tail;
-    } finally {
+    }
+    finally {
         detachAgentListeners(agent, { reply: onReply, "tool-call": onToolCall });
     }
 }

@@ -2,8 +2,8 @@
  * 门禁危险操作的确认执行链
  * 从 tool-approval 队列取出挂起项 → 以目标会话 Agent 的身份执行工具 → 结果回填记忆。
  */
-import { take } from "../llm/tool-approval.js";
-import { callTool } from "../llm/tools.js";
+import { take } from "./tool-approval.js";
+import { callTool } from "./tools.js";
 import { getAgent } from "./AgentManager.ts";
 import logger from "../utils/logger.js";
 import type { Context } from "../types/index.ts";
