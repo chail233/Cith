@@ -17,7 +17,7 @@ import config from "../config.js";
 import logger from "../utils/logger.js";
 import type { ChatRecorder } from "./recorder.js";
 import type { Context } from "../types/index.ts";
-import type { Plan, PlanStatus, RawTodo, ReplyAct, ReplyPayload, ToolCall } from "./types.ts";
+import type { LlmResult, Plan, PlanStatus, RawTodo, ReplyAct, ReplyPayload, ToolCall } from "./types.ts";
 
 /** 传给工具层的上下文：管道上下文 + 发起本次调用的 Agent（工具据此访问记忆与会话 ID） */
 export type AgentToolContext = Context & { agent: Agent };
@@ -66,11 +66,6 @@ export default class Agent extends EventEmitter {
         return this.plan ? renderPlan(this.plan) : null;
     }
 
-    /**
-     * 运行一次 Agent 循环：基于当前记忆发起 LLM 请求，
-     * 处理工具链直至产出最终回复；产出的回复经 "reply" 事件广播并写入记忆。
-     * 同一会话已有请求进行中时直接返回（沿用会话级并发守卫）。
-     */
     async run(ctx: Context): Promise<void> {
         if (!this.memory.tryBeginRequest()) {
             logger.info("会话已有模型请求进行中，跳过本次请求:", this.sessionId);
@@ -91,17 +86,22 @@ export default class Agent extends EventEmitter {
                 tools: getAllTools(),
             });
 
-            let result = await request();
-            if (!result || typeof result === "string") {
-                this.deliver([{ cmd: "text", content: typeof result === "string" ? "ERROR:" + result : "ERROR:AI 服务无响应" }], 0);
-                return;
-            }
-
-            let tokenCount = result.totalTokens;
-            let toolDepth = 0;
             const toolCtx: AgentToolContext = { ...ctx, agent: this };
-            while (result.message.tool_calls && toolDepth <= config.TOOLCHAIN_MAX_LENGTH) {
+
+            let result: LlmResult | string;
+            let tokenCount = 0;
+            let toolDepth = 0;
+            while (true) {
+                result = await request();
+                if (!result || typeof result === "string") {
+                    this.deliver([{ cmd: "text", content: typeof result === "string" ? "ERROR:" + result : "ERROR:AI 服务无响应" }], 0);
+                    return;
+                }
+                tokenCount += result.totalTokens;
+                // 无工具调用 → 最终回复；工具链达到长度上限 → 强制收敛（与原循环轮数一致）
+                if (!result.message.tool_calls || toolDepth > config.TOOLCHAIN_MAX_LENGTH) break;
                 toolDepth++;
+
                 const interim = parseReply(result.message.content);
                 if (interim.length > 0) {
                     this.deliver(interim, tokenCount);
@@ -130,13 +130,6 @@ export default class Agent extends EventEmitter {
                     this.recordToolCall(toolCall, name, JSON.stringify(args ?? toolCall.function.arguments), output);
                     this.broadcast("tool-result", { name, args, result: output });
                 }
-
-                result = await request();
-                if (typeof result === "string") {
-                    this.deliver([{ cmd: "text", content: "ERROR:" + result }], 0);
-                    return;
-                }
-                tokenCount += result.totalTokens;
             }
 
             this.deliver(parseReply(result.message.content), tokenCount);
