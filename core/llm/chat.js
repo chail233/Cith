@@ -130,10 +130,10 @@ function buildMessages(recorder){
         messages.push({ role: "system", content: `对话历史概要:${recorder.getMidSummary()}` });
     }
 
-    // 活跃任务计划每轮回注上下文，防止长工具链中目标丢失；全部完成后不再注入
+    // 活跃任务计划每轮回注上下文（含目标），防止长工具链中目标丢失；全部完成后不再注入
     const plan = getActivePlan(recorder.sessionId);
     if (plan) {
-        messages.push({ role: "system", content: `当前任务计划：\n${renderPlan(plan)}\n（随进度用 manage_plan 更新状态）` });
+        messages.push({ role: "system", content: `当前任务计划：\n${renderPlan(plan)}\n（勿偏离目标，随进度用 manage_plan 更新状态）` });
     }
 
     return [...messages, ...recorder.getAll()];

@@ -188,10 +188,14 @@ const tools = [
         type: "function",
         function: {
             name: "manage_plan",
-            description: "创建或更新当前任务计划。每次提交完整任务清单覆盖旧计划；空数组表示任务结束并清空计划",
+            description: "创建或更新当前任务计划。每次提交总体目标与完整任务清单覆盖旧计划；空数组表示任务结束并清空计划",
             parameters: {
                 type: "object",
                 properties: {
+                    goal: {
+                        type: "string",
+                        description: "本计划要达成的总体目标，一句话",
+                    },
                     todos: {
                         type: "array",
                         description: "完整任务清单，按执行顺序排列",
@@ -212,7 +216,7 @@ const tools = [
                         },
                     },
                 },
-                required: ["todos"],
+                required: ["goal", "todos"],
             },
         },
     },
@@ -504,9 +508,8 @@ async function listMcpTools(param) {
 }
 
 /**
- * 创建/更新当前会话的任务计划（全量覆盖，空数组清空）
- * 计划仅供模型在多步任务中锚定目标，存内存不入会话历史之外的持久层
- * @param {{todos: Array<{content: string, status: string}>}} param
+ * 创建/更新当前会话的任务计划（目标 + 步骤清单全量覆盖，空数组清空）
+ * @param {{goal?: string, todos: Array<{content: string, status: string}>}} param
  * @param {{space?: import("../types/index.ts").Space}} [ctx]
  */
 async function managePlan(param, ctx) {
@@ -514,7 +517,7 @@ async function managePlan(param, ctx) {
     const sessionId = sessionIdOf(ctx.space);
     const todos = param?.todos;
     if (!Array.isArray(todos)) return "缺少参数 todos（完整任务清单数组）";
-    setPlan(sessionId, todos);
+    setPlan(sessionId, param?.goal, todos);
     const plan = getPlan(sessionId);
     if (!plan) return "计划已清空";
     return `当前计划：\n${renderPlan(plan)}`;

@@ -13,7 +13,13 @@ export interface PlanItem {
     status: PlanStatus;
 }
 
-/** 工具入参的原始条目：来自模型生成的 JSON，字段类型不可信，需经归一化 */
+/** 一份完整计划：总体目标 + 步骤清单 */
+export interface Plan {
+    goal: string;
+    items: PlanItem[];
+}
+
+/** 步骤条目工具入参的原始形式：来自模型生成的 JSON，字段类型不可信，需经归一化 */
 export type RawTodo = { content?: unknown; status?: unknown } | null | undefined;
 
 /** 合法状态 → 渲染图标 */
@@ -24,7 +30,7 @@ const STATUS_ICONS: Record<PlanStatus, string> = {
     cancelled: "✗",
 };
 
-const plans = new Map<string, PlanItem[]>();
+const plans = new Map<string, Plan>();
 
 /** 判断任意值是否为合法状态（类型守卫，替代断言） */
 function isPlanStatus(value: unknown): value is PlanStatus {
@@ -39,19 +45,24 @@ function normalizeTodo(raw: RawTodo): PlanItem {
     };
 }
 
+/** 归一化目标：截断防止上下文膨胀 */
+function normalizeGoal(raw: unknown): string {
+    return String(raw ?? "").slice(0, 200);
+}
+
 /**
- * 覆盖写入某会话的计划（全量替换）；空数组或非法输入视为清空
+ * 覆盖写入某会话的计划（全量替换）；空步骤数组或非法输入视为清空
  */
-export function setPlan(sessionId: string, todos: RawTodo[] | null | undefined): void {
+export function setPlan(sessionId: string, goal: unknown, todos: RawTodo[] | null | undefined): void {
     if (!Array.isArray(todos) || todos.length === 0) {
         plans.delete(sessionId);
         return;
     }
-    plans.set(sessionId, todos.map(normalizeTodo));
+    plans.set(sessionId, { goal: normalizeGoal(goal), items: todos.map(normalizeTodo) });
 }
 
 /** 获取某会话的计划，不存在时返回 null */
-export function getPlan(sessionId: string): PlanItem[] | null {
+export function getPlan(sessionId: string): Plan | null {
     return plans.get(sessionId) ?? null;
 }
 
@@ -59,10 +70,10 @@ export function getPlan(sessionId: string): PlanItem[] | null {
  * 获取未完成（存在 pending/in_progress 条目）的计划，用于决定是否回注上下文
  * 全部完成后不再注入，避免残留过期目标
  */
-export function getActivePlan(sessionId: string): PlanItem[] | null {
+export function getActivePlan(sessionId: string): Plan | null {
     const plan = plans.get(sessionId);
     if (!plan) return null;
-    const finished = plan.every((t) => t.status === "done" || t.status === "cancelled");
+    const finished = plan.items.every((t) => t.status === "done" || t.status === "cancelled");
     return finished ? null : plan;
 }
 
@@ -71,7 +82,8 @@ export function deletePlan(sessionId: string): void {
     plans.delete(sessionId);
 }
 
-/** 渲染计划为文本 */
-export function renderPlan(todos: PlanItem[]): string {
-    return todos.map((t) => `${STATUS_ICONS[t.status]} ${t.content}`).join("\n");
+/** 渲染计划为文本（目标行 + 步骤清单）；无目标时仅渲染步骤 */
+export function renderPlan(plan: Plan): string {
+    const steps = plan.items.map((t) => `${STATUS_ICONS[t.status]} ${t.content}`).join("\n");
+    return plan.goal ? `目标：${plan.goal}\n${steps}` : steps;
 }
