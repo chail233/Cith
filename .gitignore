@@ -1,5 +1,7 @@
-/src/configDev.js
-/src/app.pem
+/core/configDev.js
+/core/configOverride.json
+/core/configOverride.json.tmp
+/core/app.pem
 /secrets/
 
 *.pem

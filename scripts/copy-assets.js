@@ -4,8 +4,8 @@
  * 构建辅助脚本：将 tsc 不会输出的非代码资源拷贝到 dist
  *
  * 背景：tsc 只编译 .js/.ts，SKILL.md 等资源文件不会进入 dist，
- * 而运行时 skill 加载器（src/llm/skill.js）按目录扫描 SKILL.md，
- * 且 dist 与 src 目录层级一致（rootDir: src → outDir: dist），
+ * 而运行时 skill 加载器（core/llm/skill.js）按目录扫描 SKILL.md，
+ * 且 dist 与 core 目录层级一致（rootDir: core → outDir: dist），
  * 因此只需把这些文件按相同结构拷贝过去。
  *
  * .js 文件跳过：它们已由 tsc 编译输出，避免源码覆盖编译产物。
@@ -17,10 +17,10 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, "..");
-const srcDir = resolve(root, "src");
+const srcDir = resolve(root, "core");
 const distDir = resolve(root, "dist");
 
-/** 需要从 src 同步到 dist 的目录（相对 src） */
+/** 需要从 core 同步到 dist 的目录（相对 core） */
 const COPY_DIRS = ["skills", "workspace"];
 
 /** 拷贝时跳过的文件类型（已由 tsc 编译输出） */

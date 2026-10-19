@@ -1,0 +1,28 @@
+// @ts-check
+
+import needRepeat from "../../tools/repeater.js";
+import { getAgent } from "../../agent/AgentManager.ts";
+import { nowTime } from "../../utils/time.js";
+
+/**
+ * 复读处理器
+ * 检测到复读模式时自动复读
+ */
+
+/**
+ * @param {import("../../types/index.ts").Context} ctx
+ * @returns {Promise<boolean>}
+ */
+export default async function repeater(ctx) {
+    if (!ctx.text) return false;
+    // 避免与命令冲突
+    if (ctx.text.startsWith("#") || ctx.text.startsWith("/")) return false;
+
+    if (needRepeat(ctx.text)) {
+        ctx.adapter.sendMsg(ctx.space, ctx.text);
+        getAgent(ctx.space).memory.add({ role: "assistant", content: { text: ctx.text, time: nowTime() } });
+        return true;
+    }
+
+    return false;
+}
