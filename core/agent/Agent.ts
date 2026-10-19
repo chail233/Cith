@@ -17,7 +17,7 @@ import config from "../config.js";
 import logger from "../utils/logger.js";
 import type { ChatRecorder } from "./recorder.js";
 import type { Context } from "../types/index.ts";
-import type { LlmResult, Plan, PlanStatus, RawTodo, ReplyAct, ReplyPayload, ToolCall } from "./types.ts";
+import type { LlmResult, Plan, PlanStatus, RawTodo, ReplyAct, ReplyPayload } from "./types.ts";
 
 /** 传给工具层的上下文：管道上下文 + 发起本次调用的 Agent（工具据此访问记忆与会话 ID） */
 export type AgentToolContext = Context & { agent: Agent };
@@ -125,9 +125,9 @@ export default class Agent extends EventEmitter {
                         return { toolCall, name, args, output };
                     }),
                 );
-                // 按 tool_calls 原顺序回填上下文，保证 tool 消息与调用一一配对
+                // 按 tool_calls 原顺序将调用过程与结果回填为文本痕迹（system 消息）
                 for (const { toolCall, name, args, output } of toolResults) {
-                    this.recordToolCall(toolCall, name, JSON.stringify(args ?? toolCall.function.arguments), output);
+                    this.recordToolCall(name, JSON.stringify(args ?? toolCall.function.arguments), output);
                     this.broadcast("tool-result", { name, args, result: output });
                 }
             }
@@ -142,9 +142,8 @@ export default class Agent extends EventEmitter {
     /**
      * 将一次工具调用的过程与结果回填进会话记忆
      */
-    recordToolCall(toolCall: ToolCall, toolName: string, argsText: string, result: string): void {
-        this.memory.add({ role: "system", content: { text: `调用了工具 ${toolName}，参数：${argsText}` } });
-        this.memory.add({ role: "tool", content: { text: result }, tool_call_id: toolCall.id });
+    recordToolCall(toolName: string, argsText: string, result: string): void {
+        this.memory.add({ role: "system", content: { text: `调用了工具 ${toolName}，参数：${argsText}，结果：${result}` } });
         logger.info("调用工具:", toolName, " 参数：", argsText, " 结果：", result);
     }
 
