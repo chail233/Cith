@@ -107,6 +107,8 @@ const baseConfig = {
     /** 和风城市id查询url */
     QW_GEO_BASE: "https://m454e6xkq4.re.qweatherapi.com/geo/v2",
 
+    ENABLE_LONG_TERM_MEMORY: false,
+
     /** 长期记忆 API 基础地址 */
     MEMORY_API_BASE_URL: "https://workspace.aliyuncs.com/api/v2/apps/memory",
 

@@ -41,6 +41,7 @@ export function makeMemoryUserId(id) {
  * @returns {Promise<boolean>} 成功返回 true，失败返回 false
  */
 export async function addMemory(userId, messages) {
+    if(!config.ENABLE_LONG_TERM_MEMORY) return false;
     try {
         const payload = {
             user_id: userId,
@@ -59,7 +60,8 @@ export async function addMemory(userId, messages) {
 
         logger.warn("长期记忆添加返回格式异常:", body);
         return false;
-    } catch (err) {
+    }
+    catch (err) {
         const detail = err.response?.data?.message || err.message;
         logger.warn("长期记忆添加失败:", detail);
         return false;
@@ -78,6 +80,7 @@ export async function addMemory(userId, messages) {
  * @returns {Promise<Array<string>>} 召回的记忆内容数组，为空表示无相关记忆
  */
 export async function searchMemory(userId, messages, options = {}) {
+    if(!config.ENABLE_LONG_TERM_MEMORY) return [];
     const {
         topK = config.MEMORY_SEARCH_TOP_K,
         minScore = config.MEMORY_MIN_SCORE,
@@ -127,6 +130,7 @@ export async function searchMemory(userId, messages, options = {}) {
  * @returns {Promise<boolean>} 成功返回 true，失败返回 false
  */
 export async function extractUserProfile(userId, messages) {
+    if(!config.ENABLE_LONG_TERM_MEMORY) return false;
     try {
         const payload = {
             user_id: userId,
@@ -162,6 +166,7 @@ export async function extractUserProfile(userId, messages) {
  * @returns {Promise<string>} 画像内容文本，无画像时返回空字符串
  */
 export async function getUserProfile(userId) {
+    if(!config.ENABLE_LONG_TERM_MEMORY) return "";
     try {
         const resp = await http.get(
             `/profile_schemas/${config.MEMORY_PROFILE_SCHEMA_ID}/user_profile`,
