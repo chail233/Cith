@@ -92,20 +92,8 @@ const baseConfig = {
     /** 模型接口超时（毫秒） */
     LLM_TIMEOUT: 60000,
 
-    /** 一言 API 限流：时间窗口 */
-    SENTENCE_LIMIT_TIME: 10000,
-
-    /** 一言 API 限流：窗口内最大次数 */
-    SENTENCE_LIMIT_COUNT: 3,
-
     /** 复读检测队列长度 */
     REPEATER_QUEUE_SIZE: 10,
-
-    /** 和风天气查询url */
-    QW_BASE_URL: "https://m454e6xkq4.re.qweatherapi.com/v7",
-
-    /** 和风城市id查询url */
-    QW_GEO_BASE: "https://m454e6xkq4.re.qweatherapi.com/geo/v2",
 
     ENABLE_LONG_TERM_MEMORY: false,
 

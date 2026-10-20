@@ -1,8 +1,6 @@
-import { getWeatherText } from "../../services/weather.js";
 import { getAgent, listAgents } from "../../agent/AgentManager.ts";
 import config from "../../config.js";
 import {skills, forceSkills} from "../../agent/skill.js";
-import {reloadSkills} from "../../agent/skill.js";
 import {mcpClient} from "../../agent/mcp-client.js";
 import {getAllTools} from "../../agent/tools.js";
 import {cancel as doCancel, list as doList} from "../../agent/tool-approval.js";
@@ -11,15 +9,6 @@ import { runAgent } from "../agent-runner.ts";
 import logger from "../../utils/logger.js";
 
 const cmds = [
-    {
-        name: "gw",
-        description: "查询天气",
-        params: [{ name: "城市", desc: "城市名称" }],
-        handler: async (args, ctx) => {
-            if (!args[0]) return "请指定城市名，例如 #gw 杭州";
-            return await getWeatherText(args[0]);
-        }
-    },
     {
         name: "clear",
         needsAdmin: true,
