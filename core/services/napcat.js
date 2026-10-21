@@ -30,7 +30,8 @@ async function callAPI(action, params) {
         const url = `/${action}`;
         const resp = await http.post(url, params);
         return resp.data;
-    } catch (err) {
+    }
+    catch (err) {
         logger.error(`NapCat HTTP API 调用失败 [${action}]:`, err.response?.data || err.message);
         return null;
     }

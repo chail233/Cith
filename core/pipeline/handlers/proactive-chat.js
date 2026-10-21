@@ -1,5 +1,3 @@
-// @ts-check
-
 import { runAgent } from "../agent-runner.ts";
 import { getAgent } from "../../agent/AgentManager.ts";
 import logger from "../../utils/logger.js";
@@ -25,6 +23,8 @@ export default async function proactiveChat(ctx) {
             id: ctx.userId,
             time: nowTime(),
             text: text,
+            //有at时写入字段
+            ...(ctx.at ? { at: ctx.at } : {}),
         },
     });
     // 检查是否达到主动触发阈值

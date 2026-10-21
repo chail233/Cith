@@ -262,7 +262,7 @@ bot/adapters/OnebotAdapter             bot/adapters/WechatBotAdapter
     │
     ├─ 中间件（全部执行，丰富上下文）
     │   ├─ image-recognizer  → 识别图片 → ctx.imageDescription
-    │   ├─ at-detector       → 检测 @机器人 → ctx.isAtBot
+    │   ├─ at-detector       → 解析 @ 对象 → ctx.at（@bot 时为“我”）
     │   └─ mini-program      → 处理小程序/链接分享
     │
     └─ 处理器（首个返回 true 即停止）
