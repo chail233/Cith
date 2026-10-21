@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "baseDir": "stickers/images",
+  "vocabulary": [
+    "笑",
+    "无语",
+    "疑惑",
+    "开心",
+    "困"
+  ],
+  "items": [
+    {
+      "id": "cat_001",
+      "file": "cat/001.png",
+      "desc": "柴郡猫咧嘴大笑，眼睛眯成一条缝，适合接梗或表达好笑",
+      "tags": [
+        "笑",
+        "开心"
+      ],
+      "weight": 2
+    },
+    {
+      "id": "cat_002",
+      "file": "cat/002.png",
+      "desc": "猫面无表情盯着镜头，适合无语、懒得回应的场合",
+      "tags": [
+        "无语"
+      ],
+      "weight": 1
+    },
+    {
+      "id": "cat_003",
+      "file": "cat/003.png",
+      "desc": "猫歪头，一脸疑惑，适合没听懂或反问时用",
+      "tags": [
+        "疑惑"
+      ],
+      "weight": 1
+    }
+  ]
+}
