@@ -1,19 +1,6 @@
 /**
  * 表情包模块：加载索引（manifest）并按标签检索
  *
- * 职责边界：
- *   - 只做「读 + 查」：索引文件 → 可查询的候选列表 / 可直接发送的绝对路径
- *   - 不涉及消息段构造、不涉及提示词、不涉及发送
- *
- * 索引文件（manifest）结构：
- * {
- *   "version": 1,
- *   "baseDir": "stickers/images",
- *   "vocabulary": ["笑", "无语"],
- *   "items": [
- *     { "id": "cat_001", "file": "cat/001.png", "desc": "猫咪大笑", "tags": ["笑"], "weight": 1 }
- *   ]
- * }
  */
 import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
@@ -81,8 +68,6 @@ export function clearManifestCache(manifestPath) {
 
 /**
  * 列出所有标签及出现次数，供模型了解可用的标签词表
- * @param {StickerOptions} [options]
- * @returns {{ tag: string, count: number }[]}
  */
 export function listTags(options = {}) {
     const manifest = loadManifest(options);
@@ -103,9 +88,6 @@ export function listTags(options = {}) {
 
 /**
  * 按标签检索候选表情包
- * @param {{ tags?: string[], limit?: number, excludeIds?: string[] }} [query]
- * @param {StickerOptions} [options]
- * @returns {StickerCandidate[]}
  */
 export function queryStickers(query = {}, options = {}) {
     const manifest = loadManifest(options);
@@ -135,22 +117,9 @@ export function queryStickers(query = {}, options = {}) {
     }));
 }
 
-/**
- * 随机取一张（等价于 queryStickers 只取一条）
- * @param {{ tags?: string[], excludeIds?: string[] }} [query]
- * @param {StickerOptions} [options]
- * @returns {StickerCandidate | null}
- */
-export function randomSticker(query = {}, options = {}) {
-    const list = queryStickers({ ...query, limit: 1 }, options);
-    return list[0] ?? null;
-}
 
 /**
  * 按 id 取完整条目，附上可直接发送的绝对路径
- * @param {string} id
- * @param {StickerOptions} [options]
- * @returns {StickerResolved | null}
  */
 export function getSticker(id, options = {}) {
     if (!id)
@@ -171,9 +140,6 @@ export function getSticker(id, options = {}) {
 
 /**
  * 把条目里的相对路径拼到 baseDir 下，并做一次越界校验
- * @param {StickerItem} item
- * @param {string} baseDir
- * @returns {string | null}
  */
 function resolveStickerFile(item, baseDir) {
     const resolved = resolveSrcPath(join(baseDir, item.file));
