@@ -2,13 +2,15 @@
  * 表情包模块：加载索引（manifest）并按标签检索
  *
  */
-import { readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { resolveSrcPath } from "../utils/file-security.js";
 import logger from "../utils/logger.js";
+import config from "../config.js";
 
 /** 默认索引文件位置（相对 core/），模块自包含 */
 export const DEFAULT_MANIFEST_PATH = "stickers/manifest.json";
+export const DEV_MANIFEST_PATH = "stickers/manifest.dev.json";
 /** 默认表情包根目录（相对 core/），manifest 未指定 baseDir 时使用 */
 export const DEFAULT_BASE_DIR = "stickers/images";
 /** 查询默认返回条数 */
@@ -20,12 +22,27 @@ export const MAX_LIMIT = 50;
 const cache = new Map();
 
 /**
+ * 解析本次应使用的索引路径：显式传入优先，否则按运行模式选择
+ * 开发模式读 manifest.dev.json，生产模式读 manifest.json
+ * @returns {string} 相对 core/ 的索引路径
+ */
+export function resolveManifestPath() {
+    if (!config.DevMode)
+        return DEFAULT_MANIFEST_PATH;
+    const resolved = resolveSrcPath(DEV_MANIFEST_PATH);
+    if (!resolved.error && existsSync(resolved.fullPath))
+        return DEV_MANIFEST_PATH;
+    logger.warn(`开发模式未找到 ${DEV_MANIFEST_PATH}，回退到 ${DEFAULT_MANIFEST_PATH}`);
+    return DEFAULT_MANIFEST_PATH;
+}
+
+/**
  * 读取并归一化索引
  * @param {{ manifestPath?: string, force?: boolean }} [options]
  * @returns {StickerManifest}
  */
 export function loadManifest(options = {}) {
-    const manifestPath = options.manifestPath ?? DEFAULT_MANIFEST_PATH;
+    const manifestPath = options.manifestPath ?? resolveManifestPath();
     const resolved = resolveSrcPath(manifestPath);
     if (resolved.error) {
         logger.error("表情包索引路径非法:", resolved.error);

@@ -64,9 +64,6 @@ const baseConfig = {
     /** 视觉 API Key */
     visionAPIKEY: "your_vision_api_key",
 
-    /** 和风天气 Key */
-    qweatherKEY: "your_qweather_key",
-
     EnableProactiveChat: true,
 
     // ========== 全局常量 ==========
