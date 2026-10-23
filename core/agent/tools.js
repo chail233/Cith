@@ -5,6 +5,7 @@ import { readFile as fsReadFile, writeFile as fsWriteFile, mkdir, rm, readdir, s
 import { dirname, extname, resolve } from "node:path";
 import { execFile } from "node:child_process";
 import { resolveSrcPath, checkPathWhitelist } from "../utils/file-security.js";
+import { queryStickers, listTags } from "../stickers/index.js";
 import {mcpClient} from "./mcp-client.js";
 import {hold} from "./tool-approval.js";
 
@@ -179,6 +180,26 @@ const tools = [
                     },
                 },
                 required: ["mcpName"],
+            },
+        },
+    },
+    {
+        type: "function",
+        function: {
+            name: "get_stickers",
+            description: "按标签检索表情包，返回表情包 id、画面描述和标签。想发表情包时先调用本工具拿到 id，再在 action 数组中添加 {\"cmd\":\"sticker\",\"content\":\"id\"} 发送",
+            parameters: {
+                type: "object",
+                properties: {
+                    tag: {
+                        type: "string",
+                        description: "表情包标签（情绪或使用场景），可从系统消息的表情包tags里挑",
+                    },
+                    limit: {
+                        type: "integer",
+                        description: "返回条数，默认 5，最大 10",
+                    },
+                },
             },
         },
     },
@@ -508,6 +529,36 @@ async function listMcpTools(param) {
 }
 
 /**
+ * 按标签检索表情包候选
+ * @param {{tag?: string, limit?: number}} param
+ */
+async function getStickers(param) {
+    const tag = typeof param?.tag === "string" ? param.tag.trim().replace(/^#/, "") : "";
+    const rawLimit = Number(param?.limit);
+    const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(Math.floor(rawLimit), 10) : 5;
+
+    if (!tag) {
+        const tags = listTags();
+        if (tags.length === 0) return "表情包库为空";
+        return `可用表情包标签：${tags.map((t) => `${t.tag}(${t.count})`).join("、")}\n请传入其中一个 tag 检索`;
+    }
+
+    const matched = queryStickers({ tags: [tag], limit });
+    if (matched.length === 0) {
+        const tags = listTags();
+        const available = tags.length > 0
+            ? `可用标签：${tags.map((t) => t.tag).join("、")}`
+            : "表情包库为空";
+        return `没有匹配标签 "${tag}" 的表情包。${available}`;
+    }
+
+    const lines = matched.map((item) =>
+        `- id: ${item.id}  描述：${item.desc}  标签：${item.tags.join("、") || "无"}`,
+    );
+    return [`标签 "${tag}" 的表情包（发送时 content 填 id）：`, ...lines].join("\n");
+}
+
+/**
  * 创建/更新当前会话的任务计划（目标 + 步骤清单全量覆盖，空数组清空）
  * @param {{goal?: string, todos: Array<{content: string, status: string}>}} param
  * @param {{agent?: import("./Agent.ts").default}} [ctx]
@@ -534,6 +585,7 @@ const toolMap = new Map(
         ["create_file", createFile],
         ["delete_file", deleteFile],
         ["list_files", listFiles],
+        ["get_stickers", getStickers],
         ["list_mcp_tools", listMcpTools],
         ["manage_plan", managePlan]
     ]

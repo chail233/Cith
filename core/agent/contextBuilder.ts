@@ -6,6 +6,7 @@ import { skills, forceSkills } from "./skill.js";
 import { mcpClient } from "./mcp-client.js";
 import type Agent from "./Agent.ts";
 import type { Plan, PlanStatus } from "./types.ts";
+import {listTags} from "../stickers/index.js";
 
 const SYSTEM_PROMPT = config.SYSTEM_PROMPT;
 
@@ -45,6 +46,7 @@ export function buildMessages(agent: Agent) {
     messages.push(
         { role: "system", content: `技能列表：${JSON.stringify(skills)}` },
         { role: "system", content: `mcp列表：${JSON.stringify(mcpClient.listServers())}` },
+        { role: "system", content: `表情包tags：${JSON.stringify(listTags())}` },
     );
 
     if (recorder.getMidSummary()) {

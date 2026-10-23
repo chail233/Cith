@@ -81,10 +81,9 @@ const baseConfig = {
     LLM_VISION_API_URL: "https://workspace.aliyuncs.com/v1/chat/completions",
 
     /** 聊天模型名称 */
-    CHAT_MODEL: "deepseek-v4.1-flash",
-
+    CHAT_MODEL: "deepseek-v4.1-flash-1017",
     /** 识图模型名称 */
-    VISION_MODEL: "qwen3.7-flash",
+    VISION_MODEL: "deepseek-v4.1-flash-1017",
 
     /** 模型接口超时（毫秒） */
     LLM_TIMEOUT: 60000,
@@ -167,11 +166,12 @@ const baseConfig = {
         '{\n' +
         '    "action":[\n' +
         '        {"cmd":"text","content":"消息1内容"},\n' +
-        '        {"cmd":"text","content":"消息2内容"}\n' +
+        '        {"cmd":"sticker","content":"S1_001"}\n' +
         '    ]\n' +
         "}\n" +
-        "action字段的值是一个数组，数组中每个对象有cmd和content两个字段，cmd代表消息类型，必须为text，content代表消息内容，也可以返回空数组表示不回复，但必须包含action这个字段。\n" +
-        "数组中的消息将按顺序发送，每条消息内容最后不用加句号。\n" +
+        "action字段的值是一个数组，数组中每个对象有cmd和content两个字段。cmd代表消息类型：text为文本消息，content为文本内容；sticker为表情包，content为表情包id。也可以返回空数组表示不回复，但必须包含action这个字段。\n" +
+        "文本和表情包可以混合，按数组顺序依次发送\n" +
+        "数组中的文本消息内容最后不用加句号。\n" +
         "无论action数组元素有多少，都必须严格按照上述格式输出，最外层必须加上大括号{}。\n" +
         "不要输出任何md格式，仅输出JSON对象。"
 };

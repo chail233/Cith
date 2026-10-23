@@ -6,7 +6,8 @@
     "start": "node core/index.js",
     "build": "tsc -p tsconfig.build.json && node scripts/copy-assets.js",
     "build:watch": "tsc -p tsconfig.build.json --watch",
-    "start:dist": "node dist/index.js"
+    "start:dist": "node dist/index.js",
+    "add-stickers": "node scripts/add-stickers.js"
   },
   "private": false,
   "keywords": [
