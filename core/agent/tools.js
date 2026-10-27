@@ -8,11 +8,14 @@ import { resolveSrcPath, checkPathWhitelist } from "../utils/file-security.js";
 import { queryStickers, listTags } from "../stickers/index.js";
 import {mcpClient} from "./mcp-client.js";
 import {hold} from "./tool-approval.js";
+import { scheduleTools, scheduleToolHandlers, SCHEDULE_TOOL_NAMES, isScheduleAllowed } from "./schedule.js";
 
 /**
  *模型可以调用的工具
  */
 const tools = [
+    // 定时苏醒（自己给自己设闹钟）
+    ...scheduleTools,
     {
         type: "function",
         function: {
@@ -591,6 +594,11 @@ const toolMap = new Map(
     ]
 );
 
+// 定时苏醒工具：统一在 callTool 里做管理员门禁
+for (const [name, handler] of scheduleToolHandlers) {
+    toolMap.set(name, handler);
+}
+
 /**
  * 细粒度文件工具 → 执行对象所属白名单目录的配置键
  * 门禁统一在 callTool：对象在白名单内直接放行，否则挂起待管理员确认
@@ -614,6 +622,11 @@ const pathToolWhitelist = {
 export async function callTool(tool_call, ctx, confirmed = false){
     const name = tool_call.function.name;
     const parameter = JSON.parse(tool_call.function.arguments);
+
+    // 定时苏醒任务只有管理员能操作
+    if (SCHEDULE_TOOL_NAMES.has(name) && !isScheduleAllowed(ctx)) {
+        return `${name} 被拒绝：定时苏醒任务只有管理员能操作`;
+    }
 
     // 安全门禁：非管理员且未确认时，文件类工具按"执行对象是否在对应白名单内"决定放行或挂起
     if (!confirmed && !ctx?.isAdmin) {

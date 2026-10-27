@@ -30,6 +30,9 @@ export default class Agent extends EventEmitter {
 
     private plan: Plan | null = null;
 
+    /** 定时苏醒注入的唤醒说明；buildMessages 读取后置空，避免污染后续对话 */
+    pendingTrigger: { type: string; id?: string; title?: string; prompt?: string } | null = null;
+
     constructor(opts: { sessionId: string; memory: ChatRecorder }) {
         super();
         this.sessionId = opts.sessionId;
