@@ -4,6 +4,8 @@ import runPipeline from "./pipeline/index.js";
 import {mcpClient} from "./agent/mcp-client.js";
 import { startApiServer } from "./api/server.ts";
 import startWechatBotServer from "./bot/servers/WechatBotServer.ts";
+import { startScheduler, stopScheduler } from "./services/scheduler.js";
+import { wakeUp } from "./services/wake.js";
 
 logger.info("SunbatwoBot 启动中...");
 
@@ -16,10 +18,14 @@ startWechatBotServer(runPipeline);
 // 启动面板 API WebSocket 服务
 const apiServer = startApiServer();
 
+// 定时苏醒调度器：到点直接复用正常对话链路（runAgent），能调工具、能发消息
+await startScheduler({ onFire: wakeUp });
+
 // 进程退出时清理 MCP 子进程与面板 API 服务，防止僵尸进程/句柄泄漏
 const cleanup = async (signal) => {
     logger.info(`收到 ${signal} 信号，正在关闭...`);
     try { apiServer.close(); } catch { /* ignore */ }
+    stopScheduler();
     await mcpClient.shutdown();
     process.exit(0);
 };

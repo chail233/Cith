@@ -3,6 +3,7 @@ import type { Logger } from "@wechatbot/wechatbot";
 import logger from "../../utils/logger.js";
 import type { CtxEvent, Space } from "../../types/index.ts";
 import WechatBotAdapter from "../adapters/WechatBotAdapter.ts";
+import { registerAdapter, unregisterAdapter } from "../../services/adapter-registry.js";
 
 export default async function startWechatBotServer(pipeline: (ctxEvent: CtxEvent) => Promise<void>) {
     const qrPrefix = "Scan this QR code in WeChat: ";
@@ -27,9 +28,16 @@ export default async function startWechatBotServer(pipeline: (ctxEvent: CtxEvent
     });
 
     const adapter = new WechatBotAdapter(pipeline, bot);
+    registerAdapter("wechat", adapter);
 
-    bot.on('session:expired', () => logger.warn("WechatBot会话已过期，SDK正在自动重新登录，请等待新二维码"));
-    bot.on('session:restored', () => logger.info("WechatBot重新登录成功"));
+    bot.on('session:expired', () => {
+        unregisterAdapter("wechat", adapter);
+        logger.warn("WechatBot会话已过期，SDK正在自动重新登录，请等待新二维码");
+    });
+    bot.on('session:restored', () => {
+        registerAdapter("wechat", adapter);
+        logger.info("WechatBot重新登录成功");
+    });
 
     bot.onMessage(async (msg) => {
         logger.info("WechatBot收到消息:", msg);
