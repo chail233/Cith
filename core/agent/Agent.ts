@@ -8,7 +8,7 @@
  *   - "tool-result" {name, args, result} 工具执行完成的结果
  */
 import { EventEmitter } from "node:events";
-import { callLLM } from "./client.js";
+import { callLLM } from "./client.ts";
 import { callTool, getAllTools } from "./tools.js";
 import { reloadSkills } from "./skill.js";
 import { buildMessages, renderPlan } from "./contextBuilder.ts";
@@ -84,7 +84,6 @@ export default class Agent extends EventEmitter {
                 model: config.CHAT_MODEL,
                 messages: buildMessages(this),
                 temperature: 0.2,
-                enableSearch: true,
                 responseFormat: { type: "json_object" },
                 tools: getAllTools(),
             });

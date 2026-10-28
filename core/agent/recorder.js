@@ -1,5 +1,5 @@
 import config from "../config.js";
-import { callLLM } from "./client.js";
+import { callLLM } from "./client.ts";
 import { addMemory, makeMemoryUserId, extractUserProfile } from "./long-term-memory.js";
 import logger from "../utils/logger.js";
 /**
@@ -147,7 +147,6 @@ export class ChatRecorder {
                 }
             ],
             temperature: 0.2,
-            enableSearch: false
         });
 
         if (typeof result !== "string" && result?.message?.content) {

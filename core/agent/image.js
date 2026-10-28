@@ -1,6 +1,6 @@
 // @ts-check
 
-import { callLLM } from "./client.js";
+import { callLLM } from "./client.ts";
 import config from "../config.js";
 import logger from "../utils/logger.js";
 
@@ -43,7 +43,6 @@ export default async function recognizeImage(base64, type) {
                 ],
             },
         ],
-        enableSearch:false,
         mode:"vision"
     });
 

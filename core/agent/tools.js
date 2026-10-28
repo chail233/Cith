@@ -88,7 +88,6 @@ export async function callTool(tool_call, ctx, confirmed = false){
                     return `操作对象不在白名单目录内，需要管理员确认。已登记为待确认操作 #${id}。`;
                 }
             }
-            // 路径非法或缺参：交由工具自身返回具体错误
         }
     }
 
