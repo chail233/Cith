@@ -8,7 +8,7 @@ Bot 的 Web 管理面板：React 18 + TypeScript + Vite 前端 + 轻量 Node BFF
 浏览器 (React, :5173 dev / :2146 prod)
    │  HTTP: /api/rpc、/api/health、/api/login   SSE: /api/events
    ▼
-BFF (web/server, :3000)  ← token(BOT_API_TOKEN) 只保存在这里
+BFF (web/server, :2146)  ← token(BOT_API_TOKEN) 只保存在这里
    │  WebSocket（bot-api-integration.md 定义的协议）
    ▼
 Bot 面板 API Server (core/api/server.ts, ws://127.0.0.1:2145/api/v1/ws)

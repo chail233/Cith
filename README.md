@@ -16,7 +16,7 @@
 
 前者由可插拔适配器架构兜底——`BaseAdapter` 抽象基类只约定 `onMessage` / `sendMsg` 契约，内置的 `OnebotAdapter`（NapCat + OneBot v11）接入 QQ，`WechatBotAdapter`（微信官方 iLink Bot 协议，扫码登录）接入微信个人号，换平台就是换适配器。后者由 Agent 循环驱动——它不是“一问一答”的聊天机器人，而是能在多轮推理中自主调用工具、读写文件、执行脚本、检索长期记忆，把一句需求变成一件办完的事。
 
-AI 能力由阿里云百炼平台驱动（支持 DeepSeek / Qwen 等模型）。
+AI 客户端走 **OpenAI 标准协议**，`LLM_API_URL` 可指向任意兼容端点。
 
 ## 核心能力
 
@@ -77,6 +77,8 @@ AI 可自主判断并调用以下工具：
 | `list_files` | 列出目录内容 |
 | `list_mcp_tools` | 动态加载 MCP Server 的工具 |
 | `manage_plan` | 创建/更新当前会话的任务计划（目标 + 步骤清单，空清单清空） |
+| `schedule` | 给自己设定时任务（一次性 / 固定间隔 / 每日定点 / cron），到点自动苏醒 |
+| `get_stickers` | 按标签检索表情包，配合 `{"cmd":"sticker"}` 动作发送 |
 
 所有文件操作都受到 **路径白名单** 和 **目录穿越防护** 的安全约束。
 
@@ -139,6 +141,14 @@ AI 具备图片识别能力。当群内发送图片时，自动调用视觉模�
 
 `repeater` 处理器会检测连续重复的消息（队列长度 `REPEATER_QUEUE_SIZE`，默认 10）：命中后机器人跟随复读一次，并把该文本拉黑，直到它被挤出队列，避免无限复读。
 
+### 定时任务（定时苏醒）
+
+AI 可以通过 `schedule` 工具“给自己设闹钟”：支持一次性（`once`）、固定间隔（`everyMinutes`）、每日定点（`daily`）、`cron` 表达式四种规则。到点触发一次完整的 Agent 苏醒流程，AI 醒来后可自主决定做什么（主动发言、执行任务等）。任务持久化到 `data/schedule.json`，重启不丢失；调度器用单一 `setTimeout` 指向最近的触发点，停机期间错过的触发按追赶策略处理。
+
+### 表情包
+
+内置表情包库（`core/stickers/`，`manifest.json` 描述每张图的画面与标签，`scripts/add-stickers.js` 辅助录入）。AI 通过 `get_stickers` 工具按标签检索候选表情，再在回复的 action 数组中附加 `{"cmd":"sticker","content":"<id>"}` 发送，让回复更生动。
+
 ### WeChat 接入（iLink Bot）
 
 通过 `WechatBotAdapter` + `WechatBotServer` 接入微信个人号，走官方 iLink Bot 协议（`@wechatbot/wechatbot` SDK），与 QQ 适配器共用同一条处理管道：
@@ -155,7 +165,17 @@ AI 具备图片识别能力。当群内发送图片时，自动调用视觉模�
 
 ### Web 管理面板
 
-Bot 内置独立的 **面板 API 服务**（`core/api/`），与 Web 后端以独立进程运行，通过 WebSocket 双向通信：
+```
+浏览器（React 18 + Vite，:5173 开发 / :2146 生产）
+   │  HTTP /api/rpc · SSE /api/events
+   ▼
+面板 BFF（web/server，Express 5 + ws，:2146）← 面板 token 只保存在这里
+   │  WebSocket（协议见 web/bot-api-integration.md）
+   ▼
+Bot 面板 API 服务（core/api/，仅绑定 127.0.0.1）
+```
+
+**Bot 侧 API 服务**（`core/api/`）内嵌于 Bot 主进程：
 
 - **连接模型**：Bot 做 WS 服务端，仅绑定 `127.0.0.1`，默认 `ws://127.0.0.1:2145/api/v1/ws`，与 NapCat → Bot 的反向 WS 模式同构
 - **鉴权**：独立面板 token，连接后 5s 内完成 `auth` 握手，失败/超时直接断开（自定义关闭码 4401/4001）
@@ -164,7 +184,48 @@ Bot 内置独立的 **面板 API 服务**（`core/api/`），与 Web 后端以�
 - **配置脱敏**：`get_config` 输出键名脱敏 + 值级黑名单 + 嵌套对象/非纯标量数组过滤，密钥不外泄；`set_config` 仅白名单字段可热改
 - **可靠性**：30s ping/pong 心跳回收死连接；日志/事件进环形缓冲（`config.web.logBufferSize`），断线重连后可按时间戳补拉
 
-面板前端位于 `web/`（React 18 + Vite 8 + TypeScript），目前为骨架页面，`npm run dev` 独立启动，通过上述 WS 地址对接 API。
+**面板 BFF**（`web/server/`，Node + Express）：持有到 Bot 的常驻 WS 客户端（自动鉴权、指数退避重连、断线补拉），对浏览器暴露统一 RPC 与 SSE 事件流；action 转发白名单门禁，白名单外绝不透传；可选密码会话登录（`WEB_PASSWORD`）；生产模式下同时托管前端构建产物，单进程即可运行完整面板。
+
+**面板功能**（React 18 + TypeScript，`web/src/`）：
+
+| 页面 | 功能 |
+|------|------|
+| 运行状态 | 运行时长 / OneBot 在线 / MCP 连接数 / 内存 / Node 版本（5s 轮询）+ 最近事件速览 |
+| 配置管理 | 脱敏快照查看；非脱敏字段可尝试热改，白名单由 Bot 控制，拒绝原因原样展示 |
+| 事件日志 | SSE 实时事件流 + 环形缓冲补拉（断线重连按 Last-Event-ID 自动续传），级别 / 类型筛选与内容搜索 |
+| 能力清单 | `list_actions` 动态展示 Bot 支持的 action 及说明 |
+
+顶栏三个状态灯实时反映 BFF / Bot / 事件流连接状况。
+
+**用法与托管：**
+
+```bash
+# 开发模式（两个终端）
+cd web && npm install
+npm run server   # 终端 1：BFF，http://127.0.0.1:2146
+npm run dev      # 终端 2：Vite，http://localhost:5173（/api 自动代理到 BFF）
+
+# 生产模式（单进程）
+cd web && npm run build && npm run server   # BFF 同时托管 dist/ 页面
+
+# pm2 部署（服务器）
+cd web
+pm2 start server/index.mjs --name sunbatwo-web --node-args="--env-file-if-exists=.env"
+```
+
+环境变量（复制 `web/.env.example` 为 `web/.env`）：
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `WEB_PORT` | `2146` | BFF 监听端口 |
+| `BOT_API_URL` | `ws://127.0.0.1:2145/api/v1/ws` | Bot 面板 API 地址 |
+| `BOT_API_TOKEN` | `114514` | 与 Bot `config.web.token` 一致 |
+| `WEB_PASSWORD` | 未设置 | 浏览器登录密码；设置后打开面板需先登录 |
+
+> ⚠️ 生产部署务必修改 `BOT_API_TOKEN` 并设置 `WEB_PASSWORD`；BFF 与 Bot API 仅应暴露在本机或可信内网。
+> pm2 注意：`--env-file` 路径按进程 cwd 解析，须先 `cd web` 再启动，或在 ecosystem 配置中显式指定 `cwd`；修改 `.env` 后 `pm2 restart` 生效。
+
+详细文档（架构 / 接口清单 / 常见问题）见 [web/README.md](web/README.md)。
 
 ## 快速开始
 
@@ -224,6 +285,7 @@ npm start
 | `aiAPIKEY` | 阿里云 AI API Key（文本模型 + 长期记忆） |
 | `visionAPIKEY` | 视觉模型 API Key |
 | `CHAT_MODEL` | 聊天模型名称 |
+| `LLM_API_URL` | LLM API 地址（OpenAI 兼容协议，可指向任意兼容端点） |
 | `VISION_MODEL` | 识图模型名称 |
 | `ENABLE_LONG_TERM_MEMORY` | 是否启用云端长期记忆与用户画像（默认 false） |
 | `mcpServers` | MCP Server 配置列表 |
@@ -382,6 +444,7 @@ core/
 │   ├── approval-runner.ts      # 危险操作确认执行链
 │   ├── client.js               # LLM API 客户端（文本 / 视觉）
 │   ├── tools.js                # 工具定义、调度与路径门禁
+│   ├── tools/                  # 细粒度工具模块（read-file / run-js / schedule / get-stickers 等，一个工具一个文件）
 │   ├── tool-approval.js        # 危险操作确认队列
 │   ├── mcp-client.js           # MCP 客户端管理器
 │   ├── skill.js                # Skill 加载器
@@ -390,10 +453,13 @@ core/
 │   └── recorder.js             # 三层记忆记录器（短期/缓存/概括）
 │
 ├── services/                   # 外部服务封装
-│   └── napcat.js               # NapCat HTTP API（get_image 等）
+│   ├── adapter-registry.js     # 适配器注册表
+│   ├── napcat.js               # NapCat HTTP API（get_image 等）
+│   ├── repeater.js             # 复读检测队列
+│   ├── scheduler.js            # 定时任务调度器（data/schedule.json 持久化）
+│   └── wake.js                 # 定时苏醒触发器
 │
-├── tools/                      # 独立工具模块
-│   └── repeater.js             # 复读检测队列
+├── stickers/                   # 表情包库（index.js 按标签检索 + manifest.json + images/）
 │
 ├── data/                       # 静态数据
 │   └── assets.js               # 内置图片 URL（孙巴二娘随机图）
@@ -415,7 +481,9 @@ core/
 scripts/                        # 构建辅助脚本
 └── copy-assets.js              # 构建后将 skills/workspace 的非代码资源拷贝到 dist
 
-web/                            # 面板前端（React 18 + Vite 8 + TS，独立 npm 工程，当前为骨架页面）
+web/                            # Web 管理面板（独立 npm 工程，详见 web/README.md）
+├── server/                     #   BFF：bot-client.mjs（Bot WS 客户端）+ index.mjs（RPC/SSE/登录/静态托管）
+└── src/                        #   前端：React 18 + TS + Vite（四页面 + SSE 事件流 + 密码登录）
 mcp/                            # 本地 MCP Server（gitignore；mcp/github-server 为 GitHub 示例）
 assets/                         # 素材图片（SunbatwoGirl）
 
