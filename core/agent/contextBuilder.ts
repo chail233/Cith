@@ -30,12 +30,12 @@ type WakeTrigger = { type: string; id?: string; title?: string; prompt?: string 
 function renderTrigger(trigger: WakeTrigger | null | undefined): string | null {
     if (!trigger || trigger.type !== "schedule") return null;
     const lines = [
-        "你被自己的定时闹钟叫醒了（不是有人给你发消息）。",
+        "你被自己的定时闹钟叫醒了",
         `任务：${trigger.title ?? ""}`,
     ];
     if (trigger.prompt) lines.push(`备忘：${trigger.prompt}`);
     lines.push(
-        "接下来由你自己判断：要不要说话、说什么，或者干脆不说（返回空 action 数组）。" +
+        "接下来由你自己判断：要不要说话、说什么，或者干脆不说" +
         "没必要每次都开口，也别刷屏。要做的事做完就好。",
     );
     return lines.join("\n");

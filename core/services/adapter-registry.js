@@ -1,9 +1,5 @@
 import logger from "../utils/logger.js";
 
-/**
- * 适配器注册表：消息通道（OneBot / 微信）在连接建立时注册进来，
- * 供没有来消息的主动链路（定时任务）取用发送通道。
- */
 const adapters = new Map();
 
 export function registerAdapter(kind, adapter) {
@@ -21,9 +17,8 @@ export function unregisterAdapter(kind, adapter) {
 function isUsable(adapter) {
     if (!adapter)
         return false;
-    if (adapter.closed === true)
-        return false;
-    return true;
+    return !adapter.closed;
+
 }
 
 export function resolveAdapter(space) {
@@ -34,8 +29,4 @@ export function resolveAdapter(space) {
             return adapter;
     }
     return null;
-}
-
-export function listAdapters() {
-    return [...adapters.entries()].map(([kind, adapter]) => ({ kind, usable: isUsable(adapter) }));
 }

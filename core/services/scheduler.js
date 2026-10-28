@@ -5,10 +5,8 @@ import { resolveSrcPath } from "../utils/file-security.js";
 
 /**
  * 定时苏醒调度器
- * - 任务持久化到 data/schedule.json（临时文件 + rename，防写坏）
+ * - 任务持久化到 data/schedule.json
  * - 单一 setTimeout 指向最近的 nextRun，触发后重排
- * - 单任务互斥：上一轮没跑完就跳过本轮
- * - 关机期间的错过：非一次性任务过期超过 5 分钟直接跳过，不再补刷
  */
 
 const STORE_PATH = "data/schedule.json";
@@ -430,14 +428,6 @@ export function listTasks() {
     return tasks.map(viewTask);
 }
 
-export function listTasksSummary() {
-    const active = tasks.filter((t) => t.enabled);
-    if (active.length === 0)
-        return "";
-    return active
-        .map((t) => `- ${t.id} ${t.title}｜${describeSchedule(t.schedule)}｜下次 ${formatTs(t.nextRun)}｜会话 ${t.space.from}:${t.space.id}`)
-        .join("\n");
-}
 
 export async function createTask(input) {
     if (!loaded)
@@ -478,46 +468,3 @@ export async function removeTask(id) {
     return { ok: true, task: viewTask(removed) };
 }
 
-export async function setTaskEnabled(id, enabled) {
-    const task = tasks.find((t) => t.id === id);
-    if (!task)
-        return { ok: false, error: `任务 ${id} 不存在` };
-    const target = typeof enabled === "boolean" ? enabled : !task.enabled;
-    task.enabled = target;
-    if (target) {
-        task.nextRun = computeNextRun(task.schedule, Date.now());
-        if (task.nextRun == null && task.schedule.kind === "once")
-            return { ok: false, error: "该一次性任务时间已过，无法再启用", task: viewTask(task) };
-    }
-    else {
-        task.nextRun = null;
-    }
-    await persist();
-    scheduleTick();
-    return { ok: true, task: viewTask(task) };
-}
-
-export async function runTaskNow(id) {
-    const task = tasks.find((t) => t.id === id);
-    if (!task)
-        return { ok: false, error: `任务 ${id} 不存在` };
-    if (running.has(task.id))
-        return { ok: false, error: "该任务正在执行中" };
-    const snapshot = { ...task };
-    running.add(task.id);
-    try {
-        if (!onFire)
-            return { ok: false, error: "调度器未启动，无法执行" };
-        await onFire(snapshot);
-        task.lastRun = Date.now();
-        await persist();
-        return { ok: true, task: viewTask(task) };
-    }
-    catch (err) {
-        logger.error("定时任务手动执行失败:", id, err);
-        return { ok: false, error: String(err?.message ?? err) };
-    }
-    finally {
-        running.delete(task.id);
-    }
-}

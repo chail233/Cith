@@ -12,7 +12,7 @@ const baseDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 /**
  * 将相对于 core/ 的路径解析为绝对路径，并检查路径穿越
  * @param {string} filepath 相对于 core/ 的文件路径
- * @returns {{fullPath: string} | {error: string}}
+ * @returns {{fullPath: string, error?: undefined} | {error: string, fullPath?: undefined}}
  */
 export function resolveSrcPath(filepath) {
     const fullPath = resolve(baseDir, filepath);

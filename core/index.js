@@ -18,7 +18,7 @@ startWechatBotServer(runPipeline);
 // 启动面板 API WebSocket 服务
 const apiServer = startApiServer();
 
-// 定时苏醒调度器：到点直接复用正常对话链路（runAgent），能调工具、能发消息
+
 await startScheduler({ onFire: wakeUp });
 
 // 进程退出时清理 MCP 子进程与面板 API 服务，防止僵尸进程/句柄泄漏
