@@ -6,6 +6,8 @@
     "type": "module",
     "scripts": {
         "dev": "vite",
+        "server": "node --env-file-if-exists=.env server/index.mjs",
+        "server:watch": "node --env-file-if-exists=.env --watch server/index.mjs",
         "build": "tsc -b && vite build",
         "preview": "vite preview",
         "typecheck": "tsc --noEmit"

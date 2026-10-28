@@ -262,10 +262,10 @@ export async function installSkill(repoUrl) {
             mkdirSync(parentDir, { recursive: true });
         }
 
-        // 下载文件
+        // 下载文件（以二进制写入，避免文本重编码损坏图片/压缩包等非文本资源）
         const res = await fetch(file.downloadUrl);
-        const content = await res.text();
-        writeFileSync(localFilePath, content, "utf-8");
+        const content = Buffer.from(await res.arrayBuffer());
+        writeFileSync(localFilePath, content);
     }
 
     return {
