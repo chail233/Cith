@@ -15,6 +15,7 @@ import editFileTool from "./tools/edit-file.ts";
 import listMcpToolsTool from "./tools/list-mcp-tools.ts";
 import getStickersTool from "./tools/get-stickers.ts";
 import managePlanTool from "./tools/manage-plan.ts";
+import scheduleTool from "./tools/schedule.ts";
 
 /**
  * 工具注册表：每个条目包含 definition（工具上下文/参数定义）和 execute（实现）
@@ -31,6 +32,7 @@ const toolRegistry = [
     listMcpToolsTool,
     getStickersTool,
     managePlanTool,
+    scheduleTool,
 ];
 
 /**
