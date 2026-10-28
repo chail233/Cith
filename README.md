@@ -160,9 +160,9 @@ Skill 是包含 `SKILL.md` 描述文件的目录，可附带脚本供 AI 执行�
 
 ```
 浏览器（React 18 + Vite，:5173 开发 / :2146 生产）
-   │  HTTP /api/rpc · SSE /api/events
+   │  HTTP(S) /api/rpc · SSE /api/events
    ▼
-面板 BFF（web/server，Express 5，:2146）← 面板 token 只保存在这里
+面板 BFF（web/server，Express 5，:2146，http 或 https 自签名）← 面板 token 只保存在这里
    │  WebSocket（协议见 web/bot-api-integration.md）
    ▼
 Bot 面板 API 服务（core/api/，仅绑定 127.0.0.1）
@@ -189,9 +189,9 @@ npm run dev      # 终端 2：Vite，http://localhost:5173
 cd web && npm run build && npm run server
 ```
 
-环境变量（复制 `web/.env.example` 为 `web/.env`）：`WEB_PORT`（默认 2146）、`BOT_API_URL`（默认 `ws://127.0.0.1:2145/api/v1/ws`）、`BOT_API_TOKEN`（与 Bot `config.web.token` 一致）、`WEB_PASSWORD`（设置后打开面板需先登录）。
+环境变量（复制 `web/.env.example` 为 `web/.env`）：`WEB_PORT`（默认 2146）、`BOT_API_URL`（默认 `ws://127.0.0.1:2145/api/v1/ws`）、`BOT_API_TOKEN`（与 Bot `config.web.token` 一致）、`WEB_PASSWORD`（设置后打开面板需先登录）、`WEB_SSL_ENABLED`（设为 `true` 时 BFF 以自签名证书提供 https，无域名也能 HTTPS 访问）、`WEB_SERVER_IP`（写入证书 SAN 的公网 IP，留空则仅含 `localhost`/`127.0.0.1`）。
 
-> ⚠️ 生产部署务必修改 `BOT_API_TOKEN` 并设置 `WEB_PASSWORD`；BFF 与 Bot API 仅应暴露在本机或可信内网。
+> ⚠️ 生产部署务必修改 `BOT_API_TOKEN` 并设置 `WEB_PASSWORD`；BFF 与 Bot API 仅应暴露在本机或可信内网。启用 HTTPS 后证书自动生成并落盘到 `web/.ssl/`（10 年有效期，重启复用同一证书，浏览器信任一次即可），首次访问会出现自签名证书安全警告，属预期行为。
 
 详细文档见 [web/README.md](web/README.md)。
 

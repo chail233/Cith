@@ -156,6 +156,14 @@ registerAction("set_config", (params) => {
         throw new Error(`该配置项不允许修改: ${key}`);
     }
 
+    // 类型守卫：防止面板把字符串字段写成数字/布尔（如 selfId "123" → 123）导致运行期比较失效
+    const current = (config as Record<string, unknown>)[key];
+    const typeMismatch = current !== null && current !== undefined
+        && (Array.isArray(current) ? !Array.isArray(value) : typeof value !== typeof current);
+    if (typeMismatch) {
+        throw new Error(`类型不匹配：${key} 需要 ${Array.isArray(current) ? "array" : typeof current} 类型`);
+    }
+
     (config as Record<string, unknown>)[key] = value;
     return { key, value };
 });

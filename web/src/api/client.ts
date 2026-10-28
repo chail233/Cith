@@ -59,19 +59,25 @@ interface RpcError {
 }
 type RpcResponse = RpcOk | RpcError;
 
-/** 调用一个 Bot action（经 BFF 转发），成功返回 data，失败抛 ApiError */
+/** 调用一个 Bot action（经 BFF 转发），成功返回 data，失败抛 ApiError；401 时清凭证回到登录页 */
 export async function rpc<T>(action: string, params?: Record<string, unknown>): Promise<T> {
-    const res = await authedFetch("/api/rpc", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, params }),
-    });
+    let res: Response;
     let body: RpcResponse;
     try {
+        res = await authedFetch("/api/rpc", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action, params }),
+        });
         body = (await res.json()) as RpcResponse;
     }
-    catch {
-        throw new ApiError(`面板服务响应异常（HTTP ${res.status}）`, res.status);
+    catch (err) {
+        // BFF 会话存内存，重启后旧 token 必然 401：清掉本地凭证回到登录页，避免页面停留在一堆报错上
+        if (err instanceof AuthError) {
+            clearStoredToken();
+            window.location.reload();
+        }
+        throw err;
     }
     if (body.status === "error") throw new ApiError(body.message, res.status);
     return body.data as T;

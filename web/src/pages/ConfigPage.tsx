@@ -25,6 +25,7 @@ interface Notice {
 export default function ConfigPage() {
     const { data, error, loading, refresh } = usePolling(() => rpc<ConfigSnapshot>("get_config"));
     const [editing, setEditing] = useState<Editing | null>(null);
+    const [editError, setEditError] = useState<string | null>(null);
     const [notice, setNotice] = useState<Notice | null>(null);
     const [saving, setSaving] = useState(false);
 
@@ -33,17 +34,31 @@ export default function ConfigPage() {
 
     const startEdit = (key: string, value: unknown) => {
         setNotice(null);
+        setEditError(null);
         setEditing({ key, draft: typeof value === "string" ? value : JSON.stringify(value) });
     };
 
     const save = async () => {
         if (!editing) return;
+        const original = snapshot[editing.key];
         let value: unknown;
-        try {
-            value = JSON.parse(editing.draft);
-        } catch {
-            value = editing.draft; // 非法 JSON 按原始字符串提交（字符串字段无需手写引号）
+        if (typeof original === "string") {
+            // 字符串字段原样提交：避免 "1744315424" 被 JSON.parse 解析成数字、"true" 变布尔
+            value = editing.draft;
+        } else {
+            // 布尔/数字/数组等 JSON 值字段：必须输入合法 JSON
+            try {
+                value = JSON.parse(editing.draft);
+            } catch {
+                setEditError("该字段是 JSON 值，请输入合法 JSON，如 30、true、[\"a\",\"b\"]");
+                return;
+            }
+            if (Array.isArray(original) && !Array.isArray(value)) {
+                setEditError("该字段是数组，请输入 JSON 数组，如 [\"a\",\"b\"]");
+                return;
+            }
         }
+        setEditError(null);
         setSaving(true);
         try {
             await rpc("set_config", { key: editing.key, value });
@@ -51,7 +66,10 @@ export default function ConfigPage() {
             setEditing(null);
             await refresh();
         } catch (err) {
-            setNotice({ tone: "err", text: err instanceof Error ? err.message : String(err) });
+            // 失败原因直接显示在编辑行内，页面顶部同步提示（表长时顶部提示容易被忽略）
+            const text = err instanceof Error ? err.message : String(err);
+            setEditError(text);
+            setNotice({ tone: "err", text });
         } finally {
             setSaving(false);
         }
@@ -71,8 +89,9 @@ export default function ConfigPage() {
                 }
             >
                 <p className="text-muted config-hint">
+                    字符串字段输入什么就存什么；布尔/数字/数组字段需输入 JSON 值（如 true、30、["a","b"]）。
                     敏感字段（key/token/secret/password/pem 等）已由 Bot 端脱敏，不可编辑。
-                    其余字段点击「编辑」尝试热改；不在 Bot 白名单内的字段会被拒绝并提示原因。
+                    不在 Bot 白名单内的字段会被拒绝并提示原因。
                 </p>
                 {loading && !data ? (
                     <Loading text="正在获取配置..." />
@@ -97,16 +116,19 @@ export default function ConfigPage() {
                                             <td className="mono config-key">{key}</td>
                                             <td className="mono config-value">
                                                 {editing?.key === key ? (
-                                                    <input
-                                                        className="input mono"
-                                                        autoFocus
-                                                        value={editing.draft}
-                                                        onChange={(e) => setEditing({ key, draft: e.target.value })}
-                                                        onKeyDown={(e) => {
-                                                            if (e.key === "Enter") void save();
-                                                            if (e.key === "Escape") setEditing(null);
-                                                        }}
-                                                    />
+                                                    <div>
+                                                        <input
+                                                            className="input mono"
+                                                            autoFocus
+                                                            value={editing.draft}
+                                                            onChange={(e) => setEditing({ key, draft: e.target.value })}
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === "Enter") void save();
+                                                                if (e.key === "Escape") setEditing(null);
+                                                            }}
+                                                        />
+                                                        {editError && <div className="notice notice-err">{editError}</div>}
+                                                    </div>
                                                 ) : (
                                                     <span title={formatValue(value, 1000)}>
                                                         {masked ? <Badge tone="warn">已脱敏</Badge> : null}

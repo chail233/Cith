@@ -5,11 +5,21 @@
 import express from "express";
 import crypto from "node:crypto";
 import fs from "node:fs";
+import http from "node:http";
+import https from "node:https";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import selfsigned from "selfsigned";
 import { BotApiClient } from "./bot-client.mjs";
 
 const PORT = Number(process.env.WEB_PORT ?? 2146);
+const SERVER_DIR = path.dirname(fileURLToPath(import.meta.url));
+/** HTTPS 开关：WEB_SSL_ENABLED=true 时以自签名证书对外提供 https（关闭时维持 http，本地开发零影响） */
+const SSL_ENABLED = process.env.WEB_SSL_ENABLED === "true";
+/** 写入证书 subjectAltName 的公网 IP（云 NAT 服务器无法可靠自动探测，需显式传入） */
+const SERVER_IP = process.env.WEB_SERVER_IP ?? "";
+/** 自签名证书落盘缓存目录：重启不换证书，浏览器信任一次即可长期使用 */
+const SSL_DIR = path.resolve(SERVER_DIR, "../.ssl");
 const BOT_WS_URL = process.env.BOT_API_URL ?? "ws://127.0.0.1:2145/api/v1/ws";
 const BOT_PANEL_TOKEN = process.env.BOT_API_TOKEN ?? "114514";
 /** SSE 心跳注释帧周期，防止中间层空闲超时断开 */
@@ -70,9 +80,9 @@ app.get("/api/session", (req, res) => {
     res.json({ status: "ok", data: { required: true, authed: Boolean(token && sessions.has(token)) } });
 });
 
-/** /api/* 登录门禁（login/session 除外） */
+/** /api/* 登录门禁（login/session/health 除外，health 供顶栏状态灯无凭证轮询） */
 app.use("/api", (req, res, next) => {
-    if (!AUTH_ENABLED || req.path === "/login" || req.path === "/session") {
+    if (!AUTH_ENABLED || ["/login", "/session", "/health"].includes(req.path)) {
         next();
         return;
     }
@@ -164,7 +174,7 @@ app.get("/api/events", async (req, res) => {
 });
 
 /** 生产模式：托管前端构建产物，SPA 路由回退到 index.html */
-const distDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist");
+const distDir = path.resolve(SERVER_DIR, "../dist");
 if (fs.existsSync(distDir)) {
     app.use(express.static(distDir));
     app.use((req, res, next) => {
@@ -177,8 +187,42 @@ if (fs.existsSync(distDir)) {
     logger("info", `静态资源目录: ${distDir}`);
 }
 
-const server = app.listen(PORT, () => {
-    logger("info", `面板 BFF 开放在端口：${PORT}`);
+/**
+ * 加载或生成自签名证书：优先复用 .ssl/ 下的落盘缓存；
+ */
+async function ensureSslMaterial() {
+    fs.mkdirSync(SSL_DIR, { recursive: true });
+    const keyPath = path.join(SSL_DIR, "key.pem");
+    const certPath = path.join(SSL_DIR, "cert.pem");
+    if (fs.existsSync(keyPath) && fs.existsSync(certPath)) {
+        logger("info", `复用已有自签名证书: ${SSL_DIR}`);
+        return { key: fs.readFileSync(keyPath), cert: fs.readFileSync(certPath) };
+    }
+    if (!SERVER_IP) {
+        logger("warn", "未设置 WEB_SERVER_IP，证书 SAN 仅含 localhost/127.0.0.1，浏览器按 IP 访问时需手动信任");
+    }
+    const altNames = [
+        { type: 2, value: "localhost" },
+        { type: 7, ip: "127.0.0.1" },
+    ];
+    if (SERVER_IP) altNames.push({ type: 7, ip: SERVER_IP });
+    const pems = await selfsigned.generate(
+        [{ name: "commonName", value: SERVER_IP || "localhost" }],
+        {
+            keySize: 2048,
+            notAfterDate: new Date(Date.now() + 3650 * 24 * 60 * 60 * 1000),
+            extensions: [{ name: "subjectAltName", altNames }],
+        }
+    );
+    fs.writeFileSync(keyPath, pems.private);
+    fs.writeFileSync(certPath, pems.cert);
+    logger("info", `已生成自签名证书并落盘: ${SSL_DIR}`);
+    return { key: pems.private, cert: pems.cert };
+}
+
+const server = SSL_ENABLED ? https.createServer(await ensureSslMaterial(), app) : http.createServer(app);
+server.listen(PORT, () => {
+    logger("info", `面板 BFF 开放在端口：${PORT} (${SSL_ENABLED ? "https" : "http"})`);
     logger("info", `Bot API: ${BOT_WS_URL}`);
 });
 

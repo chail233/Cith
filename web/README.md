@@ -6,9 +6,9 @@ Bot 的 Web 管理面板：React 18 + TypeScript + Vite 前端 + 轻量 Node BFF
 
 ```
 浏览器 (React, :5173 dev / :2146 prod)
-   │  HTTP: /api/rpc、/api/health、/api/login   SSE: /api/events
+   │  HTTP(S): /api/rpc、/api/health、/api/login   SSE: /api/events
    ▼
-BFF (web/server, :2146)  ← token(BOT_API_TOKEN) 只保存在这里
+BFF (web/server, :2146, http 或 https 自签名)  ← token(BOT_API_TOKEN) 只保存在这里
    │  WebSocket（bot-api-integration.md 定义的协议）
    ▼
 Bot 面板 API Server (core/api/server.ts, ws://127.0.0.1:2145/api/v1/ws)
@@ -46,8 +46,19 @@ npm run dev             # http://localhost:5173，/api 自动代理到 BFF
 | `BOT_API_URL` | `ws://127.0.0.1:2145/api/v1/ws` | Bot 面板 API 地址 |
 | `BOT_API_TOKEN` | `114514` | 与 Bot `config.web.token` 一致 |
 | `WEB_PASSWORD` | 未设置 | 浏览器登录密码；设置后打开面板需先登录 |
+| `WEB_SSL_ENABLED` | `false` | 设为 `true` 时 BFF 以自签名证书提供 https（无域名也能 HTTPS 访问） |
+| `WEB_SERVER_IP` | 未设置 | 写入证书 SAN 的公网 IP（留空则仅含 `localhost`/`127.0.0.1`） |
 
 > 生产部署务必修改 `BOT_API_TOKEN` 并设置 `WEB_PASSWORD`。
+
+### HTTPS 自签名证书
+
+无域名场景下设置 `WEB_SSL_ENABLED=true` 即可通过 `https://<IP>:<WEB_PORT>` 访问面板：
+
+- 证书在 BFF 启动时自动生成（selfsigned，RSA 2048，有效期 10 年）并落盘到 `web/.ssl/`（已 gitignore）；重启复用同一证书，浏览器**信任一次即可长期使用**，不会每次重启都重新提示；
+- 删除 `web/.ssl/` 下的 `key.pem` / `cert.pem` 即可在下次启动时重新生成（例如服务器 IP 变更后需带上新的 `WEB_SERVER_IP` 重新生成）；
+- 自签名证书浏览器首次访问会有安全警告，点击「继续访问」/信任证书后一切正常（含 SSE 事件流）；
+- 依赖 `selfsigned` v5+（`generate` 为异步 API，有效期通过 `notAfterDate` 指定）。
 
 ## 功能页面
 
@@ -105,3 +116,4 @@ web/
 - **顶栏 Bot 灯一直是红的**：确认 Bot 主进程已启动且 `core/config.js` 的 `web.port` 与 BFF 的 `BOT_API_URL` 端口一致；查看 BFF 终端日志，若出现 `4401` 说明 token 不匹配。
 - **配置编辑保存报「该配置项不允许修改」**：Bot 端白名单（`core/api/actions/config.ts` 的 `WRITABLE_KEYS`）未包含该字段，属预期行为。
 - **日志页看不到更早的历史**：受 Bot 环形缓冲容量限制，超出部分已被覆盖。
+- **浏览器访问 HTTPS 面板提示证书不受信任**：自签名证书的预期行为，信任后即可；若信任后仍提示，多半是服务器 IP 变了而证书 SAN 还是旧 IP——更新 `WEB_SERVER_IP` 并删除 `web/.ssl/` 后重启重新生成。
