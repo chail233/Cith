@@ -50,6 +50,11 @@ function parseLocalTime(text) {
 }
 
 function parseClock(text) {
+    // 兼容持久化格式：已归一化的「当天第 N 分钟」数字
+    if (typeof text === "number" && Number.isFinite(text)) {
+        const m = Math.floor(text);
+        return m >= 0 && m < 24 * 60 ? m : null;
+    }
     if (typeof text !== "string")
         return null;
     const m = text.trim().match(/^(\d{1,2}):(\d{1,2})$/);
@@ -126,7 +131,9 @@ export function normalizeSchedule(raw) {
         return null;
     const kind = String(raw.kind ?? "").trim().toLowerCase();
     if (kind === "once") {
-        const at = parseLocalTime(raw.at ?? raw.time);
+        // 兼容持久化格式：at 已是时间戳数字（LLM 入参则是字符串）
+        const rawAt = raw.at ?? raw.time;
+        const at = typeof rawAt === "number" && Number.isFinite(rawAt) ? rawAt : parseLocalTime(rawAt);
         if (at == null)
             return null;
         return { kind: "once", at };
@@ -316,7 +323,8 @@ export async function loadTasks() {
             continue;
         const next = computeNextRun(task.schedule, now);
         task.nextRun = next;
-        if (next == null && task.schedule.kind !== "once")
+        // 已过期的一次性任务直接关闭，避免永远停留在 enabled 却不再触发的状态
+        if (next == null)
             task.enabled = false;
     }
     loaded = true;
