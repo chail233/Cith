@@ -47,7 +47,11 @@ export default async function recognizeImage(base64, type) {
         mode:"vision"
     });
 
-    if (!result) {
+    if (typeof result === "string") {
+        return null;
+    }
+
+    if (!result?.message?.content) {
         logger.error("识图 API 无响应");
         return null;
     }

@@ -150,7 +150,7 @@ export class ChatRecorder {
             enableSearch: false
         });
 
-        if (result) {
+        if (typeof result !== "string" && result?.message?.content) {
             this._midSummary = result.message.content;
         }
 
@@ -187,6 +187,8 @@ export class ChatRecorder {
         });
 
         try {
+
+            if (typeof result === "string" || !result?.message?.content) return;
 
             // json_object 模式顶层是对象，取 profiles 数组字段；兼容模型直接返回数组的情况
             const data = JSON.parse(result.message.content);
