@@ -20,8 +20,8 @@ All config lives in `core/config.js` (defaults, shared constants, and `SYSTEM_PR
 
 `NapCat → bot/server.js (WS) → bot/adapter/OnebotAdapter → pipeline/index.js`.
 
-- `pipeline/context.js` builds `ctx` for each event: `{ event, adapter, text, userId, senderName, isAdmin, isTargetGroup, isAtBot, imageDescription, handled }`. Only group messages from `config.targetGroupId` proceed. `isAdmin` = user is `config.owner`.
-- **Middleware** (`pipeline/middleware/`) all run in order and enrich `ctx`: `image-recognizer` (sets `ctx.imageDescription`), `at-detector` (sets `ctx.isAtBot`), `mini-program` (may set `ctx.handled = true` to short-circuit). Errors are caught and logged, never fatal.
+- `pipeline/context.js` builds `ctx` for each event: `{ event, adapter, text, userId, senderName, isAdmin, isTargetGroup, at, imageDescription, handled }`. Only group messages from `config.targetGroupId` proceed. `isAdmin` = user is `config.owner`.
+- **Middleware** (`pipeline/middleware/`) all run in order and enrich `ctx`: `image-recognizer` (sets `ctx.imageDescription`), `at-detector` (sets `ctx.at` to the @ target's name, `"我"` when the bot is @'d), `mini-program` (may set `ctx.handled = true` to short-circuit). Errors are caught and logged, never fatal.
 - **Handlers** (`pipeline/handlers/`) run in order and the pipeline **stops at the first that returns `true`**: `keyword-commands → user-commands → ai-chat → repeater → proactive-chat`. Add new bot behavior by inserting a handler here, not by editing the loop.
 
 ### Adapters (`bot/adapter/`)

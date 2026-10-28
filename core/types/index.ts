@@ -1,7 +1,5 @@
 import type BaseAdapter from "../bot/adapters/BaseAdapter.ts";
 
-// Agent 系统独有类型（ToolCall/LlmResult/ReplyAct/ReplyPayload/PendingToolCall/Plan 等）见 core/agent/types.ts
-
 /** 消息发生的空间 */
 export interface Space {
     from: "user" | "group";
@@ -33,8 +31,8 @@ export interface Context {
     userId: string;
     isAdmin: boolean;
     isTarget: boolean;
-    /** 是否 @ 了机器人 */
-    isAtBot: boolean;
+    /** @ 目标的名字；被 @机器人 时为 "我"，未 @ 时为 null */
+    at: string | null;
     /** 图片识别描述 */
     imageDescription: string | null;
     /** 是否已被某个 handler 处理 */

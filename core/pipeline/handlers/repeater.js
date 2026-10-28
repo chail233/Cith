@@ -1,6 +1,6 @@
 // @ts-check
 
-import needRepeat from "../../tools/repeater.js";
+import needRepeat from "../../services/repeater.js";
 import { getAgent } from "../../agent/AgentManager.ts";
 import { nowTime } from "../../utils/time.js";
 

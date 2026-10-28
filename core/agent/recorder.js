@@ -1,5 +1,5 @@
 import config from "../config.js";
-import { callLLM } from "./client.js";
+import { callLLM } from "./client.ts";
 import { addMemory, makeMemoryUserId, extractUserProfile } from "./long-term-memory.js";
 import logger from "../utils/logger.js";
 /**
@@ -147,10 +147,9 @@ export class ChatRecorder {
                 }
             ],
             temperature: 0.2,
-            enableSearch: false
         });
 
-        if (result) {
+        if (typeof result !== "string" && result?.message?.content) {
             this._midSummary = result.message.content;
         }
 
@@ -187,6 +186,8 @@ export class ChatRecorder {
         });
 
         try {
+
+            if (typeof result === "string" || !result?.message?.content) return;
 
             // json_object 模式顶层是对象，取 profiles 数组字段；兼容模型直接返回数组的情况
             const data = JSON.parse(result.message.content);

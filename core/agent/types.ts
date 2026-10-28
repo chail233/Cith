@@ -1,7 +1,8 @@
 /**
- * Agent 系统独有类型（仅 AI 模块内部及事件消费方使用）
+ * Agent 系统独有类型
  */
-import type { Space } from "../types/index.ts";
+import type { Context, Space } from "../types/index.ts";
+import type Agent from "./Agent.ts";
 
 /** 模型返回的待执行工具调用 */
 export interface ToolCall {
@@ -60,3 +61,24 @@ export interface Plan {
 
 /** manage_plan 工具入参的原始形式：来自模型生成的 JSON，字段类型不可信，需经归一化 */
 export type RawTodo = { content?: unknown; status?: unknown } | null | undefined;
+
+/** OpenAI function calling 格式的单个工具定义 */
+export interface ToolDefinition {
+    type: "function";
+    function: {
+        name: string;
+        description: string;
+        parameters: Record<string, unknown>;
+    };
+}
+
+/** 工具执行上下文：请求上下文 + 调用方注入的 Agent 会话引用 */
+export interface ToolContext extends Context {
+    agent?: Agent | null;
+}
+
+/** 单个 Agent 工具模块：definition 提供给模型，execute 为实现 */
+export interface ToolModule<P = unknown> {
+    definition: ToolDefinition;
+    execute: (param: P, ctx?: ToolContext) => Promise<string>;
+}

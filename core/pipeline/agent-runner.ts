@@ -5,7 +5,9 @@
 import config from "../config.js";
 import logger from "../utils/logger.js";
 import sleep from "../utils/sleep.js";
+import { pathToFileURL } from "node:url";
 import { getAgent } from "../agent/AgentManager.ts";
+import { getSticker } from "../stickers/index.js";
 import type Agent from "../agent/Agent.ts";
 import type { Context } from "../types/index.ts";
 import type { ReplyPayload } from "../agent/types.ts";
@@ -63,6 +65,21 @@ async function deliverReply(ctx: Context, { acts, tokens }: ReplyPayload): Promi
     logger.info("AI 消息内容:", JSON.stringify({ acts, tokens }));
     let first = true;
     for (const act of acts) {
+        // 表情包动作：id → 本地图片 → image 消息段
+        if (act.cmd === "sticker") {
+            const sticker = getSticker(act.content.trim());
+            if (!sticker) {
+                logger.warn("表情包发送失败，id 不存在:", act.content);
+                continue;
+            }
+            logger.info("AI 发送表情包:", sticker.id);
+            ctx.adapter.sendMsg(ctx.space, [
+                { type: "image", data: { file: pathToFileURL(sticker.path).href } },
+            ]);
+            await sleep(1200 + Math.floor(Math.random() * 800));
+            continue;
+        }
+
         if (act.cmd !== "text") continue;
         let content = act.content;
         if (content.trim() === "") continue;

@@ -22,9 +22,13 @@ AI 能力由阿里云百炼平台驱动（支持 DeepSeek / Qwen 等模型）。
 
 ### 自主 Agent 循环
 
-AI 不再只是"一问一答"。它运行在一个 **多轮工具调用循环** 中：接收消息 → 推理 → 调用工具（同轮多个调用并行执行）→ 观察结果 → 继续推理 → 输出回复。这个循环最多可执行 30 轮（可配置），让 AI 能够完成复杂的多步骤任务。
+AI 不再只是"一问一答"。它运行在一个 **多轮工具调用循环** 中：接收消息 → 推理 → 调用工具（同轮多个调用并行执行）→ 观察结果 → 继续推理 → 输出回复。这个循环最多可执行 30 轮（`TOOLCHAIN_MAX_LENGTH` 可配置）。单个工具执行失败不会中断循环，错误原因会作为工具结果回写，交给模型自我修正。
+
+工具调用过程与结果以 `system` 消息的形式回填到会话记忆，而不是依赖原生 `tool` 角色——这样既保留了完整的执行痕迹，也兼容只接受 system/user/assistant 的消息接口。
 
 循环中 AI 还可通过 `manage_plan` 工具维护一份**会话任务计划**（总体目标 + 带状态的步骤清单）：计划每轮自动回注上下文，长链条任务中不丢目标，全部完成后自动停止注入。用户可用 `#plan` 随时查看。
+
+Agent 本身不持有任何聊天通道，所有输出以事件广播；同一会话同时只允许一个模型请求（`tryBeginRequest`），避免并发回复串台。
 
 ### 四层记忆系统
 
@@ -32,13 +36,13 @@ AI 拥有从短期到长期的完整记忆架构，在上下文窗口限制与�
 
 ```
 短期记忆（_messages）
-  │ 最近 30 条对话，超出则挤入缓存
+  │ 最近 40 条对话（CHAT_HISTORY_LIMIT），超出则挤入缓存
   ▼
 中期缓存（_cache）
-  │ 达到 30 条时触发 LLM 概括
+  │ 达到 40 条时标记待概括
   ▼
 中期概括（_midSummary）
-  │ 被新概括覆盖前，自动存入长期记忆
+  │ 被新概括覆盖前，自动存入长期记忆（需开启长期记忆）
   ▼
 长期记忆（阿里云百炼记忆库）
   │ AI 通过工具调用（get_memory）自主检索相关记忆
@@ -48,12 +52,14 @@ AI 拥有从短期到长期的完整记忆架构，在上下文窗口限制与�
 
 | 层级 | 存储位置 | 容量/周期 | 触发条件 |
 |------|---------|-----------|----------|
-| 短期记忆 | 内存 | 30 条 | 每次对话实时更新 |
-| 中期缓存 | 内存 | 满 30 条触发概括 | 短期溢出时 |
-| 中期概括 | 内存 | 每次概括覆盖 | 缓存满时 LLM 生成 |
+| 短期记忆 | 内存 | 40 条（可配） | 每次对话实时更新 |
+| 中期缓存 | 内存 | 满 40 条触发概括 | 短期溢出时 |
+| 中期概括 | 内存 | 每次概括覆盖 | 每次对话开工时检查 |
 | 长期记忆 | 云端记忆库 | 无上限 | 旧概括被替换时存入；AI 自主检索 |
 
-记忆按会话隔离，挂在对应的 Agent 实例上（`AgentManager` 会话池懒创建）：空闲 30 分钟自动回收，回收前先把短期记忆压缩归档；会话数超上限（50）时按最久未活跃淘汰。可用 `#sessions` 查看各会话记忆状态。
+长期记忆由 `ENABLE_LONG_TERM_MEMORY` 控制，**默认关闭**。关闭时 `get_memory` / `get_user_profile` 会返回空结果，画像提取也不会发起云端请求；开启后需要配置 `MEMORY_API_BASE_URL` 与 `MEMORY_PROFILE_SCHEMA_ID`。
+
+记忆按会话隔离，挂在对应的 Agent 实例上（`AgentManager` 会话池懒创建）：空闲 30 分钟自动回收（每 5 分钟扫描一次），回收前先把记忆压缩归档；会话数超上限（50）时按最久未活跃淘汰。可用 `#sessions` 查看各会话记忆状态。
 
 ### 工具调用（Function Calling）
 
@@ -82,7 +88,7 @@ AI 可自主判断并调用以下工具：
 - 操作对象在白名单之外 → **挂起待确认**，生成待确认编号：
   1. 群内通知：`操作对象不在白名单目录内，需要管理员确认。已登记为待确认操作 #xxxx`
   2. 管理员发送 `#do-yes xxxx` 确认后执行，或 `#do-no xxxx` 取消
-  3. 待确认项 10 分钟超时自动作废
+  3. 待确认项 10 分钟超时自动作废；队列上限 20 条
 - 管理员本人发起、或工具调用已确认时跳过门禁。
 - `../` 等目录穿越无论如何都被 `file-security.js` 硬拦截（既不直接放行也不挂起）。
 
@@ -90,7 +96,7 @@ AI 可自主判断并调用以下工具：
 
 ### 用户画像
 
-系统自动从对话中提取用户特征（爱好、性格、偏好等），存储到云端画像模板。AI 可通过 `get_user_profile` 工具查询特定 QQ 号用户的画像，实现个性化回应。
+系统自动从对话中提取用户特征（爱好、性格、偏好等），存储到云端画像模板。AI 可通过 `get_user_profile` 工具查询特定用户（QQ 号或微信加密 ID）的画像，实现个性化回应。该能力依赖长期记忆开关，需 `ENABLE_LONG_TERM_MEMORY: true` 才生效。
 
 ### MCP 工具扩展
 
@@ -101,6 +107,8 @@ AI 可自主判断并调用以下工具：
 - **sse**：新版 Streamable HTTP 协议
 
 通过 MCP，AI 可以获得几乎无限的工具扩展能力。你可以在配置中添加任意 MCP Server 来为 AI 增加新工具。
+
+MCP 工具不会一次性全部塞进上下文：AI 先调用 `list_mcp_tools` 加载某个 Server 的工具定义（仅生效一次），再以 `mcp_<原工具名>` 的形式调用。本地 `mcp/github-server` 是一个现成的 GitHub MCP Server 示例（`mcp/` 在 `.gitignore` 中）。
 
 ### Skill 技能系统
 
@@ -114,17 +122,22 @@ Skill 是包含 `SKILL.md` 描述文件的目录，可包含脚本供 AI 调用�
 **每回合现取：** 每次 Agent 对话开工前都会重新扫描 `skills/` 目录，新增/删除/修改技能后下一条消息即生效，通常无需手动重载。
 
 **内置技能：**
-- `skill-manager`：从 GitHub 安装/卸载社区技能
+
+- `skill-manager`：管理技能全生命周期，支持从 GitHub 安装（`install`）、卸载（`uninstall`）、设置强加载（`set-force`）与取消强加载（`unset-force`）。安装/卸载前需要管理员确认。
 
 技能可被社区开发和共享，AI 甚至可以自主安装新技能来扩展自身能力。
 
 ### 视觉能力
 
-AI 具备图片识别能力。当群内发送图片时，自动调用视觉模型（Qwen）识别图片内容，将描述注入对话上下文，让 AI 能够"看到"并理解图片。
+AI 具备图片识别能力。当群内发送图片时，自动调用视觉模型（Qwen）识别图片内容，将描述注入对话上下文，让 AI 能够"看到"并理解图片。视觉请求走独立的 `VISION_MODEL` / `visionAPIKEY` 配置。
 
 ### 主动聊天
 
-当群内连续多条消息没有 @机器人时，AI 会根据上下文判断是否主动参与对话，行为更自然。
+当群内连续多条消息没有 @机器人时（计数达到 `PROACTIVE_CHAT_LIMIT`，默认 15），AI 会带着完整上下文被唤醒，根据情境判断是否主动参与对话（返回空 action 即保持沉默），行为更自然。可用 `#pchat <bool>` 开关。
+
+### 复读
+
+`repeater` 处理器会检测连续重复的消息（队列长度 `REPEATER_QUEUE_SIZE`，默认 10）：命中后机器人跟随复读一次，并把该文本拉黑，直到它被挤出队列，避免无限复读。
 
 ### WeChat 接入（iLink Bot）
 
@@ -140,29 +153,24 @@ AI 具备图片识别能力。当群内发送图片时，自动调用视觉模�
   - 只能回复"先给机器人发过消息"的用户（协议要求 context_token），主动推送无上下文会失败
   - 富消息段发送（图片/数组型 `sendMsg` 载荷）尚未实现，会记日志提示后丢弃
 
-### Web 管理面板（开发中）
+### Web 管理面板
 
-Bot 内置独立的 **面板 API 服务**（`core/api/`），与 Web 后端以独立进程运行，通过 WebSocket 双向通信（设计文档见 `docs/web-api-design.md`）：
+Bot 内置独立的 **面板 API 服务**（`core/api/`），与 Web 后端以独立进程运行，通过 WebSocket 双向通信：
 
 - **连接模型**：Bot 做 WS 服务端，仅绑定 `127.0.0.1`，默认 `ws://127.0.0.1:2145/api/v1/ws`，与 NapCat → Bot 的反向 WS 模式同构
 - **鉴权**：独立面板 token，连接后 5s 内完成 `auth` 握手，失败/超时直接断开（自定义关闭码 4401/4001）
 - **协议**：请求/响应帧按 `id` 关联 + 服务端主动推送事件帧（`{type:"event", event, ts, data}`）
 - **action 白名单**：`get_status` / `get_config` / `set_config` / `get_logs` / `list_actions`，未知 action 一律拒绝
 - **配置脱敏**：`get_config` 输出键名脱敏 + 值级黑名单 + 嵌套对象/非纯标量数组过滤，密钥不外泄；`set_config` 仅白名单字段可热改
-- **可靠性**：30s ping/pong 心跳回收死连接；日志/事件进环形缓冲，断线重连后可按时间戳补拉
+- **可靠性**：30s ping/pong 心跳回收死连接；日志/事件进环形缓冲（`config.web.logBufferSize`），断线重连后可按时间戳补拉
 
-面板前端位于 `web/`（React 18 + Vite 5 + TypeScript），`npm run dev` 独立启动。
-
-```bash
-node scripts/test-api.js        # 面板 API 测试（需主 Bot 未同时运行，占用同端口）
-node scripts/test-api.js --slow # 附带鉴权超时场景（多等约 5s）
-```
+面板前端位于 `web/`（React 18 + Vite 8 + TypeScript），目前为骨架页面，`npm run dev` 独立启动，通过上述 WS 地址对接 API。
 
 ## 快速开始
 
 ### 环境要求
 
-- Node.js >= 24（WeChat SDK 要求 >= 22）
+- Node.js >= 24（`npm start` 依赖 Node 原生 type stripping 直接运行 `.ts`；WeChat SDK 要求 >= 22）
 - NapCat 客户端已运行并配置好反向 WebSocket 连接（QQ 接入必需；仅运行微信适配器则不需要）
 
 ### 安装与启动
@@ -185,7 +193,7 @@ npm start
 
 > **`start` 与 `start:dist` 效果等价**：两者跑出来的机器人行为完全一致。
 > - `configDev.js` 位于 `core/` 下且被 tsc 纳入编译，构建后会自动产出 `dist/configDev.js`，所以 `start:dist` 同样能加载开发配置（DevMode 合并、mcpServers 等），无需担心产物缺配置。
-> - `app.pem`、`mcp/` 以 **cwd（项目根）** 解析，与从 `src` 还是 `dist` 启动无关。
+> - `app.pem`、`mcp/` 以 **cwd（项目根）** 解析，与从 `core` 还是 `dist` 启动无关。
 > - 差异仅在非行为层面：`start` 依赖 Node 24 原生擦除类型、每次现场转译、改完即生效；`start:dist` 跑预编译纯 JS、启动更快、不依赖运行时 TS 支持，但必须先 `npm run build`（产物只与上次构建同样新鲜）。
 >
 > **推荐**：日常开发直接 `npm start`；上线部署用 `npm run build && npm run start:dist`。
@@ -196,29 +204,40 @@ npm start
 
 所有配置集中在 `core/config.js` 中。
 
-**开发环境：** 将 `config.js` 中的 `DevMode` 设为 `true`，在 `core/configDev.js` 中填写真实配置。
+**开发环境：** 将 `config.js` 中的 `DevMode` 设为 `true`，在 `core/configDev.js` 中填写真实配置（该文件已 gitignore；`DevMode` 为 true 但文件缺失时进程会直接退出）。
 
 **生产环境：** 将 `DevMode` 设为 `false`，直接在 `config.js` 中填写配置值。
+
+**运行期持久化：** `config` 由 Proxy 包裹，任何顶层键赋值（如 `#ms` 切模型、`#pchat`、`#toolout`、面板 `set_config`）都会自动写入 `core/configOverride.json`，重启后叠加生效。`members`、`mcpServers`、`DevMode` 不落盘；密钥类（`aiAPIKEY`、`token` 等）会写入但需重启才生效。该文件同样已 gitignore。
 
 主要配置项：
 
 | 配置项 | 说明 |
 |--------|------|
+| `wsPort` | OneBot 反向 WebSocket 服务端口（默认 8080） |
 | `token` | OneBot 鉴权 Token |
+| `napcatHttpHost` | NapCat HTTP API 地址（默认 `127.0.0.1:3000`，图片获取等走 HTTP） |
+| `owner` | 主人（管理员）用户 ID |
 | `targetGroupId` | 目标群 ID 列表（字符串数组） |
 | `targetUserId` | 目标用户 ID 列表：QQ 号（字符串）或微信加密 ID（形如 `xxx@im.wechat`，从日志复制） |
 | `selfId` | 机器人 QQ 号 |
-| `aiAPIKEY` | 阿里云 AI API Key |
+| `aiAPIKEY` | 阿里云 AI API Key（文本模型 + 长期记忆） |
+| `visionAPIKEY` | 视觉模型 API Key |
 | `CHAT_MODEL` | 聊天模型名称 |
 | `VISION_MODEL` | 识图模型名称 |
+| `ENABLE_LONG_TERM_MEMORY` | 是否启用云端长期记忆与用户画像（默认 false） |
 | `mcpServers` | MCP Server 配置列表 |
 | `readFileDirs` | `read_file`/`list_files` 允许的目录（相对 `core/`） |
 | `runJsDirs` | `run_JS` 允许执行脚本的目录 |
 | `editFileDirs` | `create_file`/`edit_file`/`delete_file` 允许的目录 |
 | `web` | 面板 API 服务：`port` / `path` / `token` / `logBufferSize` |
+| `githubToken` | GitHub API Token（skill-manager 安装技能、GitHub MCP 使用） |
+| `EnableProactiveChat` | 主动聊天开关 |
+| `PROACTIVE_CHAT_LIMIT` | 主动聊天触发阈值（默认 15 条） |
+| `toolOutput` | 是否在群里播报工具调用（默认 false） |
 | `members` | QQ 号 → 群昵称映射表 |
 
-NapCat 反向 WebSocket 连接地址：`ws://127.0.0.1:8080/onebot/v11/ws`
+NapCat 反向 WebSocket 连接地址：`ws://127.0.0.1:8080/onebot/v11/ws`（端口随 `wsPort` 变化）。
 
 ---
 
@@ -239,16 +258,17 @@ bot/adapters/OnebotAdapter             bot/adapters/WechatBotAdapter
     └──────────────────┬────────────────────┘
                        ▼
         pipeline/context.ts 构建 Context → pipeline/index.js 管道编排
+    │  （仅 targetGroupId / targetUserId 命中的消息继续）
     │
     ├─ 中间件（全部执行，丰富上下文）
     │   ├─ image-recognizer  → 识别图片 → ctx.imageDescription
-    │   ├─ at-detector       → 检测 @机器人 → ctx.isAtBot
+    │   ├─ at-detector       → 解析 @ 对象 → ctx.at（@bot 时为“我”）
     │   └─ mini-program      → 处理小程序/链接分享
     │
     └─ 处理器（首个返回 true 即停止）
-        ├─ keyword-commands  → 精确匹配关键词（"来句台词"等）
-        ├─ user-commands     → # 前缀命令（#help、#gw 等）
-        ├─ ai-chat           → @机器人时触发 Agent 循环
+        ├─ keyword-commands  → 精确匹配关键词（CMD_MAP 当前为空，框架保留）
+        ├─ user-commands     → # 前缀命令（#help、#plan 等）
+        ├─ ai-chat           → @机器人（或私聊）时触发 Agent 循环
         ├─ repeater          → 复读检测
         └─ proactive-chat    → 记录上下文，达阈值时主动聊天
 ```
@@ -262,7 +282,7 @@ bot/adapters/OnebotAdapter             bot/adapters/WechatBotAdapter
     │  临时挂上 reply / tool-call 事件监听 → run → 分发链落定后摘监听
     ▼
 Agent.run()（core/agent/Agent.ts，每会话一实例，AgentManager 池管理，空闲 30 分钟回收）
-    │
+    │  本次对话开工前：检查并触发中期概括 → 重新扫描 skills 目录
     ▼
 组装上下文（系统提示 + 强加载技能正文 + 技能列表 + MCP 列表 + 记忆概要 + 活跃任务计划 + 历史消息）
     │
@@ -271,7 +291,7 @@ Agent.run()（core/agent/Agent.ts，每会话一实例，AgentManager 池管理�
     │
     ├─ 无工具调用 → 解析 JSON 回复 → 广播 "reply" 事件 → 写入会话记忆
     │
-    └─ 有工具调用 → 同一轮多个调用并行执行 → 结果回填记忆 → 再次请求（最多 30 轮）
+    └─ 有工具调用 → 同一轮多个调用并行执行 → 结果作为 system 痕迹回填记忆 → 再次请求（最多 30 轮）
         │           ├─ 本地工具 → 路径穿越防护 + 白名单门禁（白名单内放行，否则挂起确认）
         │           └─ MCP 工具 → 路由到对应 MCP Server
         ▼
@@ -282,12 +302,11 @@ Agent 不持有任何聊天通道，所有输出以事件广播——换协议�
 
 ### 用户命令
 
-通过 `#` 前缀触发，部分命令需要管理员权限：
+通过 `#` 前缀触发，部分命令需要管理员权限（管理员 = `config.owner`）：
 
 | 命令 | 权限 | 说明 |
 |------|------|------|
 | `#help` | 所有人 | 显示指令列表 |
-| `#gw <城市>` | 所有人 | 查询天气 |
 | `#skills` | 所有人 | 列出技能列表 |
 | `#forceskills` | 所有人 | 列出当前强加载技能 |
 | `#plan` | 所有人 | 查看当前任务计划 |
@@ -312,9 +331,9 @@ Agent 不持有任何聊天通道，所有输出以事件广播——换协议�
 
 ```
 core/
-├── index.js                    # 入口：初始化 MCP → 启动 WebSocket 服务 → 启动面板 API
+├── index.js                    # 入口：初始化 MCP → 启动 WS 服务（QQ/微信）→ 启动面板 API
 │
-├── config.js                   # 统一配置（基础配置 + 常量 + 成员映射）
+├── config.js                   # 统一配置（基础配置 + 常量 + 成员映射），Proxy 自动持久化
 ├── configDev.js                # 开发环境配置（gitignore，覆盖 config.js）
 │
 ├── bot/                        # 通信层：servers（连接/生命周期）+ adapters（协议适配，可插拔）
@@ -341,13 +360,13 @@ core/
 │
 ├── pipeline/                   # 事件处理管道
 │   ├── index.js                # 管道编排：中间件 → 处理器
-│   ├── context.ts              # 上下文构建（TS）
-│   ├── middleware/              # 中间件（丰富上下文）
+│   ├── context.ts              # 上下文构建与目标过滤
+│   ├── middleware/             # 中间件（丰富上下文）
 │   │   ├── image-recognizer.js # 图片识别
 │   │   ├── at-detector.js      # @检测
 │   │   └── mini-program.js     # 小程序/链接分享处理
 │   ├── handlers/               # 处理器（首个命中即停止）
-│   │   ├── keyword-commands.js # 关键词命令
+│   │   ├── keyword-commands.js # 关键词命令（CMD_MAP 当前为空）
 │   │   ├── user-commands.js    # # 前缀命令
 │   │   ├── ai-chat.js          # Agent 对话入口
 │   │   ├── repeater.js         # 复读检测
@@ -356,25 +375,28 @@ core/
 │
 ├── agent/                      # Agent 核心（AI 相关代码全部内聚于此）
 │   ├── Agent.ts                # Agent 类：循环主体 + 会话任务计划，只产出事件不碰通道
-│   ├── AgentManager.ts         # 会话池：space → Agent 实例，空闲回收
+│   ├── AgentManager.ts         # 会话池：space → Agent 实例，空闲回收 / 数量上限
 │   ├── contextBuilder.ts       # LLM 请求上下文组装
 │   ├── replyParser.ts          # 模型回复解析（{action:[...]}）
 │   ├── types.ts                # Agent 系统独有类型（ToolCall/ReplyPayload/Plan 等）
 │   ├── approval-runner.ts      # 危险操作确认执行链
-│   ├── client.js               # LLM API 客户端
-│   ├── tools.js                # 工具定义与调度
+│   ├── client.js               # LLM API 客户端（文本 / 视觉）
+│   ├── tools.js                # 工具定义、调度与路径门禁
 │   ├── tool-approval.js        # 危险操作确认队列
 │   ├── mcp-client.js           # MCP 客户端管理器
 │   ├── skill.js                # Skill 加载器
 │   ├── image.js                # 视觉 API
 │   ├── long-term-memory.js     # 长期记忆 + 用户画像 API
-│   └── recorder.js             # 四层记忆管理器
+│   └── recorder.js             # 三层记忆记录器（短期/缓存/概括）
 │
 ├── services/                   # 外部服务封装
-│   ├── napcat.js               # NapCat HTTP API
-│   ├── acg.js                  # ACG 图片 API
-│   ├── hitokoto.js             # 一言 API
-│   ├── weather.js              # 和风天气 API
+│   └── napcat.js               # NapCat HTTP API（get_image 等）
+│
+├── tools/                      # 独立工具模块
+│   └── repeater.js             # 复读检测队列
+│
+├── data/                       # 静态数据
+│   └── assets.js               # 内置图片 URL（孙巴二娘随机图）
 │
 ├── skills/                     # Skill 技能目录（AI 可读写）
 │   └── skill-manager/          # 内置：技能管理器
@@ -382,19 +404,20 @@ core/
 ├── workspace/                  # 工作区（AI 可读写）
 │
 ├── utils/                      # 工具函数
-│   ├── logger.js               # 统一日志
-│   ├── file-security.js        # 路径安全校验
+│   ├── logger.js               # 统一日志（同时推送到面板事件总线）
+│   ├── file-security.js        # 路径解析 / 穿越防护 / 白名单校验
 │   ├── extractText.ts          # 消息段纯文本提取（TS）
-│   ├── sleep.js / random.js / time.js / queue.js / image-type.js
+│   └── sleep.js / random.js / time.js / queue.js / image-type.js
 │
 ```
 
 ```
-scripts/                        # 构建辅助与测试脚本（test-api.js 面板 API 测试等）
-└── copy-assets.js              # 构建后将 skills/workspace 的非 JS 资源拷贝到 dist
+scripts/                        # 构建辅助脚本
+└── copy-assets.js              # 构建后将 skills/workspace 的非代码资源拷贝到 dist
 
-web/                            # 面板前端（React 18 + Vite 5 + TS，独立 npm 工程）
-docs/                           # 设计文档（web-api-design.md 面板 API 设计）
+web/                            # 面板前端（React 18 + Vite 8 + TS，独立 npm 工程，当前为骨架页面）
+mcp/                            # 本地 MCP Server（gitignore；mcp/github-server 为 GitHub 示例）
+assets/                         # 素材图片（SunbatwoGirl）
 
 根目录：
 tsconfig.json                   # IDE 类型检查基准配置（strict + noEmit，不产出文件）
@@ -407,7 +430,7 @@ tsconfig.build.json             # 构建配置（noCheck 只转译，遗留 JS �
 
 ### 添加关键词命令
 
-在 `pipeline/handlers/keyword-commands.js` 的 `CMD_MAP` 中添加：
+在 `pipeline/handlers/keyword-commands.js` 的 `CMD_MAP` 中添加（当前内置关键词命令已清空，框架保留）：
 
 ```js
 CMD_MAP.set("关键词", async (ctx) => {
@@ -423,6 +446,7 @@ CMD_MAP.set("关键词", async (ctx) => {
 {
     name: "命令名",
     description: "命令描述",
+    needsAdmin: true,          // 可选，默认 false
     params: [{ name: "参数名", desc: "参数说明" }],
     handler: async (args, ctx) => {
         return "回复文本";
@@ -432,7 +456,9 @@ CMD_MAP.set("关键词", async (ctx) => {
 
 ### 添加新工具
 
-在 `agent/tools.js` 的 `tools` 数组中添加工具定义，在 `toolMap` 中注册处理函数。新工具会自动出现在 AI 的可用工具列表中。
+在 `agent/tools.js` 的 `tools` 数组中添加工具定义，并在 `toolMap` 中注册处理函数，新工具会自动出现在 AI 的可用工具列表中。
+
+如果新工具带文件路径参数，还必须在 `pathToolWhitelist` 中登记 `{ dirKey, pathKey }`（指向白名单配置键与路径参数名），门禁才会按"执行对象是否在白名单目录内"自动放行或挂起。门禁统一在 `callTool()` 中完成，工具实现内部不需要重复校验白名单（目录穿越仍由 `resolveSrcPath` 兜底）。
 
 ### 添加 MCP Server
 
@@ -440,11 +466,11 @@ CMD_MAP.set("关键词", async (ctx) => {
 
 ```js
 {
-    name: "my_mcp",
-    description: "我的 MCP 服务",
+    name: "github",
+    description: "GitHub 操作",
     transport: "stdio",        // 或 "sse" / "old_sse"
     command: "node",
-    args: ["path/to/OnebotServer.js"],
+    args: ["D:/path/to/mcp/github-server/index.js"],
 }
 ```
 

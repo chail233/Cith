@@ -14,7 +14,7 @@ import {nowTime} from "../../utils/time.js";
  * @returns {Promise<boolean>}
  */
 export default async function aiChat(ctx) {
-    if (ctx.space.from==="group" && !ctx.isAtBot) return false;
+    if (ctx.space.from==="group" && ctx.at !== "我") return false;
 
     const content = ctx.text + (ctx.imageDescription ? `\n${ctx.imageDescription}` : "");
     const msg = {
@@ -24,7 +24,7 @@ export default async function aiChat(ctx) {
             id: ctx.userId,
             time: nowTime(),
             text: content,
-            at: "我"
+            at: ctx.at
         },
     };
     getAgent(ctx.space).memory.add(msg);

@@ -23,7 +23,7 @@ export async function confirmPending(id: string, ctx: Context): Promise<{ ok: bo
         // 结果注入发起会话的上下文；会话已被回收时按发起空间重建
         const target = getAgent(entry.space ?? ctx.space);
         const result = await callTool(toolCall, { ...ctx, space: entry.space ?? ctx.space, agent: target }, true);
-        target.recordToolCall(toolCall, entry.toolName, toolCall.function.arguments, result);
+        target.recordToolCall(entry.toolName, toolCall.function.arguments, result);
         return { ok: true, text: `#${id} ${entry.toolName} 已执行，结果已注入对话上下文` };
     }
     catch (err) {

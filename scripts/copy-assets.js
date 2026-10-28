@@ -21,7 +21,7 @@ const srcDir = resolve(root, "core");
 const distDir = resolve(root, "dist");
 
 /** 需要从 core 同步到 dist 的目录（相对 core） */
-const COPY_DIRS = ["skills", "workspace"];
+const COPY_DIRS = ["skills", "workspace", "stickers"];
 
 /** 拷贝时跳过的文件类型（已由 tsc 编译输出） */
 const SKIP_EXT = new Set([".js", ".ts"]);

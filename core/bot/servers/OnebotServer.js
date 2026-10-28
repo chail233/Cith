@@ -3,6 +3,7 @@ import config from "../../config.js";
 import logger from "../../utils/logger.js";
 import OnebotAdapter from "../adapters/OnebotAdapter.ts";
 import { runtimeState } from "../../api/runtime-state.ts";
+import { registerAdapter, unregisterAdapter } from "../../services/adapter-registry.js";
 
 
 export function startOneBotServer(pipeline) {
@@ -15,6 +16,8 @@ export function startOneBotServer(pipeline) {
         logger.info(`NapCat 已连接 (端口: ${config.wsPort})`);
         runtimeState.onebotConnected = true;
         const onebotAdapter = new OnebotAdapter(pipeline, ws);
+        // 主动链路（定时苏醒）需要拿到发送通道
+        registerAdapter("onebot", onebotAdapter);
 
         ws.on("message", (data) => {
             try {
@@ -40,6 +43,7 @@ export function startOneBotServer(pipeline) {
         ws.on("close", () => {
             logger.info("OnebotWebSocket 连接关闭");
             runtimeState.onebotConnected = false;
+            unregisterAdapter("onebot", onebotAdapter);
         });
 
         ws.on("error", (err) => {

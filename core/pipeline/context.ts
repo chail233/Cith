@@ -13,11 +13,11 @@ export function buildContext(event: CtxEvent): Context {
         adapter: event.adapter,
         text: text,
         space: event.space,
-        senderName: resolveName(event),
+        senderName: resolveName(event.userId, event.nickName),
         userId: event.userId,
         isAdmin:isAdmin,
         isTarget: isTarget,
-        isAtBot: false,
+        at: null,
         imageDescription: null,
         handled: false,
         seg: event.message,
@@ -26,12 +26,12 @@ export function buildContext(event: CtxEvent): Context {
 
 
 /**
- * 解析发送者昵称
+ * 解析昵称：优先 members 映射，其次回退到传入的昵称
  */
-function resolveName(event: CtxEvent): string {
-    const userId = event.userId;
-    if (userId && config.members.has(userId)) {
-        return config.members.get(userId) ?? "未知";
+export function resolveName(qq: string | undefined | null, fallbackName?: string): string {
+    const id = qq == null ? "" : String(qq);
+    if (id && config.members.has(id)) {
+        return config.members.get(id) ?? "未知";
     }
-    return event.nickName ?? "未知";
+    return fallbackName ?? "未知";
 }

@@ -1,6 +1,6 @@
 // @ts-check
 
-import { callLLM } from "./client.js";
+import { callLLM } from "./client.ts";
 import config from "../config.js";
 import logger from "../utils/logger.js";
 
@@ -43,11 +43,14 @@ export default async function recognizeImage(base64, type) {
                 ],
             },
         ],
-        enableSearch:false,
         mode:"vision"
     });
 
-    if (!result) {
+    if (typeof result === "string") {
+        return null;
+    }
+
+    if (!result?.message?.content) {
         logger.error("识图 API 无响应");
         return null;
     }
