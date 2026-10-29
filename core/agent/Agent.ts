@@ -81,7 +81,7 @@ export default class Agent extends EventEmitter {
             await reloadSkills();
 
             const request = () => callLLM({
-                model: config.CHAT_MODEL,
+                model: config.chatModel,
                 messages: buildMessages(this),
                 temperature: 0.2,
                 responseFormat: { type: "json_object" },
@@ -101,7 +101,7 @@ export default class Agent extends EventEmitter {
                 }
                 tokenCount += result.totalTokens;
                 // 无工具调用 → 最终回复；工具链达到长度上限 → 强制收敛（与原循环轮数一致）
-                if (!result.message.tool_calls || toolDepth > config.TOOLCHAIN_MAX_LENGTH) break;
+                if (!result.message.tool_calls || toolDepth > config.toolChainMaxLength) break;
                 toolDepth++;
 
                 const interim = parseReply(result.message.content);

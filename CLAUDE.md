@@ -12,7 +12,7 @@ SunbatwoBot is a OneBot v11 QQ bot (NapCat transport) that runs an LLM **agent**
 
 ### Config
 
-All config lives in `core/config.js` (defaults, shared constants, and `SYSTEM_PROMPT`). When `DevMode: true` (the default), real secrets are loaded from `core/configDev.js` (gitignored). Merge rules: dev values overwrite base, **but `mcpServers` is concatenated** (base first). If `DevMode` is true and `configDev.js` is missing, the process exits(1) at import time. `core/app.pem` is also gitignored.
+All config lives in `core/config.js` (defaults, shared constants, and `systemPrompt`). When `devMode: true` (the default), real secrets are loaded from `core/configDev.js` (gitignored). Merge rules: dev values overwrite base, **but `mcpServers` is concatenated** (base first). If `devMode` is true and `configDev.js` is missing, the process exits(1) at import time. `core/app.pem` is also gitignored.
 
 ## Architecture
 
@@ -34,7 +34,7 @@ Cross-module type contracts live in `core/types/index.ts`: `CtxEvent` (normalize
 
 ### Agent loop (`agent/Agent.ts`, merged AI module — former `llm/` now lives in `agent/`)
 
-`Agent` (an `EventEmitter`, one per chat session, pooled by `agent/AgentManager.ts`) owns the loop: `contextBuilder.ts` `buildMessages(agent)` (reads `agent.memory` + `agent.getActivePlan()`) assembles system prompt + force-loaded skills + skill list + MCP server list + optional mid-summary + active plan + recorder history; the LLM is called with all tool definitions; for each `tool_calls` entry `callTool()` runs and the result is appended as a `role:"tool"` row, then the LLM is called again — looping up to `config.TOOLCHAIN_MAX_LENGTH` (30). The Agent only *thinks*: it broadcasts `reply` / `tool-call` / `tool-result` events; `pipeline/agent-runner.ts` (`runAgent(ctx)`) subscribes and sends via the adapter with ~3s random spacing. The model must output strict JSON `{ "action": [{ "cmd": "text", "content": "..." }] }`; `replyParser.ts` `parseReply()` is lenient — it also accepts a bare array and degrades malformed output to a single text message.
+`Agent` (an `EventEmitter`, one per chat session, pooled by `agent/AgentManager.ts`) owns the loop: `contextBuilder.ts` `buildMessages(agent)` (reads `agent.memory` + `agent.getActivePlan()`) assembles system prompt + force-loaded skills + skill list + MCP server list + optional mid-summary + active plan + recorder history; the LLM is called with all tool definitions; for each `tool_calls` entry `callTool()` runs and the result is appended as a `role:"tool"` row, then the LLM is called again — looping up to `config.toolChainMaxLength` (30). The Agent only *thinks*: it broadcasts `reply` / `tool-call` / `tool-result` events; `pipeline/agent-runner.ts` (`runAgent(ctx)`) subscribes and sends via the adapter with ~3s random spacing. The model must output strict JSON `{ "action": [{ "cmd": "text", "content": "..." }] }`; `replyParser.ts` `parseReply()` is lenient — it also accepts a bare array and degrades malformed output to a single text message.
 
 ### Tools (`agent/tools.js`)
 
@@ -48,7 +48,7 @@ The gate is centralized in `callTool()` and is **path-aware, not tool-name based
 
 ### Memory (`agent/recorder.js` + `agent/long-term-memory.js`)
 
-Each `Agent` holds its own `ChatRecorder` (session pool with idle-recapture in `AgentManager.ts`). Four layers: short-term `_messages` (`config.CHAT_HISTORY_LIMIT`) → evicted into `_cache` → once cache reaches the limit, `summarizeCache()` (invoked at the top of each `Agent.run()`) LLM-summarizes it into `_midSummary` → before an old summary is overwritten it is written to the cloud long-term memory along with extracted per-user profiles. The model recalls via the `get_memory` and `get_user_profile` tools (session access comes from `ctx.agent`). `compress()` and `clear()` are wired to `#compress` / `#clear`.
+Each `Agent` holds its own `ChatRecorder` (session pool with idle-recapture in `AgentManager.ts`). Four layers: short-term `_messages` (`config.chatHistoryLimit`) → evicted into `_cache` → once cache reaches the limit, `summarizeCache()` (invoked at the top of each `Agent.run()`) LLM-summarizes it into `_midSummary` → before an old summary is overwritten it is written to the cloud long-term memory along with extracted per-user profiles. The model recalls via the `get_memory` and `get_user_profile` tools (session access comes from `ctx.agent`). `compress()` and `clear()` are wired to `#compress` / `#clear`.
 
 ### File security (`utils/file-security.js`)
 
@@ -64,7 +64,7 @@ A skill is a directory under `core/skills/` containing `SKILL.md` with YAML fron
 
 ## Conventions
 
-- Comments, log strings, and the `SYSTEM_PROMPT` are in Chinese; keep new code consistent.
+- Comments, log strings, and the `systemPrompt` are in Chinese; keep new code consistent.
 - New cross-module interfaces go in `core/types/index.ts`, Agent-only types in `core/agent/types.ts` (not redefined per module elsewhere); new chat platforms are added by subclassing `BaseAdapter` in `bot/adapter/`.
 - Use `utils/logger.js` rather than `console`.
-- `config.SYSTEM_PROMPT` defines both the persona and the strict JSON output contract — changes there affect every reply.
+- `config.systemPrompt` defines both the persona and the strict JSON output contract — changes there affect every reply.

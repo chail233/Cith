@@ -27,7 +27,7 @@ export default async function recognizeImage(base64, type) {
     }
 
     const result = await callLLM({
-        model: config.VISION_MODEL,
+        model: config.visionModel,
         messages: [
             {
                 role: "user",

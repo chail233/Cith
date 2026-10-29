@@ -16,10 +16,10 @@ import logger from "../utils/logger.js";
 
 /** axios 实例（独立的 HTTP 客户端，指向记忆库 API） */
 const http = axios.create({
-    baseURL: config.MEMORY_API_BASE_URL,
-    timeout: config.LLM_TIMEOUT,
+    baseURL: config.memoryApiBaseUrl,
+    timeout: config.llmTimeout,
     headers: {
-        Authorization: `Bearer ${config.aiAPIKEY}`,
+        Authorization: `Bearer ${config.aiApiKey}`,
         "Content-Type": "application/json",
     },
 });
@@ -30,7 +30,7 @@ const http = axios.create({
  * @returns {string}
  */
 export function makeMemoryUserId(id) {
-    return `${config.MEMORY_USER_ID_PREFIX}${id}`;
+    return `${config.memoryUserIdPrefix}${id}`;
 }
 
 /**
@@ -41,7 +41,7 @@ export function makeMemoryUserId(id) {
  * @returns {Promise<boolean>} 成功返回 true，失败返回 false
  */
 export async function addMemory(userId, messages) {
-    if(!config.ENABLE_LONG_TERM_MEMORY) return false;
+    if(!config.enableLongTermMemory) return false;
     try {
         const payload = {
             user_id: userId,
@@ -80,10 +80,10 @@ export async function addMemory(userId, messages) {
  * @returns {Promise<Array<string>>} 召回的记忆内容数组，为空表示无相关记忆
  */
 export async function searchMemory(userId, messages, options = {}) {
-    if(!config.ENABLE_LONG_TERM_MEMORY) return [];
+    if(!config.enableLongTermMemory) return [];
     const {
-        topK = config.MEMORY_SEARCH_TOP_K,
-        minScore = config.MEMORY_MIN_SCORE,
+        topK = config.memorySearchTopK,
+        minScore = config.memoryMinScore,
         planVersion = "Pro",
     } = options;
 
@@ -130,12 +130,12 @@ export async function searchMemory(userId, messages, options = {}) {
  * @returns {Promise<boolean>} 成功返回 true，失败返回 false
  */
 export async function extractUserProfile(userId, messages) {
-    if(!config.ENABLE_LONG_TERM_MEMORY) return false;
+    if(!config.enableLongTermMemory) return false;
     try {
         const payload = {
             user_id: userId,
             messages,
-            profile_schema: config.MEMORY_PROFILE_SCHEMA_ID,
+            profile_schema: config.memoryProfileSchemaId,
             extract_mode:"profile_only"
         };
 
@@ -166,10 +166,10 @@ export async function extractUserProfile(userId, messages) {
  * @returns {Promise<string>} 画像内容文本，无画像时返回空字符串
  */
 export async function getUserProfile(userId) {
-    if(!config.ENABLE_LONG_TERM_MEMORY) return "";
+    if(!config.enableLongTermMemory) return "";
     try {
         const resp = await http.get(
-            `/profile_schemas/${config.MEMORY_PROFILE_SCHEMA_ID}/user_profile`,
+            `/profile_schemas/${config.memoryProfileSchemaId}/user_profile`,
             { params: { user_id: userId } },
         );
         const body = resp.data;

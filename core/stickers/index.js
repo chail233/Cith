@@ -27,7 +27,7 @@ const cache = new Map();
  * @returns {string} 相对 core/ 的索引路径
  */
 export function resolveManifestPath() {
-    if (!config.DevMode)
+    if (!config.devMode)
         return DEFAULT_MANIFEST_PATH;
     const resolved = resolveSrcPath(DEV_MANIFEST_PATH);
     if (!resolved.error && existsSync(resolved.fullPath))

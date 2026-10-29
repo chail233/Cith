@@ -33,13 +33,13 @@ const clients = new Map<string, OpenAI>();
  * 获取指定模式的 SDK 客户端
  */
 function getClient(mode: "chat" | "vision"): OpenAI {
-    const url = mode === "chat" ? config.LLM_API_URL : config.LLM_VISION_API_URL;
-    const apiKey = mode === "chat" ? config.aiAPIKEY : config.visionAPIKEY;
+    const url = mode === "chat" ? config.llmApiUrl : config.llmVisionApiUrl;
+    const apiKey = mode === "chat" ? config.aiApiKey : config.visionApiKey;
     const baseURL = normalizeBaseURL(url);
     const key = `${baseURL}|${apiKey}`;
     let client = clients.get(key);
     if (!client) {
-        client = new OpenAI({ baseURL, apiKey, timeout: config.LLM_TIMEOUT });
+        client = new OpenAI({ baseURL, apiKey, timeout: config.llmTimeout });
         clients.set(key, client);
     }
     return client;

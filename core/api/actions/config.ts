@@ -15,21 +15,21 @@ const WRITABLE_KEYS = new Set<string>([
     "targetUserId",
     "selfId",
     "owner",
-    "aiAPIKEY",
-    "visionAPIKEY",
-    "EnableProactiveChat",
-    "CHAT_HISTORY_LIMIT",
-    "PROACTIVE_CHAT_LIMIT",
-    "LLM_API_URL",
-    "LLM_VISION_API_URL",
-    "CHAT_MODEL",
-    "VISION_MODEL",
-    "LLM_TIMEOUT",
-    "REPEATER_QUEUE_SIZE",
-    "MEMORY_API_BASE_URL",
-    "MEMORY_SEARCH_TOP_K",
-    "MEMORY_MIN_SCORE",
-    "TOOLCHAIN_MAX_LENGTH",
+    "aiApiKey",
+    "visionApiKey",
+    "enableProactiveChat",
+    "chatHistoryLimit",
+    "proactiveChatLimit",
+    "llmApiUrl",
+    "llmVisionApiUrl",
+    "chatModel",
+    "visionModel",
+    "llmTimeout",
+    "repeaterQueueSize",
+    "memoryApiBaseUrl",
+    "memorySearchTopK",
+    "memoryMinScore",
+    "toolChainMaxLength",
     "toolOutput",
 
     "readFileDirs",
@@ -38,13 +38,13 @@ const WRITABLE_KEYS = new Set<string>([
 
     "githubToken",
 
-    "SYSTEM_PROMPT",
+    "systemPrompt",
 ]);
 
 /** 输出时直接跳过的复杂/巨大字段 */
 const SKIP_KEYS = new Set<string>([
     "members",          // Map
-    "SYSTEM_PROMPT",    // 巨大提示词文本
+    "systemPrompt",     // 巨大提示词文本
 ]);
 
 function isSensitiveKey(key: string): boolean {

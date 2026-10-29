@@ -16,7 +16,7 @@ export class ChatRecorder {
      * @param {string} [sessionId] 会话 ID（用于派生长期记忆实体，隔离不同群/私聊）
      */
     constructor(
-        limit = config.CHAT_HISTORY_LIMIT, sessionId = "default") {
+        limit = config.chatHistoryLimit, sessionId = "default") {
         this._messages = [];
         this._cache = [];
         this._midSummary = "";
@@ -131,7 +131,7 @@ export class ChatRecorder {
             userMsgs += JSON.stringify(msg) + "\n";
         }
         const result = await callLLM({
-            model: config.CHAT_MODEL,
+            model: config.chatModel,
             messages: [
                 {
                     role: "system",
@@ -167,7 +167,7 @@ export class ChatRecorder {
             userMsgs += JSON.stringify(msg) + "\n";
         }
         const result = await callLLM({
-            model: config.CHAT_MODEL,
+            model: config.chatModel,
             messages: [
                 {
                     role: "system",

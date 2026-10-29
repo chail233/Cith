@@ -8,7 +8,7 @@ import type Agent from "./Agent.ts";
 import type { Plan, PlanStatus } from "./types.ts";
 import {listTags} from "../stickers/index.js";
 
-const SYSTEM_PROMPT = config.SYSTEM_PROMPT;
+const systemPrompt = config.systemPrompt;
 
 /** 合法状态 → 渲染图标 */
 const STATUS_ICONS: Record<PlanStatus, string> = {
@@ -49,7 +49,7 @@ export function buildMessages(agent: Agent) {
     const recorder = agent.memory;
     const activePlan = agent.getActivePlan();
     const messages: Array<{ role: string; content: string }> = [
-        { role: "system", content: SYSTEM_PROMPT },
+        { role: "system", content: systemPrompt },
     ];
 
     // 定时苏醒：把唤醒原因告诉模型（消费一次即清空）

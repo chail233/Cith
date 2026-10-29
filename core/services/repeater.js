@@ -6,7 +6,7 @@ const messageQueue = new queue();
 let l1="null";
 let l2="null";
 export default function received(message) {
-    if(messageQueue.size()>=config.REPEATER_QUEUE_SIZE){
+    if(messageQueue.size()>=config.repeaterQueueSize){
         const msg = messageQueue.pop();
         if(blackname.has(msg)){
             blackname.delete(msg);

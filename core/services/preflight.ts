@@ -52,20 +52,20 @@ export function collectConfigWarnings(): ConfigWarning[] {
         );
     }
 
-    if (isPlaceholder(cfg.aiAPIKEY)) {
+    if (isPlaceholder(cfg.aiApiKey)) {
         add(
             "error",
-            "aiAPIKEY",
+            "aiApiKey",
             "文本模型 API Key 未配置，AI 无法生成回复",
-            "填写 aiAPIKEY（与 LLM_API_URL 指向的服务商对应）",
+            "填写 aiApiKey（与 llmApiUrl 指向的服务商对应）",
         );
     }
 
-    if (isPlaceholder(cfg.LLM_API_URL) || isPlaceholder(cfg.CHAT_MODEL)) {
+    if (isPlaceholder(cfg.llmApiUrl) || isPlaceholder(cfg.chatModel)) {
         add(
             "error",
-            "CHAT_MODEL",
-            "LLM_API_URL 或 CHAT_MODEL 未填写，无法发起模型请求",
+            "chatModel",
+            "llmApiUrl 或 chatModel 未填写，无法发起模型请求",
             "填写 OpenAI 兼容协议的接口地址与模型名称，如 https://api.openai.com/v1/chat/completions + gpt-4o-mini",
         );
     }
@@ -80,12 +80,12 @@ export function collectConfigWarnings(): ConfigWarning[] {
         );
     }
 
-    if (isPlaceholder(cfg.visionAPIKEY)) {
+    if (isPlaceholder(cfg.visionApiKey)) {
         add(
             "warn",
-            "visionAPIKEY",
+            "visionApiKey",
             "视觉 API Key 未配置，群内图片不会被识别（其余功能不受影响）",
-            "需要识图能力时填写 visionAPIKEY 与 VISION_MODEL",
+            "需要识图能力时填写 visionApiKey 与 visionModel",
         );
     }
 
@@ -108,12 +108,12 @@ export function collectConfigWarnings(): ConfigWarning[] {
         );
     }
 
-    if (cfg.ENABLE_LONG_TERM_MEMORY === true && isPlaceholder(cfg.MEMORY_PROFILE_SCHEMA_ID)) {
+    if (cfg.enableLongTermMemory === true && isPlaceholder(cfg.memoryProfileSchemaId)) {
         add(
             "warn",
-            "MEMORY_PROFILE_SCHEMA_ID",
+            "memoryProfileSchemaId",
             "已开启长期记忆，但用户画像规则 ID 未配置，画像提取会失败",
-            "填写 MEMORY_PROFILE_SCHEMA_ID，或关闭 ENABLE_LONG_TERM_MEMORY",
+            "填写 memoryProfileSchemaId，或关闭 enableLongTermMemory",
         );
     }
 

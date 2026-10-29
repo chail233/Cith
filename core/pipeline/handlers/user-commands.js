@@ -155,11 +155,11 @@ const cmds = [
         handler: async (args, ctx) => {
             if (args.length === 0) return "缺少参数 true/false";
             if (args[0] === "true") {
-                config.EnableProactiveChat = true;
+                config.enableProactiveChat = true;
                 return "开启了主动回复";
             }
             else {
-                config.EnableProactiveChat = false;
+                config.enableProactiveChat = false;
                 return "关闭了主动回复";
             }
         }
@@ -171,7 +171,7 @@ const cmds = [
         params: [{ name: "模型名称", desc: "模型ID" }],
         handler: async (args, ctx) => {
             if (args.length === 0) return "缺少参数";
-            config.CHAT_MODEL = args[0];
+            config.chatModel = args[0];
             return `切换了模型为 ${args[0]}`;
         }
     },

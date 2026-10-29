@@ -56,31 +56,33 @@ NapCat 反向 WebSocket 连接地址：`ws://127.0.0.1:8080/onebot/v11/ws`（端
 
 所有配置集中在 `core/config.js`：
 
-- **开发环境**：`DevMode` 设为 `true`，在 `core/configDev.js`（已 gitignore）中填写真实配置；`DevMode` 为 true 但文件缺失时进程直接退出。
-- **生产环境**：`DevMode` 设为 `false`，直接在 `config.js` 中填写。
-- **运行期持久化**：`config` 由 Proxy 包裹，运行期的顶层键赋值（`#ms` 切模型、面板 `set_config` 等）自动写入 `core/configOverride.json`，重启后叠加生效（`members` / `mcpServers` / `DevMode` 不落盘）。
+- **命名规范**：配置键统一 camelCase（`chatModel`、`aiApiKey`、`llmApiUrl` …）。旧版大写键（`CHAT_MODEL`、`aiAPIKEY` 等）仍兼容：启动时自动映射为新键并打印改名提示，`configOverride.json` 自动迁移落盘，`configDev.js` 建议手动改名（不影响使用）。
 
-**启动自检**：进程启动时会检查关键配置是否仍是模板占位符（`owner`、会话白名单、`aiAPIKEY`、`LLM_API_URL`/`CHAT_MODEL` 等），把「致命 / 提示」两级问题汇总成中文清单打印到控制台，并存入运行状态供面板「运行状态」页顶部常驻展示——避免配置没填对却看着一切正常、实际收不到任何回复。
+- **开发环境**：`devMode` 设为 `true`，在 `core/configDev.js`（已 gitignore）中填写真实配置；`devMode` 为 true 但文件缺失时进程直接退出。
+- **生产环境**：`devMode` 设为 `false`，直接在 `config.js` 中填写。
+- **运行期持久化**：`config` 由 Proxy 包裹，运行期的顶层键赋值（`#ms` 切模型、面板 `set_config` 等）自动写入 `core/configOverride.json`，重启后叠加生效（`members` / `mcpServers` / `devMode` 不落盘）。
+
+**启动自检**：进程启动时会检查关键配置是否仍是模板占位符（`owner`、会话白名单、`aiApiKey`、`llmApiUrl`/`chatModel` 等），把「致命 / 提示」两级问题汇总成中文清单打印到控制台，并存入运行状态供面板「运行状态」页顶部常驻展示——避免配置没填对却看着一切正常、实际收不到任何回复。
 
 主要配置项：
 
 | 配置项 | 说明 |
 |--------|------|
 | `wsPort` | OneBot 反向 WebSocket 服务端口（默认 8080） |
-| `token` | OneBot 鉴权 Token |
+| `token` | NapCat HTTP API 的鉴权 Token（取图等 HTTP 请求使用） |
 | `napcatHttpHost` | NapCat HTTP API 地址（默认 `127.0.0.1:3000`，图片获取等走 HTTP） |
 | `owner` | 主人（管理员）用户 ID |
-| `targetGroupId` / `targetUserId` | 目标群 / 用户 ID 列表（微信 ID 形如 `xxx@im.wechat`，从日志复制） |
+| `targetGroupId` / `targetUserId` | 目标群 / 用户 ID 列表（管理员在目标会话里发 `#bind` 可自动加入） |
 | `selfId` | 机器人 QQ 号 |
-| `aiAPIKEY` / `visionAPIKEY` | 文本模型（含长期记忆）与视觉模型 API Key |
-| `CHAT_MODEL` / `VISION_MODEL` | 聊天 / 识图模型名称 |
-| `LLM_API_URL` | LLM API 地址（OpenAI 兼容协议） |
-| `ENABLE_LONG_TERM_MEMORY` | 是否启用云端长期记忆与用户画像（默认 false） |
+| `aiApiKey` / `visionApiKey` | 文本模型（含长期记忆）与视觉模型 API Key |
+| `chatModel` / `visionModel` | 聊天 / 识图模型名称 |
+| `llmApiUrl` | LLM API 地址（OpenAI 兼容协议） |
+| `enableLongTermMemory` | 是否启用云端长期记忆与用户画像（默认 false） |
 | `mcpServers` | MCP Server 配置列表 |
 | `readFileDirs` / `runJsDirs` / `editFileDirs` | 文件工具白名单目录（默认 `skills/`、`workspace/`） |
 | `web` | 面板 API 服务：`port` / `path` / `token` / `logBufferSize` |
 | `githubToken` | GitHub API Token（skill-manager 安装技能、GitHub MCP 使用） |
-| `EnableProactiveChat` / `PROACTIVE_CHAT_LIMIT` | 主动聊天开关与触发阈值（默认 15 条） |
+| `enableProactiveChat` / `proactiveChatLimit` | 主动聊天开关与触发阈值（默认 15 条） |
 | `toolOutput` | 是否在群里播报工具调用（默认 false） |
 | `members` | QQ 号 → 群昵称映射表 |
 
@@ -90,7 +92,7 @@ NapCat 反向 WebSocket 连接地址：`ws://127.0.0.1:8080/onebot/v11/ws`（端
 
 ### 自主 Agent 循环
 
-AI 运行在一个多轮工具调用循环中：接收消息 → 推理 → 调用工具（同轮多个调用并行执行）→ 观察结果 → 继续推理 → 输出回复，最多 30 轮（`TOOLCHAIN_MAX_LENGTH` 可配置）。单个工具失败不中断循环，错误原因回写为工具结果，交给模型自我修正。工具调用痕迹以 `system` 消息回填会话记忆，兼容只接受 system/user/assistant 的消息接口。
+AI 运行在一个多轮工具调用循环中：接收消息 → 推理 → 调用工具（同轮多个调用并行执行）→ 观察结果 → 继续推理 → 输出回复，最多 30 轮（`toolChainMaxLength` 可配置）。单个工具失败不中断循环，错误原因回写为工具结果，交给模型自我修正。工具调用痕迹以 `system` 消息回填会话记忆，兼容只接受 system/user/assistant 的消息接口。
 
 循环中 AI 可通过 `manage_plan` 维护一份**会话任务计划**（总体目标 + 带状态的步骤清单），每轮自动回注上下文，长链条任务不丢目标，用户可用 `#plan` 查看。
 
@@ -107,7 +109,7 @@ Agent 本身不持有任何聊天通道，所有输出以事件广播；同一�
 | 中期概括 | 内存 | 每次概括覆盖 | 每次对话开工时检查 |
 | 长期记忆 | 阿里云百炼记忆库 | 无上限 | 旧概括被替换时存入；AI 通过 `get_memory` 自主检索 |
 
-长期记忆由 `ENABLE_LONG_TERM_MEMORY` 控制，**默认关闭**；开启需配置 `MEMORY_API_BASE_URL` 与 `MEMORY_PROFILE_SCHEMA_ID`。
+长期记忆由 `enableLongTermMemory` 控制，**默认关闭**；开启需配置 `memoryApiBaseUrl` 与 `memoryProfileSchemaId`。
 
 记忆按会话隔离（`AgentManager` 会话池懒创建）：空闲 30 分钟自动回收（回收前压缩归档），会话数超上限（50）时按最久未活跃淘汰。可用 `#sessions` 查看各会话记忆状态。
 
@@ -144,8 +146,8 @@ Skill 是包含 `SKILL.md` 描述文件的目录，可附带脚本供 AI 执行�
 
 ### 特色行为
 
-- **视觉能力**：群内图片自动调用视觉模型识别内容并注入上下文，让 AI 能"看到"图片（独立 `VISION_MODEL` / `visionAPIKEY` 配置）。
-- **主动聊天**：群内连续多条消息没有 @机器人时（达 `PROACTIVE_CHAT_LIMIT`），AI 带完整上下文被唤醒，自主判断是否参与对话。`#pchat` 可开关。
+- **视觉能力**：群内图片自动调用视觉模型识别内容并注入上下文，让 AI 能"看到"图片（独立 `visionModel` / `visionApiKey` 配置）。
+- **主动聊天**：群内连续多条消息没有 @机器人时（达 `proactiveChatLimit`），AI 带完整上下文被唤醒，自主判断是否参与对话。`#pchat` 可开关。
 - **复读**：检测到连续重复消息时跟随复读一次，并把该文本拉黑防止无限复读。
 - **定时任务**：AI 可通过 `schedule` 工具"给自己设闹钟"（一次性 / 固定间隔 / 每日定点 / cron），到点触发完整 Agent 苏醒流程。任务持久化到 `data/schedule.json`，重启不丢失，停机期间错过的触发按追赶策略处理。
 - **表情包**：内置表情包库（`manifest.json` 描述画面与标签），AI 按标签检索表情让回复更生动。

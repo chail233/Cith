@@ -147,7 +147,7 @@ Bot 每 **30 秒**对每个连接 `ws.ping()`，若上一周期无 `pong` 响应
 - 请求：`{ id, action: "get_config" }`（无参数）
 - 返回经过安全处理（见 `actions/config.ts`）的配置对象：
   - **敏感字段脱敏**：键名包含 `apikey / token / secret / password / key / pem` 的值，若已设置则替换为 `"***"`，未设置为 `null`。
-  - **跳过字段**：`members`（Map）、`SYSTEM_PROMPT`（巨大文本）以及所有函数类型字段，不会出现在快照中。
+  - **跳过字段**：`members`（Map）、`systemPrompt`（巨大文本）以及所有函数类型字段，不会出现在快照中。
   - 其余标量/数组字段原样返回。
 - 成功 `data` 示例：
 
@@ -157,9 +157,9 @@ Bot 每 **30 秒**对每个连接 `ws.ping()`，若上一周期无 `pong` 响应
   "token": "***",           // 命中敏感规则被脱敏
   "web": { "port": 2145, "path": "/api/v1/ws", "token": "***", "logBufferSize": 1000 },
   "agentMode": "auto",
-  "EnableProactiveChat": true,
-  "CHAT_MODEL": "deepseek-v4.1-flash"
-  // members / SYSTEM_PROMPT 已跳过
+  "enableProactiveChat": true,
+  "chatModel": "deepseek-v4.1-flash"
+  // members / systemPrompt 已跳过
 }
 ```
 
@@ -168,7 +168,7 @@ Bot 每 **30 秒**对每个连接 `ws.ping()`，若上一周期无 `pong` 响应
 - 请求参数：`params: { key: string, value: any }`
 - **仅允许修改白名单字段**（`WRITABLE_KEYS`）：
   - `agentMode`
-  - `EnableProactiveChat`
+  - `enableProactiveChat`
 - 其它任何字段（尤其密钥类）：返回 `error: 该配置项不允许修改: xxx`
 - 字段不存在：返回 `error: 配置项不存在`
 - 成功 `data`：`{ "key": "agentMode", "value": "xxx" }`
