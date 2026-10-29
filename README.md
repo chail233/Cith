@@ -30,6 +30,28 @@
 
 ### 安装与启动
 
+#### 方式一：一键初始化（推荐）
+
+```bash
+git clone https://github.com/chail233/Cith
+cd Cith
+
+# Windows（PowerShell）
+powershell -ExecutionPolicy Bypass -File setup.ps1
+
+# Linux / macOS
+bash setup.sh
+```
+
+脚本会依次完成：检查 Node 版本 → 安装根目录与 `web/` 依赖 → 交互式询问必填项（`owner`、`selfId`、模型地址与 Key、NapCat 地址、面板端口与密码等）→ 生成 `core/configDev.js` 与 `web/.env`（`BOT_API_TOKEN` 自动与 Bot 的 `web.token` 对齐）→ 校验配置能否真实加载 → 端口检查 →（首次）构建 Web 面板 → 前台启动并打印面板地址与 NapCat 反向 WS 地址。
+
+- 只生成两个已被 gitignore 的文件，**不修改** `core/config.js`；重复运行会先备份旧文件，不会静默覆盖
+- 密钥输入不回显，脚本全程不打印密钥原文
+- `npm run setup -- --check`：只读检查（环境、依赖、配置能否加载、端口、`.env` 是否与 Bot 对齐），生产模式（`devMode: false`）也适用
+- `npm run setup -- --no-start`：只写配置并校验，不启动；`--force`：跳过「保持现有配置」的询问，备份后重新生成
+
+#### 方式二：手动配置
+
 ```bash
 git clone https://github.com/chail233/Cith
 cd Cith
@@ -58,7 +80,7 @@ NapCat 反向 WebSocket 连接地址：`ws://127.0.0.1:8080/onebot/v11/ws`（端
 
 - **命名规范**：配置键统一 camelCase（`chatModel`、`aiApiKey`、`llmApiUrl` …）。旧版大写键（`CHAT_MODEL`、`aiAPIKEY` 等）仍兼容：启动时自动映射为新键并打印改名提示，`configOverride.json` 自动迁移落盘，`configDev.js` 建议手动改名（不影响使用）。
 
-- **开发环境**：`devMode` 设为 `true`，在 `core/configDev.js`（已 gitignore）中填写真实配置；`devMode` 为 true 但文件缺失时进程直接退出。
+- **开发环境**：`devMode` 设为 `true`，在 `core/configDev.js`（已 gitignore）中填写真实配置；`devMode` 为 true 但文件缺失时进程直接退出（用 `npm run setup` 可自动生成该文件）。
 - **生产环境**：`devMode` 设为 `false`，直接在 `config.js` 中填写。
 - **运行期持久化**：`config` 由 Proxy 包裹，运行期的顶层键赋值（`#ms` 切模型、面板 `set_config` 等）自动写入 `core/configOverride.json`，重启后叠加生效（`members` / `mcpServers` / `devMode` 不落盘）。
 

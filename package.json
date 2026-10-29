@@ -3,6 +3,7 @@
   "version": "1.2.0",
   "description": "A Personal Agent with any adapter you want, featuring multi-turn tool calling, a four-tier memory system, user profiling, image vision, MCP tool extensions and a pluggable skill system.",
   "scripts": {
+    "setup": "node scripts/setup.ts",
     "start": "node core/index.js",
     "build": "node node_modules/typescript/lib/tsc.js -p tsconfig.build.json && node scripts/copy-assets.js",
     "build:watch": "node node_modules/typescript/lib/tsc.js -p tsconfig.build.json --watch",
