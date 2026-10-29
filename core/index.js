@@ -7,10 +7,15 @@ import startWechatBotServer from "./bot/servers/WechatBotServer.ts";
 import { startScheduler, stopScheduler } from "./services/scheduler.js";
 import { wakeUp } from "./services/wake.js";
 import { runPreflight } from "./services/preflight.ts";
+import { initMemoryStore, maintainMemoryStore, closeMemoryStore } from "./services/memory-store.ts";
 
 logger.info("SunbatwoBot 启动中...");
 
 runPreflight();
+
+// 长期记忆：进程内单例（初始化失败只降级，不阻塞启动）
+await initMemoryStore();
+void maintainMemoryStore();
 
 await mcpClient.init();
 
@@ -29,6 +34,7 @@ const cleanup = async (signal) => {
     logger.info(`收到 ${signal} 信号，正在关闭...`);
     try { apiServer.close(); } catch { /* ignore */ }
     stopScheduler();
+    await closeMemoryStore();
     await mcpClient.shutdown();
     process.exit(0);
 };
@@ -37,6 +43,7 @@ process.on('SIGINT', () => cleanup('SIGINT'));
 process.on('SIGTERM', () => cleanup('SIGTERM'));
 process.on('uncaughtException', async (err) => {
     logger.error('未捕获的异常:', err);
+    await closeMemoryStore();
     await mcpClient.shutdown();
     process.exit(1);
 });

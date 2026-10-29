@@ -48,7 +48,7 @@ The gate is centralized in `callTool()` and is **path-aware, not tool-name based
 
 ### Memory (`agent/recorder.js` + `agent/long-term-memory.js`)
 
-Each `Agent` holds its own `ChatRecorder` (session pool with idle-recapture in `AgentManager.ts`). Four layers: short-term `_messages` (`config.chatHistoryLimit`) → evicted into `_cache` → once cache reaches the limit, `summarizeCache()` (invoked at the top of each `Agent.run()`) LLM-summarizes it into `_midSummary` → before an old summary is overwritten it is written to the cloud long-term memory along with extracted per-user profiles. The model recalls via the `get_memory` and `get_user_profile` tools (session access comes from `ctx.agent`). `compress()` and `clear()` are wired to `#compress` / `#clear`.
+Each `Agent` holds its own `ChatRecorder` (session pool with idle-recapture in `AgentManager.ts`). Four layers: short-term `_messages` (`config.chatHistoryLimit`) → evicted into `_cache` → once cache reaches the limit, `summarizeCache()` (invoked at the top of each `Agent.run()`) makes the LLM extract a fact list (`_pendingFacts`, one fact per line parsed by `parseFacts()`, `_midSummary` = those lines joined) → before the old fact list is replaced it is written to the local rememori store **one memory per fact** via `addFacts()`. `services/memory-store.ts` opens the rememori file **once per process** (`initMemoryStore()` in `index.js`, `closeMemoryStore()` on shutdown) and serializes all writes; rememori has no file lock, so never open the same `.mem` file from another process. Recall goes through the `get_memory` tool (`searchMemory()` in `agent/long-term-memory.js`): the model may pass a `queries` string array (max 5, each recalled separately, merged and deduped keeping the best similarity, then capped at `memorySearchTopK`); with no queries or an empty array it derives up to 5 queries from the recent messages of the session (texts shorter than 2 chars are skipped). **No tags are used**, so long-term memory is shared across all sessions (only short/mid-term memory is per-session). `compress()` and `clear()` are wired to `#compress` / `#clear`.
 
 ### File security (`utils/file-security.js`)
 
@@ -60,7 +60,7 @@ A skill is a directory under `core/skills/` containing `SKILL.md` with YAML fron
 
 ### Services and MCP
 
-`services/` holds thin HTTP wrappers (napcat, acg, hitokoto, qweather, Bailian model list). `agent/mcp-manager.js` manages MCP connections over `stdio` / `old_sse` (SSE) / `sse` (Streamable HTTP); `shutdown()` is called on SIGINT/SIGTERM/uncaughtException in `index.js` to avoid zombie child processes. `mcp/` is **gitignored** — it holds local MCP servers (e.g. `mcp/github-server`).
+`services/` holds thin HTTP wrappers (napcat, acg, hitokoto, qweather, Bailian model list), the scheduler, and the rememori memory store. `agent/mcp-manager.js` manages MCP connections over `stdio` / `old_sse` (SSE) / `sse` (Streamable HTTP); `shutdown()` is called on SIGINT/SIGTERM/uncaughtException in `index.js` to avoid zombie child processes. `mcp/` is **gitignored** — it holds local MCP servers (e.g. `mcp/github-server`).
 
 ## Conventions
 

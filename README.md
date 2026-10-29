@@ -16,7 +16,7 @@
 
 - **住在聊天软件里** —— QQ、微信哪个常用住哪个，私聊群聊都行，像一位普通联系人一样对话
 - **真正能做事** —— 多轮推理中自主调用工具：读写文件、隔离子进程执行脚本、动态接入 MCP 工具，把一句需求变成一件办完的事
-- **持久记忆** —— 四层记忆 + 用户画像，记得你的一切，越用越懂你，成为独一无二的你的 AI
+- **持久记忆** —— 四层记忆 + 本地语义检索，记得你的一切，越用越懂你，成为独一无二的你的 AI
 - **技能生态** —— `SKILL.md` 驱动的技能系统，支持从 GitHub 安装社区技能，它甚至可以自己给自己装技能
 - **自主苏醒** —— 会给自己设闹钟，到点主动干活；群里冷场时也会判断要不要搭话
 - **默认自持** —— 部署在自己的机器上，OpenAI 标准协议接入任意模型端点；文件操作有白名单门禁与目录穿越硬拦截
@@ -96,10 +96,11 @@ NapCat 反向 WebSocket 连接地址：`ws://127.0.0.1:8080/onebot/v11/ws`（端
 | `owner` | 主人（管理员）用户 ID |
 | `targetGroupId` / `targetUserId` | 目标群 / 用户 ID 列表（管理员在目标会话里发 `#bind` 可自动加入） |
 | `selfId` | 机器人 QQ 号 |
-| `aiApiKey` / `visionApiKey` | 文本模型（含长期记忆）与视觉模型 API Key |
+| `aiApiKey` / `visionApiKey` | 文本模型与视觉模型 API Key |
 | `chatModel` / `visionModel` | 聊天 / 识图模型名称 |
 | `llmApiUrl` | LLM API 地址（OpenAI 兼容协议） |
-| `enableLongTermMemory` | 是否启用云端长期记忆与用户画像（默认 false） |
+| `enableLongTermMemory` / `memoryStorePath` | 是否启用本地长期记忆与记忆文件路径（默认 false） |
+| `memoryOllamaUrl` / `memoryEmbedModel` | 本地 Ollama 地址与 embedding 模型（默认 `bge-m3`） |
 | `mcpServers` | MCP Server 配置列表 |
 | `readFileDirs` / `runJsDirs` / `editFileDirs` | 文件工具白名单目录（默认 `skills/`、`workspace/`） |
 | `web` | 面板 API 服务：`port` / `path` / `token` / `logBufferSize` |
@@ -129,11 +130,11 @@ Agent 本身不持有任何聊天通道，所有输出以事件广播；同一�
 | 短期记忆 | 内存 | 最近 40 条（可配） | 每次对话实时更新 |
 | 中期缓存 | 内存 | 满 40 条触发概括 | 短期溢出时 |
 | 中期概括 | 内存 | 每次概括覆盖 | 每次对话开工时检查 |
-| 长期记忆 | 阿里云百炼记忆库 | 无上限 | 旧概括被替换时存入；AI 通过 `get_memory` 自主检索 |
+| 长期记忆 | 本地 rememori 文件（`memoryStorePath`） | 无上限 | 旧事实清单被替换时逐条存入（一条事实 = 一条记忆）；AI 通过 `get_memory` 自主检索 |
 
-长期记忆由 `enableLongTermMemory` 控制，**默认关闭**；开启需配置 `memoryApiBaseUrl` 与 `memoryProfileSchemaId`。
+长期记忆由 `enableLongTermMemory` 控制，**默认关闭**；开启需先安装 [Ollama](https://ollama.com) 并 `ollama pull bge-m3`（中文场景），再配置 `memoryOllamaUrl` 与 `memoryEmbedModel`。记忆文件是 append-only JSONL，**只支持单进程读写**，不要同时用别的进程打开同一个文件。启动时会做一次清理（`prune` + `compact`），运行期间每成功写入 `memoryMaintainEveryWrites` 条（默认 100，设 0 关闭）再清理一次。实现细节见 [docs/rememori/使用说明.md](docs/rememori/使用说明.md)。
 
-记忆按会话隔离（`AgentManager` 会话池懒创建）：空闲 30 分钟自动回收（回收前压缩归档），会话数超上限（50）时按最久未活跃淘汰。可用 `#sessions` 查看各会话记忆状态。
+记忆按会话隔离（`AgentManager` 会话池懒创建）：空闲 30 分钟自动回收（回收前压缩归档），会话数超上限（50）时按最久未活跃淘汰。可用 `#sessions` 查看各会话记忆状态。注意：短期/中期记忆按会话隔离，长期记忆**不分会话**（不使用 tag，所有会话共用一个检索空间）。
 
 ### 工具调用（Function Calling）
 
@@ -141,8 +142,7 @@ AI 可自主判断并调用以下工具，所有文件操作都受**路径白名
 
 | 工具 | 功能 |
 |------|------|
-| `get_memory` | 语义检索长期记忆 |
-| `get_user_profile` | 获取指定用户的画像信息 |
+| `get_memory` | 语义检索长期记忆：可传 `queries` 数组按多条语句分别召回（合并去重取前 topK），不传则取最近 5 条消息逐条检索 |
 | `read_file` / `list_files` | 读取白名单目录下的文件 / 列出目录内容 |
 | `run_JS` | 在隔离子进程中执行 JS 脚本 |
 | `create_file` / `edit_file` / `delete_file` | 创建（禁止覆盖）/ 搜索替换编辑 / 删除文件 |
@@ -173,7 +173,6 @@ Skill 是包含 `SKILL.md` 描述文件的目录，可附带脚本供 AI 执行�
 - **复读**：检测到连续重复消息时跟随复读一次，并把该文本拉黑防止无限复读。
 - **定时任务**：AI 可通过 `schedule` 工具"给自己设闹钟"（一次性 / 固定间隔 / 每日定点 / cron），到点触发完整 Agent 苏醒流程。任务持久化到 `data/schedule.json`，重启不丢失，停机期间错过的触发按追赶策略处理。
 - **表情包**：内置表情包库（`manifest.json` 描述画面与标签），AI 按标签检索表情让回复更生动。
-- **用户画像**：自动从对话中提取用户特征存入云端画像模板，AI 可查询指定用户的画像实现个性化回应（依赖长期记忆开关）。
 
 ### 多平台接入
 
@@ -330,11 +329,11 @@ core/
 │   ├── mcp-manager.js          # MCP 连接管理 + 工具命名/路由
 │   ├── skill.js                # Skill 加载器
 │   ├── image.js                # 视觉 API
-│   ├── long-term-memory.js     # 长期记忆 + 用户画像 API
+│   ├── long-term-memory.js     # 长期记忆封装（rememori 语义读写）
 │   └── recorder.js             # 三层记忆记录器（短期/缓存/概括）
 │
 ├── api/                        # Web 面板 API（独立 WS 服务端：鉴权/心跳/白名单/事件总线）
-├── services/                   # 适配器注册表 / NapCat HTTP / 复读队列 / 定时调度 / 苏醒触发 / 启动自检
+├── services/                   # 适配器注册表 / NapCat HTTP / 复读队列 / 定时调度 / 苏醒触发 / 启动自检 / 记忆存储
 ├── stickers/                   # 表情包库（index.js 按标签检索 + manifest.json + images/）
 ├── types/                      # 跨模块共用类型（Context / CtxEvent / Space 等）
 ├── skills/                     # Skill 技能目录（AI 可读写，内置 skill-manager）

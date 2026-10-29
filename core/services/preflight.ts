@@ -108,12 +108,12 @@ export function collectConfigWarnings(): ConfigWarning[] {
         );
     }
 
-    if (cfg.enableLongTermMemory === true && isPlaceholder(cfg.memoryProfileSchemaId)) {
+    if (cfg.enableLongTermMemory === true && (isPlaceholder(cfg.memoryOllamaUrl) || isPlaceholder(cfg.memoryEmbedModel))) {
         add(
             "warn",
-            "memoryProfileSchemaId",
-            "已开启长期记忆，但用户画像规则 ID 未配置，画像提取会失败",
-            "填写 memoryProfileSchemaId，或关闭 enableLongTermMemory",
+            "memoryEmbedModel",
+            "已开启长期记忆，但 Ollama 地址或 embedding 模型未配置，长期记忆将无法初始化",
+            "填写 memoryOllamaUrl（默认 http://localhost:11434）与 memoryEmbedModel（如 bge-m3，需先 ollama pull）",
         );
     }
 

@@ -1,15 +1,36 @@
 import config from "../config.js";
 import { callLLM } from "./client.ts";
-import { addMemory, makeMemoryUserId, extractUserProfile } from "./long-term-memory.js";
-import logger from "../utils/logger.js";
+import { addFacts, makeMemoryUserId } from "./long-term-memory.js";
 /**
  * 对话上下文管理器（三层记忆）
  *
  * 记忆层级：
  * - 短期记忆（_messages）：最近的消息，超出 limit 则裁剪
  * - 中期缓存（_cache）：被挤出短期的消息暂存区
- * - 中期概括（_midSummary）：缓存满时由 LLM 概括生成
+ * - 中期概括（_midSummary）：缓存满时由 LLM 提取成事实清单，一行一条
+ * - 事实清单（_pendingFacts）：与概括同时产出，旧清单被覆盖时逐条写入长期记忆
  */
+
+/**
+ * 把 LLM 返回的事实列表拆成条目
+ * 兼容行首的「- 」「• 」「1. 」「1、」等标记，去重并限制条数
+ * @param {string} text
+ * @returns {string[]}
+ */
+function parseFacts(text) {
+    if (typeof text !== "string") return [];
+    const facts = [];
+    for (const rawLine of text.split(/\r?\n/)) {
+        const line = rawLine
+            .replace(/^\s*(?:[-*•·]|\d+\s*[.、)）]|[(（]\d+[)）])\s*/, "")
+            .trim();
+        if (!line) continue;
+        if (/^(无|暂无|没有|none)\.?$/i.test(line)) continue;
+        if (!facts.includes(line)) facts.push(line);
+    }
+    return facts.slice(0, 30);
+}
+
 export class ChatRecorder {
     /**
      * @param {number} [limit] 最大消息条数
@@ -20,6 +41,7 @@ export class ChatRecorder {
         this._messages = [];
         this._cache = [];
         this._midSummary = "";
+        this._pendingFacts = [];
         this._limit = limit;
         this._sessionId = sessionId;
         this._needsSummarization = false;
@@ -104,26 +126,22 @@ export class ChatRecorder {
 
     /**
      * 执行缓存概括
-     * 异步调用 LLM 概括缓存中的对话，更新中期概括文本。
-     * 在覆盖旧概括前，会先将旧的概括内容存入长期记忆。
+     * 异步调用 LLM 把缓存中的对话提取成事实清单。
+     * 在覆盖旧清单前，会先把上一批事实逐条存入长期记忆。
      */
     async summarizeCache() {
         if (!this._needsSummarization || this._cache.length === 0) return;
 
         this._needsSummarization = false;
 
-        // 1. 如果存在旧的概括，先存入长期记忆（放在 messages 中，标注为对话摘要）
-        if (this._midSummary) {
+        // 1. 上一批事实还没入库：逐条写入长期记忆
+        if (this._pendingFacts.length > 0) {
             const userId = makeMemoryUserId(this._sessionId);
-            await addMemory(userId, [
-                {role: "user", content: `对话摘要：${this._midSummary}`},
-            ]);
+            await addFacts(userId, this._pendingFacts);
+            this._pendingFacts = [];
         }
 
-        // 2. 提取画像
-        await this._extractProfilesFromCache();
-
-        // 3. 生成新的概括
+        // 2. 生成新的事实清单
         let userMsgs = "";
         for (let i = 0; i < this._cache.length; i++) {
             const msg = this._cache[i];
@@ -136,10 +154,12 @@ export class ChatRecorder {
                 {
                     role: "system",
                     content:
-                        "请用中文简要概括以下对话历史中提到的关键信息，包括讨论过的话题、角色的偏好或特征、" +
-                        "已作出的决定或承诺等。保持简洁，保留最重要的事实，不要添加原文没有的信息。" +
-                        "每一条描述都必须有一个主体，不能直接用用户来指代角色。" +
-                        "只输出一段文本信息，不要有其他结构化信息",
+                        "请从以下对话历史中提取值得长期记住的事实，每条事实单独一行，以「- 」开头。" +
+                        "事实包括讨论过的话题、角色的偏好或特征、已作出的决定或承诺等。" +
+                        "一条事实只讲一件事，不要把多个信息点合并成一段；每条事实必须有明确主体，" +
+                        "不能直接用用户来指代角色；每条事实都要能脱离上下文单独理解。" +
+                        "保持简洁，不要添加原文没有的信息。只输出事实列表，不要序号、标题或其他说明；" +
+                        "如果没有值得记住的内容，只输出「无」。",
                 },
                 {
                     role: "user",
@@ -150,58 +170,12 @@ export class ChatRecorder {
         });
 
         if (typeof result !== "string" && result?.message?.content) {
-            this._midSummary = result.message.content;
+            const facts = parseFacts(result.message.content);
+            this._pendingFacts = facts;
+            this._midSummary = facts.join("\n");
         }
 
         this._cache = [];
-    }
-
-    /**
-     * 从历史中提取画像
-     */
-    async _extractProfilesFromCache() {
-        let userMsgs = "";
-        for (let i = 0; i < this._cache.length; i++) {
-            const msg = this._cache[i];
-            userMsgs += `${i + 1}.`;
-            userMsgs += JSON.stringify(msg) + "\n";
-        }
-        const result = await callLLM({
-            model: config.chatModel,
-            messages: [
-                {
-                    role: "system",
-                    content:
-                        "请从以下对话历史中提取每个用户的关键信息和特征。比如家庭成员、年龄、社会关系、内容偏好、饮食习惯、年龄段、人生理想/目标、性别、爱好、居住地等\n" +
-                        "返回格式必须为 JSON 对象，顶层包含一个名为 profiles 的数组字段，数组每个元素格式如下：\n" +
-                        "{\"profiles\": [{\"id\": \"用户ID\", \"info\": \"提取出来的用户画像信息,用第一人称描述\"}]}\n" +
-                        "请确保返回的JSON格式正确，并且只包含提取的用户信息，不要其他内容。每个用户信息只放在一个对象里。"
-                },
-                {
-                    role: "user",
-                    content: userMsgs
-                }
-            ],
-            responseFormat: {type: "json_object"},
-        });
-
-        try {
-
-            if (typeof result === "string" || !result?.message?.content) return;
-
-            // json_object 模式顶层是对象，取 profiles 数组字段；兼容模型直接返回数组的情况
-            const data = JSON.parse(result.message.content);
-            const profiles = Array.isArray(data) ? data : data?.profiles;
-            if (!Array.isArray(profiles)) {
-                logger.warn("提取的画像不是数组格式:", result.message.content);
-                return;
-            }
-            for (const profile of profiles) {
-                await extractUserProfile(profile.id.toString(), [{role: "user", content: profile.info}]);
-            }
-        } catch (e) {
-            logger.error("用户画像提取失败:", e);
-        }
     }
 
     async compress() {
@@ -218,6 +192,7 @@ export class ChatRecorder {
         this._messages = [];
         this._cache = [];
         this._midSummary = "";
+        this._pendingFacts = [];
         this._needsSummarization = false;
     }
 

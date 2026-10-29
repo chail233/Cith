@@ -26,9 +26,9 @@ const WRITABLE_KEYS = new Set<string>([
     "visionModel",
     "llmTimeout",
     "repeaterQueueSize",
-    "memoryApiBaseUrl",
     "memorySearchTopK",
-    "memoryMinScore",
+    "memoryMinSimilarity",
+    "memoryHalfLifeDays",
     "toolChainMaxLength",
     "toolOutput",
 

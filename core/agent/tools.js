@@ -5,7 +5,6 @@ import { hold } from "./tool-approval.js";
 import { takeMcpTools } from "./tools/list-mcp-tools.ts";
 
 import getMemoryTool from "./tools/get-memory.ts";
-import getUserProfileTool from "./tools/get-user-profile.ts";
 import readFileTool from "./tools/read-file.ts";
 import runJsTool from "./tools/run-js.ts";
 import createFileTool from "./tools/create-file.ts";
@@ -22,7 +21,6 @@ import scheduleTool from "./tools/schedule.ts";
  */
 const toolRegistry = [
     getMemoryTool,
-    getUserProfileTool,
     readFileTool,
     runJsTool,
     createFileTool,

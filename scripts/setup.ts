@@ -181,7 +181,8 @@ export interface SetupAnswers {
     visionModel: string;
     llmVisionApiUrl: string;
     enableLongTermMemory: boolean;
-    memoryProfileSchemaId: string;
+    memoryOllamaUrl: string;
+    memoryEmbedModel: string;
     wsPort: number;
     napcatHttpHost: string;
     napcatToken: string;
@@ -217,7 +218,8 @@ export function buildConfigDevSource(a: SetupAnswers, now: Date = new Date()): s
     push("visionModel", a.visionModel);
     if (a.enableLongTermMemory) {
         push("enableLongTermMemory", true);
-        if (a.memoryProfileSchemaId) push("memoryProfileSchemaId", a.memoryProfileSchemaId);
+        push("memoryOllamaUrl", a.memoryOllamaUrl);
+        push("memoryEmbedModel", a.memoryEmbedModel);
     }
     push("token", a.napcatToken);
     if (a.wsPort !== DEFAULT_WS_PORT) push("wsPort", a.wsPort);
@@ -670,11 +672,17 @@ async function collectAnswers(p: Prompter): Promise<SetupAnswers> {
         visionModel = await p.ask("识图模型名称", { default: chatModel });
     }
 
-    heading("长期记忆（可选）");
-    const enableLongTermMemory = await p.confirm("启用阿里云百炼长期记忆与用户画像？", false);
-    let memoryProfileSchemaId = "";
+    heading("长期记忆（可选，rememori + 本地 Ollama）");
+    const enableLongTermMemory = await p.confirm("启用本地长期记忆？", false);
+    let memoryOllamaUrl = "http://localhost:11434";
+    let memoryEmbedModel = "bge-m3";
     if (enableLongTermMemory) {
-        memoryProfileSchemaId = await p.ask("用户画像规则 ID（memoryProfileSchemaId）", { required: true });
+        note("需先安装 Ollama，并执行：ollama pull bge-m3（中文场景建议这个模型）");
+        memoryOllamaUrl = await p.ask("Ollama 服务地址", {
+            default: "http://localhost:11434",
+            validate: isHttpUrl,
+        });
+        memoryEmbedModel = await p.ask("embedding 模型名", { default: "bge-m3" });
     }
 
     heading("QQ 接入（NapCat）");
@@ -700,7 +708,7 @@ async function collectAnswers(p: Prompter): Promise<SetupAnswers> {
         owner, selfId, targetGroupId, targetUserId,
         llmApiUrl, aiApiKey, chatModel,
         llmVisionApiUrl, visionApiKey, visionModel,
-        enableLongTermMemory, memoryProfileSchemaId,
+        enableLongTermMemory, memoryOllamaUrl, memoryEmbedModel,
         wsPort, napcatHttpHost, napcatToken,
         webPort, webToken, bffPort, webPassword, sslEnabled, serverIp,
     };

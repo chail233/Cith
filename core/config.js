@@ -38,12 +38,16 @@ const LEGACY_KEY_MAP = {
     LLM_TIMEOUT: "llmTimeout",
     REPEATER_QUEUE_SIZE: "repeaterQueueSize",
     ENABLE_LONG_TERM_MEMORY: "enableLongTermMemory",
-    MEMORY_API_BASE_URL: "memoryApiBaseUrl",
+    MEMORY_STORE_PATH: "memoryStorePath",
+    MEMORY_OLLAMA_URL: "memoryOllamaUrl",
+    MEMORY_EMBED_MODEL: "memoryEmbedModel",
     MEMORY_SEARCH_TOP_K: "memorySearchTopK",
-    MEMORY_MIN_SCORE: "memoryMinScore",
+    MEMORY_MIN_SIMILARITY: "memoryMinSimilarity",
+    MEMORY_HALF_LIFE_DAYS: "memoryHalfLifeDays",
+    MEMORY_TIMEOUT: "memoryTimeout",
+    MEMORY_MAINTAIN_EVERY_WRITES: "memoryMaintainEveryWrites",
     TOOLCHAIN_MAX_LENGTH: "toolChainMaxLength",
     MEMORY_USER_ID_PREFIX: "memoryUserIdPrefix",
-    MEMORY_PROFILE_SCHEMA_ID: "memoryProfileSchemaId",
     SYSTEM_PROMPT: "systemPrompt",
 };
 
@@ -137,25 +141,37 @@ const baseConfig = {
     /** Agent 工具链最大轮数 */
     toolChainMaxLength: 30,
 
-    // ========== 长期记忆与用户画像 ==========
+    // ========== 长期记忆（rememori + 本地 Ollama） ==========
 
-    /** 长期记忆开关（依赖阿里云百炼记忆库） */
-    enableLongTermMemory: false,
+    /** 长期记忆开关（依赖本地 Ollama 提供 embedding） */
+    enableLongTermMemory: true,
 
-    /** 长期记忆 API 基础地址 */
-    memoryApiBaseUrl: "https://workspace.aliyuncs.com/api/v2/apps/memory",
+    /** 记忆文件路径 */
+    memoryStorePath: "data/rememori/memory.mem",
 
-    /** 长期记忆搜索：最大召回数量 */
+    /** Ollama 服务地址 */
+    memoryOllamaUrl: "http://localhost:11434",
+
+    /** embedding 模型名 */
+    memoryEmbedModel: "bge-m3",
+
+    /** 召回：原始余弦相似度底线（换 embedding 模型后需重新实测） */
+    memoryMinSimilarity: 0.5,
+
+    /** 召回：最大召回数量 */
     memorySearchTopK: 10,
 
-    /** 长期记忆搜索：最小相似度阈值 */
-    memoryMinScore: 0.3,
+    /** 召回：时间衰减半衰期（天），0 表示不衰减 */
+    memoryHalfLifeDays: 15,
 
-    /** 长期记忆实体 ID 前缀（后接会话 ID） */
+    /** 记忆操作超时（毫秒），避免 Ollama 无响应卡住对话 */
+    memoryTimeout: 15000,
+
+    /** 每成功写入多少条记忆执行一次维护（prune + compact），0 表示只在启动时维护 */
+    memoryMaintainEveryWrites: 100,
+
+    /** 长期记忆命名空间前缀（后接会话 ID） */
     memoryUserIdPrefix: "SunBot",
-
-    /** 长期记忆：用户画像规则 ID */
-    memoryProfileSchemaId: "your_profile_schema_id",
 
     // ========== 工具与安全白名单（相对 core/） ==========
 

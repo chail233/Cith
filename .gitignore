@@ -10,3 +10,6 @@
 /node_modules/
 /dist/
 /core/stickers/manifest.dev.json
+
+# 长期记忆数据（rememori append-only 文件）
+/core/data/rememori/
