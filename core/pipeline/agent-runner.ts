@@ -63,7 +63,6 @@ function detachAgentListeners(
 /** 分段发送一轮回复动作，消息间保留拟人化间隔 */
 async function deliverReply(ctx: Context, { acts, tokens }: ReplyPayload): Promise<void> {
     logger.info("AI 消息内容:", JSON.stringify({ acts, tokens }));
-    let first = true;
     for (const act of acts) {
         // 表情包动作：id → 本地图片 → image 消息段
         if (act.cmd === "sticker") {
@@ -81,12 +80,8 @@ async function deliverReply(ctx: Context, { acts, tokens }: ReplyPayload): Promi
         }
 
         if (act.cmd !== "text") continue;
-        let content = act.content;
+        const content = act.content;
         if (content.trim() === "") continue;
-        if (first) {
-            first = false;
-            if (tokens) content += `(${tokens}tokens)`;
-        }
         ctx.adapter.sendMsg(ctx.space, content);
         await sleep(3000 + Math.floor(Math.random() * 1000));
     }

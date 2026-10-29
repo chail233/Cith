@@ -42,6 +42,25 @@ export interface BotStatus {
     configWarnings?: ConfigWarning[];
 }
 
+/** get_token_usage 返回的单日/累计用量桶 */
+export interface TokenUsageBucket {
+    /** 本地日期 YYYY-MM-DD（累计汇总无此字段） */
+    date?: string;
+    requests: number;
+    inputTokens: number;
+    outputTokens: number;
+    cachedTokens: number;
+    totalTokens: number;
+}
+
+/** get_token_usage 返回 */
+export interface TokenUsageSummary {
+    today: TokenUsageBucket;
+    /** 最近 N 天，按日期升序 */
+    recent: TokenUsageBucket[];
+    total: Omit<TokenUsageBucket, "date">;
+}
+
 /** get_config 返回的脱敏配置快照（键 → 标量/标量数组/"***"） */
 export type ConfigSnapshot = Record<string, unknown>;
 
@@ -79,4 +98,5 @@ export const ACTION_DESCRIPTIONS: Record<string, string> = {
     set_config: "热改白名单内的配置字段，白名单外的字段会被 Bot 拒绝",
     get_logs: "按时间戳从环形缓冲补拉历史事件（默认容量 1000 条）",
     list_actions: "获取 Bot 当前支持的 action 清单",
+    get_token_usage: "模型 Token 用量统计：今日 / 近 N 天 / 累计的输入、输出、缓存命中与总消耗",
 };

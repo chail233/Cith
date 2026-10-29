@@ -6,7 +6,8 @@
 import OpenAI from "openai";
 import config from "../config.js";
 import logger from "../utils/logger.js";
-import type { LlmResponseMessage, LlmResult, ToolDefinition } from "./types.ts";
+import type { LlmResponseMessage, LlmResult, LlmUsage, ToolDefinition } from "./types.ts";
+import { recordUsage } from "../services/token-usage.ts";
 
 export type LlmMessage = { role: string; content?: unknown } & Record<string, unknown>;
 
@@ -72,9 +73,22 @@ export async function callLLM({ model, messages, temperature, responseFormat, to
         }
 
         logger.debug("LLM 响应:", completion);
+        // 归一化服务商 usage：输入/输出/缓存命中，统计模块统一累加（识图、摘要等链路同样覆盖）
+        const u = completion.usage;
+        const usage: LlmUsage | null = u
+            ? {
+                model,
+                inputTokens: u.prompt_tokens ?? 0,
+                outputTokens: u.completion_tokens ?? 0,
+                cachedTokens: u.prompt_tokens_details?.cached_tokens ?? 0,
+                totalTokens: u.total_tokens ?? (u.prompt_tokens ?? 0) + (u.completion_tokens ?? 0),
+            }
+            : null;
+        if (usage && usage.totalTokens > 0) recordUsage(usage);
         return {
             message: toLlmMessage(message),
-            totalTokens: completion.usage?.total_tokens ?? 0,
+            totalTokens: usage?.totalTokens ?? 0,
+            usage,
         };
     }
     catch (err) {

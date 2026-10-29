@@ -26,7 +26,7 @@ const BOT_PANEL_TOKEN = process.env.BOT_API_TOKEN ?? "114514";
 const SSE_HEARTBEAT_MS = 15_000;
 /** 转发给 Bot 的 action 白名单（BFF 自身的安全门禁，与 Bot 端白名单独立） */
 const FORWARDABLE_ACTIONS = new Set([
-    "get_status", "get_config", "set_config", "get_logs", "list_actions",
+    "get_status", "get_config", "set_config", "get_logs", "list_actions", "get_token_usage",
 ]);
 
 const logger = (level, msg) => {

@@ -16,10 +16,26 @@ export interface LlmResponseMessage {
     tool_calls?: ToolCall[];
 }
 
+/** 一次 LLM 调用的用量 */
+export interface LlmUsage {
+    /** 实际请求的模型 */
+    model: string;
+    /** 输入 token（含缓存命中部分） */
+    inputTokens: number;
+    /** 输出 token */
+    outputTokens: number;
+    /** 前缀缓存命中的输入 token */
+    cachedTokens: number;
+    /** 总消耗 */
+    totalTokens: number;
+}
+
 /** LLM 聊天补全接口成功返回的结构 */
 export interface LlmResult {
     message: LlmResponseMessage;
     totalTokens: number;
+    /** 归一化用量；服务商未返回 usage 时为 null */
+    usage: LlmUsage | null;
 }
 
 /** AI 回复动作：{action:[...]} 数组中的单条 */

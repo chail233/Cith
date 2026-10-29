@@ -7,6 +7,7 @@ import {cancel as doCancel, list as doList} from "../../agent/tool-approval.js";
 import {confirmPending} from "../../agent/approval-runner.ts";
 import { runAgent } from "../agent-runner.ts";
 import { isPlaceholder } from "../../services/preflight.ts";
+import { getUsageSummary } from "../../services/token-usage.ts";
 import logger from "../../utils/logger.js";
 
 const cfg = /** @type {Record<string, any>} */ (config);
@@ -285,7 +286,25 @@ const cmds = [
         }
     },
     {
-        name:"toolout",
+        name: "tokens",
+        needsAdmin: true,
+        description: "查看模型Token用量统计",
+        params: [{ name: "天数", desc: "可选，默认7" }],
+        handler: async (args, ctx) => {
+            const days = Math.min(Math.max(Number.parseInt(args[0] ?? "", 10) || 7, 1), 90);
+            const { today, recent, total } = await getUsageSummary(days);
+            const fmt = (n) => n >= 10000 ? `${(n / 1000).toFixed(1)}k` : String(n);
+            const line = (b) => `${b.date.slice(5)}  输入${fmt(b.inputTokens)}（缓存命中${fmt(b.cachedTokens)}） 输出${fmt(b.outputTokens)} 共${fmt(b.totalTokens)}，${b.requests}次`;
+            const recentLines = recent.map(line).join("\n") || "（暂无记录）";
+            return [
+                `今日：输入${fmt(today.inputTokens)}（缓存命中${fmt(today.cachedTokens)}） 输出${fmt(today.outputTokens)} 共${fmt(today.totalTokens)}，${today.requests}次`,
+                `\n近${recent.length}天：\n${recentLines}`,
+                `\n累计：共${fmt(total.totalTokens)} tokens（${total.requests}次调用，输入${fmt(total.inputTokens)}，输出${fmt(total.outputTokens)}，缓存命中${fmt(total.cachedTokens)}）`,
+            ].join("\n");
+        }
+    },
+    {
+        name: "toolout",
         needsAdmin: true,
         description: "设置工具输出",
         params: [{name:"value", desc:"bool"}],

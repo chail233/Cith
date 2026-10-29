@@ -3,11 +3,12 @@ import { Badge, Card, EmptyState, ErrorBanner, Loading } from "../components/ui"
 import { useEventStream } from "../hooks/event-stream";
 import { usePolling } from "../hooks/usePolling";
 import { rpc } from "../api/client";
-import type { BotStatus, ConfigWarning } from "../types";
+import type { BotStatus, ConfigWarning, TokenUsageSummary } from "../types";
 import { formatTime, formatUptime } from "../utils/format";
 
 export default function Dashboard() {
     const { data: status, error, loading, refresh } = usePolling(() => rpc<BotStatus>("get_status"), 5000);
+    const { data: usage } = usePolling(() => rpc<TokenUsageSummary>("get_token_usage", { days: 7 }), 60_000);
     const { events } = useEventStream();
     const recent = events.slice(-8).reverse();
     const warnings = status?.configWarnings ?? [];
@@ -54,6 +55,8 @@ export default function Dashboard() {
                         </div>
                     </div>
 
+                    {usage && <TokenUsageCard usage={usage} />}
+
                     <Card title="最近事件" extra={<span className="text-muted">实时推送，完整列表见「事件日志」</span>}>
                         {recent.length === 0 ? (
                             <EmptyState text="暂无事件，等待 Bot 推送..." />
@@ -75,6 +78,72 @@ export default function Dashboard() {
             )}
         </div>
     );
+}
+
+/** Token 用量卡片：今日概览 + 近 7 天分天明细 + 累计（60s 轮询） */
+function TokenUsageCard({ usage }: { usage: TokenUsageSummary }) {
+    return (
+        <Card title="Token 用量" extra={<span className="text-muted">来自模型服务商 usage 统计，每 60 秒刷新</span>}>
+            <div className="stat-grid">
+                <div className="stat-card">
+                    <div className="stat-label">今日总消耗</div>
+                    <div className="stat-value">
+                        {fmtTokens(usage.today.totalTokens)} <span className="stat-unit">tokens</span>
+                    </div>
+                    <div className="stat-sub">{usage.today.requests} 次调用</div>
+                </div>
+                <div className="stat-card">
+                    <div className="stat-label">今日输入 / 输出</div>
+                    <div className="stat-value stat-value-sm">
+                        {fmtTokens(usage.today.inputTokens)} / {fmtTokens(usage.today.outputTokens)}
+                    </div>
+                    <div className="stat-sub">其中缓存命中 {fmtTokens(usage.today.cachedTokens)}</div>
+                </div>
+                <div className="stat-card">
+                    <div className="stat-label">累计总消耗</div>
+                    <div className="stat-value">
+                        {fmtTokens(usage.total.totalTokens)} <span className="stat-unit">tokens</span>
+                    </div>
+                    <div className="stat-sub">{usage.total.requests} 次调用（保留窗口内）</div>
+                </div>
+            </div>
+            {usage.recent.length > 0 && (
+                <div className="table-wrap">
+                    <table className="config-table">
+                        <thead>
+                        <tr>
+                            <th>日期</th>
+                            <th>输入</th>
+                            <th>缓存命中</th>
+                            <th>输出</th>
+                            <th>合计</th>
+                            <th>调用次数</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {usage.recent.slice().reverse().map((d) => (
+                            <tr key={d.date}>
+                                <td className="mono">{d.date?.slice(5)}</td>
+                                <td>{fmtTokens(d.inputTokens)}</td>
+                                <td>{fmtTokens(d.cachedTokens)}</td>
+                                <td>{fmtTokens(d.outputTokens)}</td>
+                                <td>{fmtTokens(d.totalTokens)}</td>
+                                <td>{d.requests}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                    </table>
+                </div>
+            )}
+        </Card>
+    );
+}
+
+/** token 数缩写显示：1.2k / 34.5k */
+function fmtTokens(n: number): string {
+    if (!Number.isFinite(n) || n <= 0) return "0";
+    if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+    return String(n);
 }
 
 /** 启动配置自检告警：常驻页面顶部，error 级红色、warn 级橙色 */
