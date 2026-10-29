@@ -48,18 +48,13 @@ function renderTrigger(trigger: WakeTrigger | null | undefined): string | null {
 export function buildMessages(agent: Agent) {
     const recorder = agent.memory;
     const activePlan = agent.getActivePlan();
+    // 顺序原则：稳定内容靠前、易变内容靠后，提高服务商前缀缓存命中率。
+    // 同一轮工具循环内除历史外的所有 system 块都不变，前缀可完整命中缓存。
     const messages: Array<{ role: string; content: string }> = [
         { role: "system", content: systemPrompt },
     ];
 
-    // 定时苏醒：把唤醒原因告诉模型（消费一次即清空）
-    const trigger = renderTrigger(agent.pendingTrigger);
-    if (trigger) {
-        messages.push({ role: "system", content: trigger });
-        agent.pendingTrigger = null;
-    }
-
-    // 强加载技能（force: true）
+    // 强加载技能（force: true）；仅随 reloadSkills 变化，频率极低
     if (forceSkills.length > 0) {
         const forceBlock = forceSkills
             .map(s => `### ${s.name}\n${s.content}`)
@@ -77,9 +72,14 @@ export function buildMessages(agent: Agent) {
         messages.push({ role: "system", content: `对话历史概要:${recorder.getMidSummary()}` });
     }
 
-    // 活跃任务计划每轮回注上下文（含目标），防止长工具链中目标丢失；全部完成后不再注入
     if (activePlan) {
         messages.push({ role: "system", content: `当前任务计划：\n${renderPlan(activePlan)}\n（勿偏离目标，随进度用 manage_plan 更新状态）` });
+    }
+
+    const trigger = renderTrigger(agent.pendingTrigger);
+    if (trigger) {
+        messages.push({ role: "system", content: trigger });
+        agent.pendingTrigger = null;
     }
 
     return [...messages, ...recorder.getAll()];
