@@ -100,7 +100,9 @@ NapCat 反向 WebSocket 连接地址：`ws://127.0.0.1:8080/onebot/v11/ws`（端
 | `chatModel` / `visionModel` | 聊天 / 识图模型名称 |
 | `llmApiUrl` | LLM API 地址（OpenAI 兼容协议） |
 | `enableLongTermMemory` / `memoryStorePath` | 是否启用本地长期记忆与记忆文件路径（默认 false） |
-| `memoryOllamaUrl` / `memoryEmbedModel` | 本地 Ollama 地址与 embedding 模型（默认 `bge-m3`） |
+| `memoryEmbedProvider` / `memoryEmbedModel` | embedding 提供方（`ollama` 本地 / `openai` API 兼容接口）与模型名（本地默认 `bge-m3`；API 如百炼 `text-embedding-v4`） |
+| `memoryOllamaUrl` | 本地 Ollama 地址（provider 为 `ollama` 时生效） |
+| `memoryEmbedBaseUrl` / `memoryEmbedApiKey` | OpenAI 兼容接口地址与密钥（provider 为 `openai` 时生效；如百炼 `https://dashscope.aliyuncs.com/compatible-mode/v1`） |
 | `mcpServers` | MCP Server 配置列表 |
 | `readFileDirs` / `runJsDirs` / `editFileDirs` | 文件工具白名单目录（默认 `skills/`、`workspace/`） |
 | `web` | 面板 API 服务：`port` / `path` / `token` / `logBufferSize` |
@@ -132,7 +134,7 @@ Agent 本身不持有任何聊天通道，所有输出以事件广播；同一�
 | 中期概括 | 内存 | 每次概括覆盖 | 每次对话开工时检查 |
 | 长期记忆 | 本地 rememori 文件（`memoryStorePath`） | 无上限 | 旧事实清单被替换时逐条存入（一条事实 = 一条记忆）；AI 通过 `get_memory` 自主检索 |
 
-长期记忆由 `enableLongTermMemory` 控制，**默认关闭**；开启需先安装 [Ollama](https://ollama.com) 并 `ollama pull bge-m3`（中文场景），再配置 `memoryOllamaUrl` 与 `memoryEmbedModel`。记忆文件是 append-only JSONL，**只支持单进程读写**，不要同时用别的进程打开同一个文件。启动时会做一次清理（`prune` + `compact`），运行期间每成功写入 `memoryMaintainEveryWrites` 条（默认 100，设 0 关闭）再清理一次。实现细节见 [docs/rememori/使用说明.md](docs/rememori/使用说明.md)。
+长期记忆由 `enableLongTermMemory` 控制，**默认关闭**；embedding 二选一：本地 [Ollama](https://ollama.com)（`ollama pull bge-m3`，配 `memoryOllamaUrl`），或任意 OpenAI 兼容接口（`memoryEmbedProvider: "openai"`，配 `memoryEmbedBaseUrl` + `memoryEmbedApiKey`，如阿里云百炼 `text-embedding-v4`）。**换 embedding 提供方或模型 = 旧向量全部失效**，需删除 `memoryStorePath` 文件重新积累。记忆文件是 append-only JSONL，**只支持单进程读写**，不要同时用别的进程打开同一个文件。启动时会做一次清理（`prune`），运行期间每成功写入 `memoryMaintainEveryWrites` 条（默认 100，设 0 关闭）再清理一次。实现细节见 [docs/rememori/使用说明.md](docs/rememori/使用说明.md)。
 
 记忆按会话隔离（`AgentManager` 会话池懒创建）：空闲 30 分钟自动回收（回收前压缩归档），会话数超上限（50）时按最久未活跃淘汰。可用 `#sessions` 查看各会话记忆状态。注意：短期/中期记忆按会话隔离，长期记忆**不分会话**（不使用 tag，所有会话共用一个检索空间）。
 

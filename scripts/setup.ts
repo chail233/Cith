@@ -181,7 +181,10 @@ export interface SetupAnswers {
     visionModel: string;
     llmVisionApiUrl: string;
     enableLongTermMemory: boolean;
+    memoryEmbedProvider: "ollama" | "openai";
     memoryOllamaUrl: string;
+    memoryEmbedBaseUrl: string;
+    memoryEmbedApiKey: string;
     memoryEmbedModel: string;
     wsPort: number;
     napcatHttpHost: string;
@@ -218,7 +221,14 @@ export function buildConfigDevSource(a: SetupAnswers, now: Date = new Date()): s
     push("visionModel", a.visionModel);
     if (a.enableLongTermMemory) {
         push("enableLongTermMemory", true);
-        push("memoryOllamaUrl", a.memoryOllamaUrl);
+        push("memoryEmbedProvider", a.memoryEmbedProvider);
+        if (a.memoryEmbedProvider === "openai") {
+            push("memoryEmbedBaseUrl", a.memoryEmbedBaseUrl);
+            push("memoryEmbedApiKey", a.memoryEmbedApiKey);
+        }
+        else {
+            push("memoryOllamaUrl", a.memoryOllamaUrl);
+        }
         push("memoryEmbedModel", a.memoryEmbedModel);
     }
     push("token", a.napcatToken);
@@ -672,17 +682,36 @@ async function collectAnswers(p: Prompter): Promise<SetupAnswers> {
         visionModel = await p.ask("识图模型名称", { default: chatModel });
     }
 
-    heading("长期记忆（可选，rememori + 本地 Ollama）");
-    const enableLongTermMemory = await p.confirm("启用本地长期记忆？", false);
+    heading("长期记忆（可选，rememori）");
+    const enableLongTermMemory = await p.confirm("启用长期记忆？", false);
+    let memoryEmbedProvider: "ollama" | "openai" = "ollama";
     let memoryOllamaUrl = "http://localhost:11434";
+    let memoryEmbedBaseUrl = "";
+    let memoryEmbedApiKey = "";
     let memoryEmbedModel = "bge-m3";
     if (enableLongTermMemory) {
-        note("需先安装 Ollama，并执行：ollama pull bge-m3（中文场景建议这个模型）");
-        memoryOllamaUrl = await p.ask("Ollama 服务地址", {
-            default: "http://localhost:11434",
-            validate: isHttpUrl,
-        });
-        memoryEmbedModel = await p.ask("embedding 模型名", { default: "bge-m3" });
+        const providerInput = (await p.ask(
+            "embedding 提供方（ollama=本地 / openai=API 兼容接口）",
+            { default: "ollama" },
+        )).trim().toLowerCase();
+        memoryEmbedProvider = providerInput === "openai" ? "openai" : "ollama";
+        if (memoryEmbedProvider === "openai") {
+            note("任意 OpenAI 兼容 /embeddings 接口均可，如阿里云百炼：https://dashscope.aliyuncs.com/compatible-mode/v1");
+            memoryEmbedBaseUrl = await p.ask("embedding 接口地址", {
+                default: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+                validate: isHttpUrl,
+            });
+            memoryEmbedApiKey = await p.ask("embedding 接口密钥", { required: true, secret: true });
+            memoryEmbedModel = await p.ask("embedding 模型名", { default: "text-embedding-v4" });
+        }
+        else {
+            note("需先安装 Ollama，并执行：ollama pull bge-m3（中文场景建议这个模型）");
+            memoryOllamaUrl = await p.ask("Ollama 服务地址", {
+                default: "http://localhost:11434",
+                validate: isHttpUrl,
+            });
+            memoryEmbedModel = await p.ask("embedding 模型名", { default: "bge-m3" });
+        }
     }
 
     heading("QQ 接入（NapCat）");
@@ -708,7 +737,7 @@ async function collectAnswers(p: Prompter): Promise<SetupAnswers> {
         owner, selfId, targetGroupId, targetUserId,
         llmApiUrl, aiApiKey, chatModel,
         llmVisionApiUrl, visionApiKey, visionModel,
-        enableLongTermMemory, memoryOllamaUrl, memoryEmbedModel,
+        enableLongTermMemory, memoryEmbedProvider, memoryOllamaUrl, memoryEmbedBaseUrl, memoryEmbedApiKey, memoryEmbedModel,
         wsPort, napcatHttpHost, napcatToken,
         webPort, webToken, bffPort, webPassword, sslEnabled, serverIp,
     };

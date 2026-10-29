@@ -17,7 +17,7 @@ const NO_PERSIST_KEYS = new Set(["members", "mcpServers", "devMode"]);
 
 /** 密钥类：可持久化但需重启才生效，落盘时提示 */
 const RESTART_KEYS = new Set([
-    "aiApiKey", "visionApiKey", "githubToken", "token",
+    "aiApiKey", "visionApiKey", "githubToken", "token", "memoryEmbedApiKey",
 ]);
 
 /**
@@ -41,6 +41,9 @@ const LEGACY_KEY_MAP = {
     MEMORY_STORE_PATH: "memoryStorePath",
     MEMORY_OLLAMA_URL: "memoryOllamaUrl",
     MEMORY_EMBED_MODEL: "memoryEmbedModel",
+    MEMORY_EMBED_PROVIDER: "memoryEmbedProvider",
+    MEMORY_EMBED_BASE_URL: "memoryEmbedBaseUrl",
+    MEMORY_EMBED_API_KEY: "memoryEmbedApiKey",
     MEMORY_SEARCH_TOP_K: "memorySearchTopK",
     MEMORY_MIN_SIMILARITY: "memoryMinSimilarity",
     MEMORY_HALF_LIFE_DAYS: "memoryHalfLifeDays",
@@ -141,18 +144,31 @@ const baseConfig = {
     /** Agent 工具链最大轮数 */
     toolChainMaxLength: 30,
 
-    // ========== 长期记忆（rememori + 本地 Ollama） ==========
+    // ========== 长期记忆（rememori） ==========
 
-    /** 长期记忆开关（依赖本地 Ollama 提供 embedding） */
+    /** 长期记忆开关 */
     enableLongTermMemory: true,
 
     /** 记忆文件路径 */
     memoryStorePath: "data/rememori/memory.mem",
 
-    /** Ollama 服务地址 */
+    /**
+     * embedding 提供方：
+     * - "ollama"：本地 Ollama（memoryOllamaUrl + memoryEmbedModel）
+     * - "openai"：任意 OpenAI 兼容 /embeddings 接口（memoryEmbedBaseUrl + memoryEmbedApiKey + memoryEmbedModel）
+     */
+    memoryEmbedProvider: "ollama",
+
+    /** Ollama 服务地址（memoryEmbedProvider 为 "ollama" 时生效） */
     memoryOllamaUrl: "http://localhost:11434",
 
-    /** embedding 模型名 */
+    /** OpenAI 兼容接口地址（memoryEmbedProvider 为 "openai" 时生效），留空则用 OpenAI 官方 */
+    memoryEmbedBaseUrl: "",
+
+    /** OpenAI 兼容接口密钥（memoryEmbedProvider 为 "openai" 时必填） */
+    memoryEmbedApiKey: null,
+
+    /** embedding 模型名（ollama 如 bge-m3 */
     memoryEmbedModel: "bge-m3",
 
     /** 召回：原始余弦相似度底线（换 embedding 模型后需重新实测） */

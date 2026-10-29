@@ -29,6 +29,8 @@ const WRITABLE_KEYS = new Set<string>([
     "memorySearchTopK",
     "memoryMinSimilarity",
     "memoryHalfLifeDays",
+    "memoryEmbedProvider",
+    "memoryEmbedBaseUrl",
     "toolChainMaxLength",
     "toolOutput",
 

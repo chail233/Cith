@@ -108,13 +108,27 @@ export function collectConfigWarnings(): ConfigWarning[] {
         );
     }
 
-    if (cfg.enableLongTermMemory === true && (isPlaceholder(cfg.memoryOllamaUrl) || isPlaceholder(cfg.memoryEmbedModel))) {
-        add(
-            "warn",
-            "memoryEmbedModel",
-            "已开启长期记忆，但 Ollama 地址或 embedding 模型未配置，长期记忆将无法初始化",
-            "填写 memoryOllamaUrl（默认 http://localhost:11434）与 memoryEmbedModel（如 bge-m3，需先 ollama pull）",
-        );
+    if (cfg.enableLongTermMemory === true) {
+        const provider = String(cfg.memoryEmbedProvider ?? "ollama").trim().toLowerCase();
+        if (provider === "openai") {
+            if (isPlaceholder(cfg.memoryEmbedApiKey) || isPlaceholder(cfg.memoryEmbedModel)) {
+                add(
+                    "warn",
+                    "memoryEmbedModel",
+                    "已开启长期记忆（API embedding），但接口密钥或模型未配置，长期记忆将无法初始化",
+                    "填写 memoryEmbedApiKey 与 memoryEmbedModel（如阿里云百炼 text-embedding-v4）；" +
+                    "接口地址填 memoryEmbedBaseUrl（如 https://dashscope.aliyuncs.com/compatible-mode/v1），留空则为 OpenAI 官方",
+                );
+            }
+        }
+        else if (isPlaceholder(cfg.memoryOllamaUrl) || isPlaceholder(cfg.memoryEmbedModel)) {
+            add(
+                "warn",
+                "memoryEmbedModel",
+                "已开启长期记忆，但 Ollama 地址或 embedding 模型未配置，长期记忆将无法初始化",
+                "填写 memoryOllamaUrl（默认 http://localhost:11434）与 memoryEmbedModel（如 bge-m3，需先 ollama pull）",
+            );
+        }
     }
 
     return warnings;

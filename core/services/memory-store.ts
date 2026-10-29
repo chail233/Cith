@@ -5,7 +5,7 @@
 import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import { Memory } from "rememori";
-import { ollama } from "rememori/embedders";
+import { ollama, openai } from "rememori/embedders";
 import config from "../config.js";
 import logger from "../utils/logger.js";
 import { resolveSrcPath } from "../utils/file-security.js";
@@ -35,8 +35,19 @@ function withTimeout<T>(task: Promise<T>, ms: number, label: string): Promise<T>
     return Promise.race([task, timeout]).finally(() => clearTimeout(timer)) as Promise<T>;
 }
 
-/** 探测 Ollama 是否可用，并提示缺失的 embedding 模型；返回不可用的原因 */
-async function checkEmbedder(): Promise<string | null> {
+/** 是否使用 OpenAI 兼容 HTTP 接口做 embedding（而非本地 Ollama） */
+function useApiEmbedder(): boolean {
+    return String(config.memoryEmbedProvider ?? "ollama").trim().toLowerCase() === "openai";
+}
+
+/** OpenAI 兼容接口的 baseUrl（未配置时退回 OpenAI 官方地址） */
+function apiEmbedderBaseUrl(): string {
+    const raw = String(config.memoryEmbedBaseUrl ?? "").trim();
+    return (raw || "https://api.openai.com/v1").replace(/\/+$/, "");
+}
+
+/** 探测本地 Ollama 是否可用，并提示缺失的 embedding 模型；返回不可用的原因 */
+async function checkOllamaEmbedder(): Promise<string | null> {
     const baseUrl = String(config.memoryOllamaUrl).replace(/\/+$/, "");
     try {
         const resp = await withTimeout(fetch(`${baseUrl}/api/tags`), config.memoryTimeout, "Ollama 探测");
@@ -54,6 +65,43 @@ async function checkEmbedder(): Promise<string | null> {
         const detail = err instanceof Error ? err.message : String(err);
         return `无法连接 Ollama（${baseUrl}）：${detail}`;
     }
+}
+
+/** 探测 OpenAI 兼容 embedding 接口：直接发一次最小请求，同时验证地址/密钥/模型 */
+async function checkApiEmbedder(): Promise<string | null> {
+    if (!String(config.memoryEmbedApiKey ?? "").trim()) {
+        return "memoryEmbedProvider=openai 但未配置 memoryEmbedApiKey";
+    }
+    const baseUrl = apiEmbedderBaseUrl();
+    try {
+        const resp = await withTimeout(fetch(`${baseUrl}/embeddings`, {
+            method: "POST",
+            headers: {
+                "content-type": "application/json",
+                authorization: `Bearer ${String(config.memoryEmbedApiKey ?? "")}`,
+            },
+            body: JSON.stringify({ model: config.memoryEmbedModel, input: ["ping"] }),
+        }), config.memoryTimeout, "embedding 接口探测");
+        if (!resp.ok) {
+            const text = await resp.text().catch(() => "");
+            return `embedding 接口返回 HTTP ${resp.status}${text ? `：${text.slice(0, 160)}` : ""}`;
+        }
+        const body = await resp.json() as { data?: Array<{ embedding?: unknown }> };
+        const dim = Array.isArray(body.data?.[0]?.embedding)
+            ? (body.data[0].embedding as unknown[]).length
+            : 0;
+        if (!dim) return "embedding 接口返回格式异常（缺少 data[0].embedding）";
+        return null;
+    }
+    catch (err) {
+        const detail = err instanceof Error ? err.message : String(err);
+        return `无法连接 embedding 接口（${baseUrl}）：${detail}`;
+    }
+}
+
+/** 按配置探测 embedding 提供方是否可用；返回不可用的原因 */
+function checkEmbedder(): Promise<string | null> {
+    return useApiEmbedder() ? checkApiEmbedder() : checkOllamaEmbedder();
 }
 
 /**
@@ -82,8 +130,14 @@ export async function initMemoryStore(): Promise<Memory | null> {
 
         try {
             await mkdir(dirname(resolved.fullPath), { recursive: true });
+            const embedder = useApiEmbedder()
+                ? openai(config.memoryEmbedModel, {
+                    apiKey: String(config.memoryEmbedApiKey ?? ""),
+                    baseUrl: String(config.memoryEmbedBaseUrl ?? "").trim() || undefined,
+                })
+                : ollama(config.memoryEmbedModel, { baseUrl: config.memoryOllamaUrl });
             const mem = await Memory.open(resolved.fullPath, {
-                embedder: ollama(config.memoryEmbedModel, { baseUrl: config.memoryOllamaUrl }),
+                embedder,
                 // 内置实体抽取是大写首字母启发式，对中文无效；直接关闭实体图
                 extractor: false,
                 index: "auto",
@@ -91,7 +145,8 @@ export async function initMemoryStore(): Promise<Memory | null> {
             });
             store = mem;
             logger.info(
-                `长期记忆已就绪: ${config.memoryStorePath}（${mem.size} 条，embedding=${config.memoryEmbedModel}）`,
+                `长期记忆已就绪: ${config.memoryStorePath}` +
+                `（${mem.size} 条，embedding=${config.memoryEmbedModel}@${useApiEmbedder() ? "api" : "ollama"}）`,
             );
             return mem;
         }
