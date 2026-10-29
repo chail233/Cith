@@ -1,11 +1,13 @@
 {
   "name": "sunbatwobot",
-  "version": "1.1.0",
-  "description": "An autonomous LLM Agent QQ with any adapter you want, featuring multi-turn tool calling, a four-tier memory system, user profiling, image vision, MCP tool extensions and a pluggable skill system.",
+  "version": "1.2.0",
+  "description": "A Personal Agent with any adapter you want, featuring multi-turn tool calling, a four-tier memory system, user profiling, image vision, MCP tool extensions and a pluggable skill system.",
   "scripts": {
     "start": "node core/index.js",
     "build": "node node_modules/typescript/lib/tsc.js -p tsconfig.build.json && node scripts/copy-assets.js",
     "build:watch": "node node_modules/typescript/lib/tsc.js -p tsconfig.build.json --watch",
+    "build:web": "cd web && node node_modules/typescript/lib/tsc.js -b && node node_modules/vite/bin/vite.js build",
+    "build:all": "npm run build && npm run build:web",
     "start:dist": "node dist/index.js",
     "add-stickers": "node scripts/add-stickers.js"
   },

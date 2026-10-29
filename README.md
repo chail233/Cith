@@ -46,6 +46,8 @@ NapCat 反向 WebSocket 连接地址：`ws://127.0.0.1:8080/onebot/v11/ws`（端
 | `npm start` | 直接运行 `core/` 源码（开发推荐，改完即生效） |
 | `npm run build` | tsc 编译 `core/` → `dist/`，并拷贝 SKILL.md 等非代码资源 |
 | `npm run build:watch` | watch 模式构建（资源拷贝不会自动重跑，需手动 build） |
+| `npm run build:web` | 编译 Web 面板（`web/`：tsc + Vite → `web/dist/`，需先装好 `web/node_modules`） |
+| `npm run build:all` | 一键编译 core + web（先 `build` 后 `build:web`） |
 | `npm run start:dist` | 运行构建产物 `dist/index.js`（上线部署用） |
 
 > `start` 与 `start:dist` 行为完全一致，差异仅在运行方式：`start` 依赖 Node 24 现场转译 TS，`start:dist` 跑预编译纯 JS、启动更快，但需先 `npm run build`。`dist/` 不提交 git。
