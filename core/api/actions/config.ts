@@ -35,6 +35,7 @@ const WRITABLE_KEYS = new Set<string>([
     "MEMORY_SEARCH_TOP_K",
     "MEMORY_MIN_SCORE",
     "TOOLCHAIN_MAX_LENGTH",
+    "toolOutput",
 
     "readFileDirs",
     "runJsDirs",
