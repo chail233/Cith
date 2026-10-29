@@ -38,7 +38,7 @@ Cross-module type contracts live in `core/types/index.ts`: `CtxEvent` (normalize
 
 ### Tools (`agent/tools.js`)
 
-Local tools are declared in the `tools` array and dispatched through the `toolMap`; `callTool(tool_call, ctx, confirmed)` is the single entry point. MCP tools are exposed as `mcp_<originalName>` and routed by prefix to `mcpClient`. `getAllTools()` is **stateful**: it appends any dynamically-loaded MCP tools and then clears them — MCP tools only exist after the model calls `list_mcp_tools` for that server.
+Local tools are declared in the `tools` array and dispatched through the `toolMap`; `callTool(tool_call, ctx, confirmed)` is the single entry point. MCP tools use server-qualified names returned by `mcpClient`, which routes them to the original server and tool. Legacy `mcp_<originalName>` calls work only for unambiguous names. `getAllTools()` is **stateful**: it appends any dynamically-loaded MCP tools and then clears them — MCP tools only exist after the model calls `list_mcp_tools` for that server.
 
 When adding a tool, update **both** the `tools` array and `toolMap`. If it is a file-path tool, also register it in `pathToolWhitelist` (a map of tool name → `{ dirKey, pathKey }` pointing at its whitelist config and its path argument) — that map drives the gate below.
 
