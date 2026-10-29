@@ -36,11 +36,11 @@ export async function runAgent(ctx: Context): Promise<void> {
     attachAgentListeners(agent, { reply: onReply, "tool-call": onToolCall });
     try {
         await agent.run(ctx);
-        await tail;
     }
     finally {
         detachAgentListeners(agent, { reply: onReply, "tool-call": onToolCall });
     }
+    await tail;
 }
 
 /** 监听器统一挂载 */
