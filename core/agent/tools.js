@@ -1,6 +1,6 @@
 import config from "../config.js";
 import { resolveSrcPath, checkPathWhitelist } from "../utils/file-security.js";
-import { mcpClient } from "./mcp-client.js";
+import { mcpClient } from "./mcp-manager.js";
 import { hold } from "./tool-approval.js";
 import { takeMcpTools } from "./tools/list-mcp-tools.ts";
 

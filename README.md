@@ -136,7 +136,7 @@ Skill 是包含 `SKILL.md` 描述文件的目录，可附带脚本供 AI 执行�
 
 ### MCP 工具扩展
 
-支持连接外部 MCP Server（**stdio** 本地子进程 / **old_sse** 旧版 SSE / **sse** 新版 Streamable HTTP），为 AI 提供几乎无限的工具扩展。MCP 工具不一次性塞进上下文：AI 先调用 `list_mcp_tools` 按需加载某个 Server 的工具定义，再以返回的带服务器命名空间的名称调用。旧的 `mcp_<原工具名>` 仅在工具名唯一时可用。`mcp/github-server` 是一个现成的 GitHub MCP Server 示例。
+支持连接外部 MCP Server（**stdio** 本地子进程 / **old_sse** 旧版 SSE / **sse** 新版 Streamable HTTP），为 AI 提供几乎无限的工具扩展。MCP 工具不一次性塞进上下文：AI 先调用 `list_mcp_tools` 按需加载某个 Server 的工具定义，再以返回的 `mcp_<服务器名>_<工具名>` 调用。旧的 `mcp_<原工具名>` 仅在工具名唯一时可用。`mcp/github-server` 是一个现成的 GitHub MCP Server 示例。
 
 ### 特色行为
 
@@ -298,7 +298,7 @@ core/
 │   ├── tools/                  # 细粒度工具模块（一个工具一个文件）
 │   ├── tool-approval.js        # 危险操作确认队列
 │   ├── approval-runner.ts      # 危险操作确认执行链
-│   ├── mcp-client.js           # MCP 客户端管理器
+│   ├── mcp-manager.js          # MCP 连接管理 + 工具命名/路由
 │   ├── skill.js                # Skill 加载器
 │   ├── image.js                # 视觉 API
 │   ├── long-term-memory.js     # 长期记忆 + 用户画像 API

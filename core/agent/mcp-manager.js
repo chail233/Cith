@@ -1,12 +1,25 @@
 import {StdioClientTransport, getDefaultEnvironment} from "@modelcontextprotocol/client/stdio";
 import {Client, StreamableHTTPClientTransport} from "@modelcontextprotocol/client";
 import {SSEClientTransport} from "@modelcontextprotocol/sdk/client/sse.js";
-import { createHash } from "node:crypto";
+import config from "../config.js";
+import logger from "../utils/logger.js";
 
+// provider 对函数名的硬上限，超长会整批拒绝
+const MAX_TOOL_NAME_LENGTH = 64;
+const TOOL_NAME_PREFIX = "mcp_";
+// 前缀之外的 key 预算
+const MAX_KEY_LENGTH = MAX_TOOL_NAME_LENGTH - TOOL_NAME_PREFIX.length;
+const MAX_TOOL_PART_LENGTH = 40;
+
+function sanitizeName(name) {
+    return String(name).replace(/[^a-zA-Z0-9_-]/g, "_");
+}
+
+// key = 服务器名_工具名，只做清洗和必要截断；路由靠 toolServerMap 反查，不解析名字
 function toolKey(serverName, toolName) {
-    const readable = `${serverName}__${toolName}`.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 43);
-    const digest = createHash("sha256").update(JSON.stringify([serverName, toolName])).digest("hex").slice(0, 16);
-    return `${readable}_${digest}`;
+    const server = sanitizeName(serverName);
+    const tool = sanitizeName(toolName).slice(0, MAX_TOOL_PART_LENGTH);
+    return `${server.slice(0, Math.max(MAX_KEY_LENGTH - 1 - tool.length, 1))}_${tool}`;
 }
 class McpConnection{
     constructor(serverConfig, logger) {
@@ -168,7 +181,7 @@ export class McpClientManager{
 
     definition(key, tool) {
         return { type: "function", function: {
-            name: `mcp_${key}`,
+            name: `${TOOL_NAME_PREFIX}${key}`,
             description: tool.description ?? "",
             parameters: tool.inputSchema ?? {},
         }};
@@ -245,3 +258,5 @@ export class McpClientManager{
             }});
     }
 }
+
+export const mcpClient = new McpClientManager(config, logger);

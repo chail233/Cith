@@ -1,7 +1,7 @@
 import logger from "./utils/logger.js";
 import { startOneBotServer } from "./bot/servers/OnebotServer.js";
 import runPipeline from "./pipeline/index.js";
-import {mcpClient} from "./agent/mcp-client.js";
+import {mcpClient} from "./agent/mcp-manager.js";
 import { startApiServer } from "./api/server.ts";
 import startWechatBotServer from "./bot/servers/WechatBotServer.ts";
 import { startScheduler, stopScheduler } from "./services/scheduler.js";

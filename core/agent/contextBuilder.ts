@@ -3,7 +3,7 @@
  */
 import config from "../config.js";
 import { skills, forceSkills } from "./skill.js";
-import { mcpClient } from "./mcp-client.js";
+import { mcpClient } from "./mcp-manager.js";
 import type Agent from "./Agent.ts";
 import type { Plan, PlanStatus } from "./types.ts";
 import {listTags} from "../stickers/index.js";

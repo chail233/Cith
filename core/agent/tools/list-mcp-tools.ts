@@ -1,4 +1,4 @@
-import { mcpClient } from "../mcp-client.js";
+import { mcpClient } from "../mcp-manager.js";
 import type { ToolDefinition, ToolModule } from "../types.ts";
 
 /** list_mcp_tools 工具入参 */

@@ -1,7 +1,7 @@
 import { getAgent, listAgents } from "../../agent/AgentManager.ts";
 import config from "../../config.js";
 import {skills, forceSkills} from "../../agent/skill.js";
-import {mcpClient} from "../../agent/mcp-client.js";
+import {mcpClient} from "../../agent/mcp-manager.js";
 import {getAllTools} from "../../agent/tools.js";
 import {cancel as doCancel, list as doList} from "../../agent/tool-approval.js";
 import {confirmPending} from "../../agent/approval-runner.ts";
