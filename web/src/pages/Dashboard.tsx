@@ -3,17 +3,19 @@ import { Badge, Card, EmptyState, ErrorBanner, Loading } from "../components/ui"
 import { useEventStream } from "../hooks/event-stream";
 import { usePolling } from "../hooks/usePolling";
 import { rpc } from "../api/client";
-import type { BotStatus } from "../types";
+import type { BotStatus, ConfigWarning } from "../types";
 import { formatTime, formatUptime } from "../utils/format";
 
 export default function Dashboard() {
     const { data: status, error, loading, refresh } = usePolling(() => rpc<BotStatus>("get_status"), 5000);
     const { events } = useEventStream();
     const recent = events.slice(-8).reverse();
+    const warnings = status?.configWarnings ?? [];
 
     return (
         <div className="page">
             {error && <ErrorBanner message={`获取运行状态失败：${error}`} onRetry={refresh} />}
+            {warnings.length > 0 && <PreflightWarnings warnings={warnings} />}
             {loading && !status ? (
                 <Loading text="正在获取运行状态..." />
             ) : status ? (
@@ -71,6 +73,30 @@ export default function Dashboard() {
             ) : (
                 <EmptyState text="暂无数据" />
             )}
+        </div>
+    );
+}
+
+/** 启动配置自检告警：常驻页面顶部，error 级红色、warn 级橙色 */
+function PreflightWarnings({ warnings }: { warnings: ConfigWarning[] }) {
+    const hasFatal = warnings.some((w) => w.level === "error");
+    return (
+        <div className={`config-warning-banner ${hasFatal ? "is-fatal" : ""}`} role="alert">
+            <div className="config-warning-head">
+                <strong>配置自检：{warnings.length} 项待处理</strong>
+                <span className="config-warning-hint">修改后重启 Bot 生效</span>
+            </div>
+            <ul className="config-warning-list">
+                {warnings.map((w) => (
+                    <li key={w.key}>
+                        <Badge tone={w.level === "error" ? "err" : "warn"}>
+                            {w.level === "error" ? "致命" : "提示"}
+                        </Badge>
+                        <span>{w.message}</span>
+                        <span className="config-warning-fix">修复：{w.fix}</span>
+                    </li>
+                ))}
+            </ul>
         </div>
     );
 }

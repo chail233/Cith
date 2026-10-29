@@ -13,5 +13,7 @@ registerAction("get_status", () => {
         mcpConnections,
         memoryMb: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
         nodeVersion: process.version,
+        // 启动自检结果：面板需常驻展示，否则「配错了但一切正常」极难发现
+        configWarnings: runtimeState.configWarnings,
     };
 });

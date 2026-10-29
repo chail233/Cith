@@ -6,7 +6,36 @@ import {getAllTools} from "../../agent/tools.js";
 import {cancel as doCancel, list as doList} from "../../agent/tool-approval.js";
 import {confirmPending} from "../../agent/approval-runner.ts";
 import { runAgent } from "../agent-runner.ts";
+import { isPlaceholder } from "../../services/preflight.ts";
 import logger from "../../utils/logger.js";
+
+const cfg = /** @type {Record<string, any>} */ (config);
+
+const BOOTSTRAP_COMMANDS = new Set(["bind"]);
+
+/**
+ * 是否为「未授权会话也要交给管道处理」的管理员引导指令
+ * @param {string} text 原始消息文本
+ * @returns {boolean}
+ */
+export function isBootstrapCommand(text) {
+    if (typeof text !== "string") return false;
+    const match = /^#\s*(\S+)/.exec(text.trim());
+    return match !== null && BOOTSTRAP_COMMANDS.has(match[1]);
+}
+
+/**
+ * 解析当前会话对应的白名单键
+ * @param {import("../../types/index.ts").Context} ctx
+ */
+function bindTargetOf(ctx) {
+    const isGroup = ctx.space.from === "group";
+    return {
+        key: isGroup ? "targetGroupId" : "targetUserId",
+        label: isGroup ? "群" : "用户",
+        id: String(ctx.space.id),
+    };
+}
 
 const cmds = [
     {
@@ -30,6 +59,53 @@ const cmds = [
                 .filter(cmd => ctx.isAdmin || !cmd.needsAdmin)
                 .map(cmd => `#${cmd.name} ${cmd.params.map(p => `<${p.name}:${p.desc}>`).join(" ")} //${cmd.description}`)
                 .join('\n');
+        }
+    },
+    {
+        name: "bind",
+        needsAdmin: true,
+        description: "把当前会话加入白名单（管理员；未授权会话也可用）",
+        params: [],
+        handler: async (args, ctx) => {
+            const target = bindTargetOf(ctx);
+            const list = /** @type {string[]} */ (cfg[target.key] ?? []);
+            if (list.includes(target.id)) {
+                return `当前${target.label} ${target.id} 已在白名单中，无需重复绑定`;
+            }
+            // 整体赋值而非 push：config 的 Proxy 只在顶层赋值时落盘
+            cfg[target.key] = [...list.filter(v => !isPlaceholder(v)), target.id];
+            return `已将${target.label} ${target.id} 加入白名单，下一条消息起生效`;
+        }
+    },
+    {
+        name: "unbind",
+        needsAdmin: true,
+        description: "把当前会话移出白名单（管理员）",
+        params: [],
+        handler: async (args, ctx) => {
+            const target = bindTargetOf(ctx);
+            const list = /** @type {string[]} */ (cfg[target.key] ?? []);
+            if (!list.includes(target.id)) {
+                return `当前${target.label} ${target.id} 不在白名单中`;
+            }
+            cfg[target.key] = list.filter(v => v !== target.id);
+            return `已将${target.label} ${target.id} 移出白名单，之后该会话的消息不再处理`;
+        }
+    },
+    {
+        name: "bindlist",
+        needsAdmin: true,
+        description: "查看会话白名单（管理员）",
+        params: [],
+        handler: async (args, ctx) => {
+            const render = (key, label) => {
+                const list = Array.isArray(cfg[key]) ? cfg[key] : [];
+                const body = list.length === 0
+                    ? "（空）"
+                    : list.map((v) => (isPlaceholder(v) ? `${v}（占位符，未生效）` : String(v))).join("\n  ");
+                return `${label}：\n  ${body}`;
+            };
+            return `${render("targetGroupId", "群白名单")}\n${render("targetUserId", "用户白名单")}`;
         }
     },
     {
@@ -242,7 +318,8 @@ function parseCommand(rawText) {
  * @returns {Promise<boolean>}
  */
 export default async function userCommands(ctx) {
-    if (!ctx.text.startsWith("#")) return false;
+    // trim 后再判断：群内「@机器人 #命令」时，@ 段被丢弃后会留下前导空格
+    if (!ctx.text.trim().startsWith("#")) return false;
 
     const { cmd, args } = parseCommand(ctx.text);
     if (!cmd) {
@@ -254,7 +331,11 @@ export default async function userCommands(ctx) {
     if (!command) return false;
 
     if (command.needsAdmin && !ctx.isAdmin) {
-        ctx.adapter.sendMsg(ctx.space, "无权限");
+        // owner 未配置时所有人都会被拒，这里直接点明原因，避免用户以为是权限 bug
+        const hint = isPlaceholder(config.owner)
+            ? "（管理员尚未配置：请部署者在 config.js 的 owner 中填写管理员 QQ 号）"
+            : "";
+        ctx.adapter.sendMsg(ctx.space, `无权限：该指令仅管理员可用${hint}`);
         return true;
     }
 

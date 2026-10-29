@@ -658,6 +658,58 @@ td.col-actions {
     border: 1px solid #f5c2c2;
 }
 
+/* 启动配置自检：常驻在状态页顶部，error 级红色 / warn 级橙色 */
+.config-warning-banner {
+    background: #fff8e6;
+    border: 1px solid #ffd591;
+    color: #8a5a00;
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 0.87rem;
+}
+
+.config-warning-banner.is-fatal {
+    background: #fdeaea;
+    border-color: #f5c2c2;
+    color: var(--err);
+}
+
+.config-warning-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.config-warning-hint {
+    font-size: 0.78rem;
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+.config-warning-list {
+    margin: 9px 0 0;
+    padding-left: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.config-warning-list li {
+    line-height: 1.55;
+}
+
+.config-warning-list .badge {
+    margin-right: 7px;
+    vertical-align: 1px;
+}
+
+.config-warning-fix {
+    display: block;
+    font-size: 0.82rem;
+    color: var(--muted);
+}
+
 .empty-state {
     padding: 36px 16px;
     text-align: center;

@@ -188,7 +188,14 @@ if (baseConfig.DevMode) {
         baseConfig.mcpServers = [...baseMcp, ...devMcp];
     }
     else {
-        console.error("[config] DevMode 为 true，但找不到 configDev.js");
+        console.error(`
+[config] DevMode 为 true，但找不到 core/configDev.js
+
+  修复方式（二选一）：
+    1. 新建 core/configDev.js，写入 export default { owner: "你的QQ号", aiAPIKEY: "..." }
+       （只需写要覆盖的字段，其余沿用 config.js 的默认值）
+    2. 把 core/config.js 中的 DevMode 改为 false，并直接填写下方配置项
+`);
         process.exit(1);
     }
 }

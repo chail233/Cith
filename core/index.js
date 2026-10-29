@@ -6,8 +6,11 @@ import { startApiServer } from "./api/server.ts";
 import startWechatBotServer from "./bot/servers/WechatBotServer.ts";
 import { startScheduler, stopScheduler } from "./services/scheduler.js";
 import { wakeUp } from "./services/wake.js";
+import { runPreflight } from "./services/preflight.ts";
 
 logger.info("SunbatwoBot 启动中...");
+
+runPreflight();
 
 await mcpClient.init();
 

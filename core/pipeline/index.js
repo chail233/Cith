@@ -6,7 +6,7 @@ import imageRecognizer from "./middleware/image-recognizer.js";
 import atDetector from "./middleware/at-detector.js";
 import miniProgram from "./middleware/mini-program.js";
 import keywordCommands from "./handlers/keyword-commands.js";
-import userCommands from "./handlers/user-commands.js";
+import userCommands, { isBootstrapCommand } from "./handlers/user-commands.js";
 import aiChat from "./handlers/ai-chat.js";
 import repeater from "./handlers/repeater.js";
 import proactiveChat from "./handlers/proactive-chat.js";
@@ -27,6 +27,33 @@ const handlers = [
     proactiveChat,
 ];
 
+/** 未授权会话的忽略提示节流：同一会话 10 分钟内最多记一次 */
+const IGNORE_NOTIFY_INTERVAL_MS = 10 * 60 * 1000;
+/** @type {Map<string, number>} */
+const ignoredSessions = new Map();
+
+/**
+ * 记录被忽略的未授权会话，便于排查「机器人为什么不理我」
+ * @param {import("../types/index.ts").Context} ctx
+ */
+function logIgnoredSession(ctx) {
+    const key = `${ctx.space.from}:${ctx.space.id}`;
+    const now = Date.now();
+    const last = ignoredSessions.get(key) ?? 0;
+    if (now - last < IGNORE_NOTIFY_INTERVAL_MS) return;
+
+    // 表本身无上限：达到规模后清理已过期的键，防止长期运行累积
+    if (ignoredSessions.size >= 500) {
+        for (const [k, ts] of ignoredSessions) {
+            if (now - ts >= IGNORE_NOTIFY_INTERVAL_MS) ignoredSessions.delete(k);
+        }
+    }
+    ignoredSessions.set(key, now);
+
+    const label = ctx.space.from === "group" ? "群" : "用户";
+    logger.debug(`已忽略未授权${label} ${ctx.space.id} 的消息（管理员可发送 #bind 加入白名单）`);
+}
+
 /**
  * 事件管道：接收事件，按中间件→处理器流水线处理
  *
@@ -35,8 +62,14 @@ const handlers = [
 export default async function runPipeline(ctxEvent) {
     //构建上下文
     const ctx = buildContext(ctxEvent);
-    //过滤：仅处理目标消息
-    if (!ctx.isTarget) return;
+    // 过滤：仅处理目标会话；未授权会话仅放行管理员的绑定引导指令
+    if (!ctx.isTarget) {
+        if (!(ctx.isAdmin && isBootstrapCommand(ctx.text))) {
+            logIgnoredSession(ctx);
+            return;
+        }
+        logger.info(`管理员在未授权会话 ${ctx.space.from}:${ctx.space.id} 执行绑定指令`);
+    }
 
     logger.debug(`处理消息: ${ctx.senderName}: ${ctx.text}`);
 
@@ -50,7 +83,7 @@ export default async function runPipeline(ctxEvent) {
         }
     }
 
-    //如果中间件已标记为处理完毕（如小程序分享），则跳过处理器
+    //如果中间件已标记为处理完毕
     if (ctx.handled) return;
 
     //运行处理器，第一个返回 true 的停止后续处理器

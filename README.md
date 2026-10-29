@@ -60,6 +60,8 @@ NapCat 反向 WebSocket 连接地址：`ws://127.0.0.1:8080/onebot/v11/ws`（端
 - **生产环境**：`DevMode` 设为 `false`，直接在 `config.js` 中填写。
 - **运行期持久化**：`config` 由 Proxy 包裹，运行期的顶层键赋值（`#ms` 切模型、面板 `set_config` 等）自动写入 `core/configOverride.json`，重启后叠加生效（`members` / `mcpServers` / `DevMode` 不落盘）。
 
+**启动自检**：进程启动时会检查关键配置是否仍是模板占位符（`owner`、会话白名单、`aiAPIKEY`、`LLM_API_URL`/`CHAT_MODEL` 等），把「致命 / 提示」两级问题汇总成中文清单打印到控制台，并存入运行状态供面板「运行状态」页顶部常驻展示——避免配置没填对却看着一切正常、实际收不到任何回复。
+
 主要配置项：
 
 | 配置项 | 说明 |
@@ -156,7 +158,7 @@ Skill 是包含 `SKILL.md` 描述文件的目录，可附带脚本供 AI 执行�
 | QQ | `OnebotAdapter` + `OnebotServer` | NapCat + OneBot v11，反向 WebSocket 接入 |
 | 微信 | `WechatBotAdapter` + `WechatBotServer` | 官方 iLink Bot 协议，扫码登录，凭证持久化重启复用 |
 
-微信侧为协议层约束的已知限制：好友首次发消息后需从日志复制其加密 `userId` 加入 `targetUserId` 白名单；拿不到昵称/头像；仅文本消息、仅私聊；只能回复主动发过消息的用户。
+微信侧为协议层约束的已知限制：好友首次发消息后需把其加密 `userId` 加入 `targetUserId` 白名单（管理员直接在该私聊中发送 `#bind` 即可，无需手抄日志）；拿不到昵称/头像；仅文本消息、仅私聊；只能回复主动发过消息的用户。
 
 ### Web 管理面板
 
@@ -216,7 +218,7 @@ bot/adapters/OnebotAdapter             bot/adapters/WechatBotAdapter
     └──────────────────┬────────────────────┘
                        ▼
         pipeline/context.ts 构建 Context → pipeline/index.js 管道编排
-    │  （仅 targetGroupId / targetUserId 命中的消息继续）
+    │  （仅 targetGroupId / targetUserId 命中的消息继续；管理员可在未授权会话发 #bind 完成首次绑定）
     │
     ├─ 中间件（全部执行，丰富上下文）
     │   ├─ image-recognizer  → 识别图片 → ctx.imageDescription
@@ -268,6 +270,7 @@ Agent 不持有任何聊天通道，所有输出以事件广播——换协议�
 | `#ms <模型>` | 管理员 | 切换聊天模型 |
 | `#pchat <bool>` / `#toolout <bool>` | 管理员 | 开关主动聊天 / 工具调用播报 |
 | `#do-yes <id>` / `#do-no <id>` / `#do-pending` | 管理员 | 确认 / 取消 / 列出待确认操作 |
+| `#bind` / `#unbind` / `#bindlist` | 管理员 | 把当前会话加入 / 移出白名单、查看白名单（`#bind` 在未授权会话中同样可用） |
 
 ---
 
@@ -307,7 +310,7 @@ core/
 │   └── recorder.js             # 三层记忆记录器（短期/缓存/概括）
 │
 ├── api/                        # Web 面板 API（独立 WS 服务端：鉴权/心跳/白名单/事件总线）
-├── services/                   # 适配器注册表 / NapCat HTTP / 复读队列 / 定时调度 / 苏醒触发
+├── services/                   # 适配器注册表 / NapCat HTTP / 复读队列 / 定时调度 / 苏醒触发 / 启动自检
 ├── stickers/                   # 表情包库（index.js 按标签检索 + manifest.json + images/）
 ├── types/                      # 跨模块共用类型（Context / CtxEvent / Space 等）
 ├── skills/                     # Skill 技能目录（AI 可读写，内置 skill-manager）
