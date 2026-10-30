@@ -11,7 +11,7 @@ export const definition: ToolDefinition = {
     type: "function",
     function: {
         name: "get_stickers",
-        description: "按标签检索表情包，返回表情包 id、画面描述和标签。想发表情包时先调用本工具拿到 id，再在 action 数组中添加 {\"cmd\":\"sticker\",\"content\":\"id\"} 发送",
+        description: "按标签检索表情包，返回表情包 id、画面描述和标签。想发表情包时先调用本工具拿到 id，再在 action 数组中添加 {\"cmd\":\"sticker\",\"content\":\"id\"} 发送。根据情境适当选择，不应滥用。",
         parameters: {
             type: "object",
             properties: {
