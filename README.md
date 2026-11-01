@@ -125,7 +125,7 @@ NapCat 反向 WebSocket 连接地址：`ws://127.0.0.1:8080/onebot/v11/ws`（端
 
 AI 运行在一个多轮工具调用循环中：接收消息 → 推理 → 调用工具（同轮多个调用并行执行）→ 观察结果 → 继续推理 → 输出回复，最多 30 轮（`toolChainMaxLength` 可配置）。单个工具失败不中断循环，错误原因回写为工具结果，交给模型自我修正。工具调用痕迹以 `system` 消息回填会话记忆，兼容只接受 system/user/assistant 的消息接口。
 
-循环中 AI 可通过 `manage_plan` 维护一份**会话任务计划**（总体目标 + 带状态的步骤清单），每轮自动回注上下文，长链条任务不丢目标，用户可用 `#plan` 查看。
+循环中 AI 可通过 `manage_plan` 维护一份**会话任务计划**（总体目标 + 带状态的步骤清单），每轮自动回注上下文，长链条任务不丢目标，用户可用 `#plan` 查看。耗时较长的任务里可以用 `report_progress` 播报一句“正在做什么”——播报走与正常回复相同的 `reply` 事件链，消息顺序与拟人节奏一致，不会打断待发回复。
 
 Agent 本身不持有任何聊天通道，所有输出以事件广播；同一会话同时只允许一个模型请求，避免并发回复串台。
 
@@ -156,6 +156,7 @@ AI 可自主判断并调用以下工具，所有文件操作都受**路径白名
 | `create_file` / `edit_file` / `delete_file` | 创建（禁止覆盖）/ 搜索替换编辑 / 删除文件 |
 | `list_mcp_tools` | 动态加载 MCP Server 的工具 |
 | `manage_plan` | 创建/更新当前会话的任务计划 |
+| `report_progress` | 长任务中向用户简短播报当前在做什么，避免长时间静默 |
 | `schedule` | 给自己设定时任务，到点自动苏醒 |
 | `get_stickers` | 按标签检索表情包并发送 |
 
@@ -385,7 +386,7 @@ CMD_MAP.set("关键词", async (ctx) => {
 
 ### 添加新工具
 
-在 `agent/tools.js` 的 `tools` 数组中添加定义，并在 `toolMap` 中注册处理函数，新工具会自动出现在 AI 的可用工具列表中。带文件路径参数的工具还须在 `pathToolWhitelist` 中登记 `{ dirKey, pathKey }`，门禁才会按执行对象目录自动放行或挂起。
+在 `agent/tools/` 下新建一个工具模块（导出 `definition` 供模型、`execute` 为实现），再到 `agent/tools.js` 的 `toolRegistry` 中登记，新工具会自动出现在 AI 的可用工具列表中。带文件路径参数的工具还须在 `pathToolWhitelist` 中登记 `{ dirKey, pathKey }`，门禁才会按执行对象目录自动放行或挂起。
 
 ### 添加 MCP Server
 

@@ -10,7 +10,7 @@ export const definition: ToolDefinition = {
     type: "function",
     function: {
         name: "manage_plan",
-        description: "创建或更新当前任务计划。每次提交总体目标与完整任务清单覆盖旧计划；空数组表示任务结束并清空计划",
+        description: "长任务时使用，创建或更新当前任务计划。每次提交总体目标与完整任务清单覆盖旧计划；空数组表示任务结束并清空计划",
         parameters: {
             type: "object",
             properties: {

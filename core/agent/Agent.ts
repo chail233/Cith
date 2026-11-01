@@ -69,6 +69,18 @@ export default class Agent extends EventEmitter {
         return this.plan ? renderPlan(this.plan) : null;
     }
 
+    /**
+     * 向用户播报一句进展说明
+     * @param text 播报内容
+     * @returns 是否真正发出；内容为空或与上次播报重复时返回 false
+     */
+    narrate(text: string): boolean {
+        const content = text.trim();
+        if (!content) return false;
+        this.deliver([{ cmd: "text", content }], 0);
+        return true;
+    }
+
     async run(ctx: Context): Promise<void> {
         if (!this.memory.tryBeginRequest()) {
             logger.info("会话已有模型请求进行中，跳过本次请求:", this.sessionId);
@@ -100,15 +112,10 @@ export default class Agent extends EventEmitter {
                     return;
                 }
                 tokenCount += result.totalTokens;
-                // 无工具调用 → 最终回复；工具链达到长度上限 → 强制收敛（与原循环轮数一致）
+                // 无工具调用 → 最终回复；工具链达到长度上限 → 强制收敛
                 if (!result.message.tool_calls || toolDepth > config.toolChainMaxLength) break;
                 toolDepth++;
 
-                const interim = parseReply(result.message.content);
-                if (interim.length > 0) {
-                    this.deliver(interim, tokenCount);
-                    tokenCount = 0;
-                }
                 // 同一轮多个工具调用并行执行；失败不抛断流程，错误原因回写为 tool 消息供模型自我修正
                 const toolResults = await Promise.all(
                     result.message.tool_calls.map(async (toolCall) => {

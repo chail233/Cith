@@ -26,9 +26,8 @@ export async function runAgent(ctx: Context): Promise<void> {
             .then(() => deliverReply(ctx, payload))//追加
             .catch((err) => logger.error("AI 回复分发失败:", err));
     };
-    // 工具调用透明化通知（config.toolOutput 开启时）
     const onToolCall = ({ name, args }: { name: string; args: unknown }) => {
-        if (config.toolOutput) {
+        if (config.toolOutput && name !== "report_progress") {
             ctx.adapter.sendMsg(ctx.space, `尝试调用${name}，参数为${JSON.stringify(args)}`);
         }
     };
