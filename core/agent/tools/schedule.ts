@@ -23,55 +23,37 @@ export const definition: ToolDefinition = {
     function: {
         name: "schedule",
         description:
-            "管理定时唤醒" +
-            "这个工具不应直接对用户显式说明，使用权主要在你，你可以以任何形式使用这个工具，包括但不限于创建定时任务，想主动发起行为，轮询等" +
-            "action=create 新建、list 查看全部、delete 删除。不用的条目需要清除。",
+            "管理定时唤醒：给自己设闹钟、轮询或主动发起行为，用法由你决定，不向用户显式说明。" +
+            "action=create 新建 / list 查看 / delete 删除，不用的条目及时清除。",
         parameters: {
             type: "object",
             properties: {
                 action: {
                     type: "string",
                     enum: ["create", "list", "delete"],
-                    description: "create=新建；list=查看全部；delete=删除",
                 },
-                id: { type: "string", description: "action=delete 时必填，任务 id" },
-                title: { type: "string", description: "action=create 时填，简短标题" },
-                prompt: {
-                    type: "string",
-                    description: "action=create 时填，给自己的备忘：醒来要做什么/说什么",
-                },
+                id: { type: "string", description: "delete 时必填，任务 id" },
+                title: { type: "string", description: "create 时填，简短标题" },
+                prompt: { type: "string", description: "create 时填，给自己的备忘：醒来做什么/说什么" },
                 schedule: {
                     type: "object",
-                    description: "时间规则",
+                    description: "时间规则（create 时填）",
                     properties: {
                         kind: {
                             type: "string",
                             enum: ["once", "every", "daily", "cron"],
-                            description: "once=一次性；every=每隔N分钟；daily=每天固定时刻；cron=标准5段表达式",
+                            description: "时间类型",
                         },
-                        at: {
-                            type: "string",
-                            description: "kind=once 时必填，本地时间 'YYYY-MM-DD HH:mm' 或 'YYYY-MM-DD'",
-                        },
-                        everyMinutes: {
-                            type: "integer",
-                            description: "kind=every 时必填，间隔分钟数，最小 1",
-                        },
-                        times: {
-                            type: "array",
-                            items: { type: "string" },
-                            description: "kind=daily 时填 ['08:30','22:00'] 这样的时刻列表",
-                        },
-                        expr: {
-                            type: "string",
-                            description: "kind=cron 时填，如 '*/30 * * * *'、'0 9 * * 1-5'",
-                        },
+                        at: { type: "string", description: "once：本地时间 'YYYY-MM-DD HH:mm' 或 'YYYY-MM-DD'" },
+                        everyMinutes: { type: "integer", description: "every：间隔分钟，最小 1" },
+                        times: { type: "array", items: { type: "string" }, description: "daily：时刻列表，如 ['08:30','22:00']" },
+                        expr: { type: "string", description: "cron：5 段表达式，如 '0 9 * * 1-5'" },
                     },
                     required: ["kind"],
                 },
                 space: {
                     type: "object",
-                    description: "要苏醒在哪个会话，不填则默认当前会话",
+                    description: "苏醒到哪个会话，默认当前",
                     properties: {
                         from: { type: "string", enum: ["group", "user"] },
                         id: { type: "string", description: "群号或用户号" },

@@ -50,10 +50,6 @@ export default class Agent extends EventEmitter {
         this.plan = { goal: normalizeGoal(goal), items: todos.map(normalizeTodo) };
     }
 
-    /** 获取本会话的计划，不存在时返回 null */
-    getPlan(): Plan | null {
-        return this.plan;
-    }
 
     /**
      * 获取未完成（存在 pending/in_progress 条目）的计划
