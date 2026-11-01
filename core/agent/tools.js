@@ -2,7 +2,6 @@ import config from "../config.js";
 import { resolveSrcPath, checkPathWhitelist } from "../utils/file-security.js";
 import { mcpClient } from "./mcp-manager.js";
 import { hold } from "./tool-approval.js";
-import { takeMcpTools } from "./tools/list-mcp-tools.ts";
 
 import getMemoryTool from "./tools/get-memory.ts";
 import readFileTool from "./tools/read-file.ts";
@@ -11,7 +10,7 @@ import createFileTool from "./tools/create-file.ts";
 import deleteFileTool from "./tools/delete-file.ts";
 import listFilesTool from "./tools/list-files.ts";
 import editFileTool from "./tools/edit-file.ts";
-import listMcpToolsTool from "./tools/list-mcp-tools.ts";
+import manageMcpTool from "./tools/manage-mcp.ts";
 import getStickersTool from "./tools/get-stickers.ts";
 import managePlanTool from "./tools/manage-plan.ts";
 import scheduleTool from "./tools/schedule.ts";
@@ -28,7 +27,7 @@ const toolRegistry = [
     deleteFileTool,
     listFilesTool,
     editFileTool,
-    listMcpToolsTool,
+    manageMcpTool,
     getStickersTool,
     managePlanTool,
     scheduleTool,
@@ -37,6 +36,7 @@ const toolRegistry = [
 
 /**
  * 模型可以调用的工具定义列表
+ * @type {import("./types.ts").ToolDefinition[]}
  */
 const tools = toolRegistry.map((t) => t.definition);
 
@@ -44,8 +44,12 @@ const toolMap = new Map(
     toolRegistry.map((t) => [t.definition.function.name, t.execute]),
 );
 
+/**
+ * 模型可调用的工具定义：本地工具 + 已激活 MCP 服务器的工具
+ * @returns {import("./types.ts").ToolDefinition[]}
+ */
 export function getAllTools() {
-    return [...tools, ...takeMcpTools()];
+    return [...tools, ...mcpClient.getActiveToolDefinitions()];
 }
 
 /**

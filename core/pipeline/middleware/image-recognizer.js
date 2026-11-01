@@ -11,11 +11,11 @@ const enable = true;
 /**
  * 图片识别中间件
  * 检测消息中的图片，自动识别内容并写入 context.imageDescription
- * @param {object} ctx
+ * @param {import("../../types/index.ts").Context} ctx
  */
 export default async function imageRecognizer(ctx) {
     if(!enable) return;
-    const segments = ctx.seg || [];
+    const segments = /** @type {Array<{type: string, data: {file: string}}>} */ (ctx.seg || []);
     let description = "";
 
     for (const seg of segments) {
@@ -25,7 +25,8 @@ export default async function imageRecognizer(ctx) {
                 if (!fileData?.data?.file) continue;
 
                 const type = getImageType(fileData.data.file);
-                if (!type) continue;
+                // gif 不在视觉模型支持的格式内，跳过（原先会传给识别函数后返回 null）
+                if (!type || type === "gif") continue;
 
                 const buf = await fs.readFile(fileData.data.file);
                 const base64 = buf.toString("base64");

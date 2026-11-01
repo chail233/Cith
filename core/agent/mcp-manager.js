@@ -116,6 +116,7 @@ export class McpClientManager{
         this.toolServerMap = new Map();
         this.legacyTools = new Map();
         this._toolCache = new Map();
+        this.activeServers = new Set();
         this.initialized = false;
     }
 
@@ -205,17 +206,60 @@ export class McpClientManager{
 
     async getToolDefinitionOfServer(serverName){
         if(!this.initialized) return [];
-        const definitions = [];
-        if(!this.connections.has(serverName)) return definitions;
         const connection = this.connections.get(serverName);
-        if(connection){
-            const tools = await connection.listTools();
-            this.registerTools(serverName, tools);
-            for(const tool of tools){
-                definitions.push(this.definition(toolKey(serverName, tool.name), tool));
-            }
+        if(!connection) return [];
+        const tools = await connection.listTools();
+        this.registerTools(serverName, tools);
+        return this.toolDefinitionsOf(serverName);
+    }
+
+    /** 某服务器的工具定义 */
+    toolDefinitionsOf(serverName){
+        const definitions = [];
+        for(const [key, route] of this.toolServerMap){
+            if(route.serverName !== serverName) continue;
+            const tool = this._toolCache.get(key);
+            if(tool) definitions.push(this.definition(key, tool));
         }
         return definitions;
+    }
+
+    /** 已激活服务器的工具定义：按激活顺序拼接，供 getAllTools 每轮现取 */
+    getActiveToolDefinitions(){
+        const definitions = [];
+        for(const serverName of this.activeServers){
+            if(!this.connections.has(serverName)) continue;
+            definitions.push(...this.toolDefinitionsOf(serverName));
+        }
+        return definitions;
+    }
+
+    isActive(serverName){
+        return this.activeServers.has(serverName);
+    }
+
+    /**
+     * 激活服务器：先刷新其工具定义，再纳入工具列表
+     * @returns {Promise<{ok: true, tools: import("./types.ts").ToolDefinition[]} | {ok: false, reason: string}>}
+     */
+    async activate(serverName){
+        if(!this.initialized) return { ok: false, reason: "MCP 客户端尚未初始化" };
+        if(!this.connections.has(serverName)) return { ok: false, reason: "该服务器未连接" };
+        let tools;
+        try {
+            tools = await this.getToolDefinitionOfServer(serverName);
+        }
+        catch (err){
+            this.logger.error(`激活MCP服务器失败： ${serverName}`, err);
+            return { ok: false, reason: err instanceof Error ? err.message : String(err) };
+        }
+        this.activeServers.add(serverName);
+        return { ok: true, tools };
+    }
+
+    /** 取消激活；返回是否确实移除了一个已激活项 */
+    deactivate(serverName){
+        return this.activeServers.delete(serverName);
     }
 
     async callTool(toolName, args){
@@ -247,9 +291,11 @@ export class McpClientManager{
         this.toolServerMap.clear();
         this.legacyTools.clear();
         this._toolCache?.clear();
+        this.activeServers.clear();
         this.initialized = false;
     }
 
+    /** @returns {{name: string, description: string}[]} */
     listServers(){
         return (this.config.mcpServers ?? []).map((server) => {
             return{

@@ -26,6 +26,15 @@ export function renderPlan(plan: Plan): string {
 
 type WakeTrigger = { type: string; id?: string; title?: string; prompt?: string };
 
+/** 渲染 MCP 服务器清单：名称 + 描述 + 激活状态 */
+function renderMcpServers(): string {
+    const servers = mcpClient.listServers();
+    if (servers.length === 0) return "无";
+    return servers
+        .map((s) => `${s.name}${s.description ? `（${s.description}）` : ""}${mcpClient.isActive(s.name) ? "[已激活]" : ""}`)
+        .join("、");
+}
+
 /** 渲染「定时苏醒」触发说明：让模型知道自己是被闹钟叫醒的，而不是收到新消息 */
 function renderTrigger(trigger: WakeTrigger | null | undefined): string | null {
     if (!trigger || trigger.type !== "schedule") return null;
@@ -61,7 +70,7 @@ export function buildMessages(agent: Agent) {
 
     messages.push(
         { role: "system", content: `技能列表：${JSON.stringify(skills)}` },
-        { role: "system", content: `mcp列表：${JSON.stringify(mcpClient.listServers())}` },
+        { role: "system", content: `mcp列表：${renderMcpServers()}` },
         { role: "system", content: `表情包tags：${JSON.stringify(listTags())}` },
     );
 

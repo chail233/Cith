@@ -32,7 +32,8 @@ async function callAPI(action, params) {
         return resp.data;
     }
     catch (err) {
-        logger.error(`NapCat HTTP API 调用失败 [${action}]:`, err.response?.data || err.message);
+        const e = /** @type {{response?: {data?: unknown}, message?: string}} */ (err);
+        logger.error(`NapCat HTTP API 调用失败 [${action}]:`, e.response?.data || e.message);
         return null;
     }
 }
@@ -40,7 +41,7 @@ async function callAPI(action, params) {
 /**
  * 获取图片信息
  * @param {string} fileId NapCat 的图片 file 标识
- * @returns {Promise<object|null>} { file, url, ... } 或 null
+ * @returns {Promise<{data?: {file?: string}}|null>} { data: { file, url, ... } } 或 null
  */
 export async function getImage(fileId) {
     return callAPI("get_image", { file: fileId });
@@ -49,7 +50,7 @@ export async function getImage(fileId) {
 /**
  * 通过 HTTP 发送群消息（备用方式，通常走 WebSocket 更高效）
  * @param {string|number} groupId
- * @param {string|object|Array} message
+ * @param {string|object|Array<any>} message
  * @returns {Promise<object|null>}
  */
 export async function sendGroupMsg(groupId, message) {

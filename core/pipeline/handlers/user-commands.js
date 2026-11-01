@@ -225,8 +225,10 @@ const cmds = [
         description: "列出MCP配置",
         params: [],
         handler: async (args, ctx) => {
-            const result = [...mcpClient.connections.keys()];
-            return `MCP列表：\n${result.join("\n")}`;
+            const names = [...mcpClient.connections.keys()];
+            if (names.length === 0) return "未连接任何 MCP 服务器";
+            const lines = names.map((name) => `${name} ${mcpClient.isActive(name) ? "[已激活]" : "[未激活]"}`);
+            return `MCP列表：\n${lines.join("\n")}`;
         }
     },
     {

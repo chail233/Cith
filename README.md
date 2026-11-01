@@ -156,7 +156,7 @@ AI 可自主判断并调用以下工具，所有文件操作都受**路径白名
 | `read_file` / `list_files` | 读取白名单目录下的文件 / 列出目录内容 |
 | `run_JS` | 在隔离子进程中执行 JS 脚本 |
 | `create_file` / `edit_file` / `delete_file` | 创建（禁止覆盖）/ 搜索替换编辑 / 删除文件 |
-| `list_mcp_tools` | 动态加载 MCP Server 的工具 |
+| `manage_mcp` | 维护 MCP 激活列表：`activate` 让该服务器工具进入工具列表，`deactivate` 用完移出 |
 | `manage_plan` | 创建/更新当前会话的任务计划 |
 | `report_progress` | 长任务中向用户简短播报当前在做什么，避免长时间静默 |
 | `schedule` | 给自己设定时任务，到点自动苏醒 |
@@ -175,7 +175,7 @@ Skill 是包含 `SKILL.md` 描述文件的目录，可附带脚本供 AI 执行�
 
 ### MCP 工具扩展
 
-支持连接外部 MCP Server（**stdio** 本地子进程 / **old_sse** 旧版 SSE / **sse** 新版 Streamable HTTP），为 AI 提供几乎无限的工具扩展。MCP 工具不一次性塞进上下文：AI 先调用 `list_mcp_tools` 按需加载某个 Server 的工具定义，再以返回的 `mcp_<服务器名>_<工具名>` 调用。旧的 `mcp_<原工具名>` 仅在工具名唯一时可用。`mcp/github-server` 是一个现成的 GitHub MCP Server 示例。
+支持连接外部 MCP Server（**stdio** 本地子进程 / **old_sse** 旧版 SSE / **sse** 新版 Streamable HTTP），为 AI 提供几乎无限的工具扩展。MCP 工具不一次性塞进上下文，也不是“一次性加载”：服务器清单（名称/描述/激活状态）固定注入每轮上下文，AI 用 `manage_mcp` 维护一份**激活列表**（`activate` / `deactivate`），处于激活状态的 Server 的工具每轮自动出现在工具列表中，以 `mcp_<服务器名>_<工具名>` 调用，直到被取消激活——激活状态不变时工具数组保持完全一致，不会反复打断服务商前缀缓存。旧的 `mcp_<原工具名>` 仅在工具名唯一时可用。`mcp/github-server` 是一个现成的 GitHub MCP Server 示例。
 
 ### 特色行为
 
