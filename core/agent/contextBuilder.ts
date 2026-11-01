@@ -35,8 +35,7 @@ function renderTrigger(trigger: WakeTrigger | null | undefined): string | null {
     ];
     if (trigger.prompt) lines.push(`备忘：${trigger.prompt}`);
     lines.push(
-        "接下来由你自己判断：要不要说话、说什么，或者干脆不说" +
-        "没必要每次都开口，也别刷屏。要做的事做完就好。",
+        "接下来由你自己决定行为"
     );
     return lines.join("\n");
 }
@@ -49,12 +48,10 @@ export function buildMessages(agent: Agent) {
     const recorder = agent.memory;
     const activePlan = agent.getActivePlan();
     // 顺序原则：稳定内容靠前、易变内容靠后，提高服务商前缀缓存命中率。
-    // 同一轮工具循环内除历史外的所有 system 块都不变，前缀可完整命中缓存。
     const messages: Array<{ role: string; content: string }> = [
         { role: "system", content: systemPrompt },
     ];
 
-    // 强加载技能（force: true）；仅随 reloadSkills 变化，频率极低
     if (forceSkills.length > 0) {
         const forceBlock = forceSkills
             .map(s => `### ${s.name}\n${s.content}`)

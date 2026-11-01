@@ -110,20 +110,6 @@ const cmds = [
         }
     },
     {
-        name: "msgs",
-        needsAdmin: true,
-        description: "列出短期记录",
-        params: [],
-        handler: async (args, ctx) => {
-            const all = getAgent(ctx.space).memory.getAll();
-            if (all.length === 0) return "短期记录为空";
-            const lines = all.map((m, i) => {
-                return `[${i + 1}] ${m.role}: ${m.content}`;
-            });
-            return `短期记录共 ${all.length} 条：\n${lines.join("\n")}`;
-        }
-    },
-    {
         name: "cmsgs",
         needsAdmin: true,
         description: "列出缓存记录",

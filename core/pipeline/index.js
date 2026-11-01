@@ -8,7 +8,6 @@ import miniProgram from "./middleware/mini-program.js";
 import keywordCommands from "./handlers/keyword-commands.js";
 import userCommands, { isBootstrapCommand } from "./handlers/user-commands.js";
 import aiChat from "./handlers/ai-chat.js";
-import repeater from "./handlers/repeater.js";
 import proactiveChat from "./handlers/proactive-chat.js";
 
 /** 中间件列表 */
@@ -23,7 +22,6 @@ const handlers = [
     keywordCommands,
     userCommands,
     aiChat,
-    repeater,
     proactiveChat,
 ];
 

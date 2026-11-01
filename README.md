@@ -178,7 +178,6 @@ Skill 是包含 `SKILL.md` 描述文件的目录，可附带脚本供 AI 执行�
 
 - **视觉能力**：群内图片自动调用视觉模型识别内容并注入上下文，让 AI 能"看到"图片（独立 `visionModel` / `visionApiKey` 配置）。
 - **主动聊天**：群内连续多条消息没有 @机器人时（达 `proactiveChatLimit`），AI 带完整上下文被唤醒，自主判断是否参与对话。`#pchat` 可开关。
-- **复读**：检测到连续重复消息时跟随复读一次，并把该文本拉黑防止无限复读。
 - **定时任务**：AI 可通过 `schedule` 工具"给自己设闹钟"（一次性 / 固定间隔 / 每日定点 / cron），到点触发完整 Agent 苏醒流程。任务持久化到 `data/schedule.json`，重启不丢失，停机期间错过的触发按追赶策略处理。
 - **表情包**：内置表情包库（`manifest.json` 描述画面与标签），AI 按标签检索表情让回复更生动。
 
@@ -259,7 +258,6 @@ bot/adapters/OnebotAdapter             bot/adapters/WechatBotAdapter
     └─ 处理器（首个返回 true 即停止）
         ├─ user-commands     → # 前缀命令（#help、#plan 等）
         ├─ ai-chat           → @机器人（或私聊）时触发 Agent 循环
-        ├─ repeater          → 复读检测
         └─ proactive-chat    → 记录上下文，达阈值时主动聊天
 ```
 
@@ -322,7 +320,7 @@ core/
 │   ├── context.ts              # 上下文构建与目标过滤
 │   ├── agent-runner.ts         # Agent 事件 → 适配器分发（节流发送）
 │   ├── middleware/             # image-recognizer / at-detector / mini-program
-│   └── handlers/               # user-commands / ai-chat / repeater / proactive-chat
+│   └── handlers/               # user-commands / ai-chat / proactive-chat
 │
 ├── agent/                      # Agent 核心（AI 相关代码全部内聚于此）
 │   ├── Agent.ts                # 循环主体 + 会话任务计划，只产出事件不碰通道
@@ -341,7 +339,7 @@ core/
 │   └── recorder.js             # 三层记忆记录器（短期/缓存/概括）
 │
 ├── api/                        # Web 面板 API（独立 WS 服务端：鉴权/心跳/白名单/事件总线）
-├── services/                   # 适配器注册表 / NapCat HTTP / 复读队列 / 定时调度 / 苏醒触发 / 启动自检 / 记忆存储
+├── services/                   # 适配器注册表 / NapCat HTTP / 定时调度 / 苏醒触发 / 启动自检 / 记忆存储
 ├── stickers/                   # 表情包库（index.js 按标签检索 + manifest.json + images/）
 ├── types/                      # 跨模块共用类型（Context / CtxEvent / Space 等）
 ├── skills/                     # Skill 技能目录（AI 可读写，内置 skill-manager）

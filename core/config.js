@@ -40,7 +40,6 @@ const LEGACY_KEY_MAP = {
     CHAT_MODEL: "chatModel",
     VISION_MODEL: "visionModel",
     LLM_TIMEOUT: "llmTimeout",
-    REPEATER_QUEUE_SIZE: "repeaterQueueSize",
     ENABLE_LONG_TERM_MEMORY: "enableLongTermMemory",
     MEMORY_STORE_PATH: "memoryStorePath",
     MEMORY_OLLAMA_URL: "memoryOllamaUrl",
@@ -135,9 +134,6 @@ const baseConfig = {
 
     /** 主动聊天开关 */
     enableProactiveChat: true,
-
-    /** 复读检测队列长度 */
-    repeaterQueueSize: 10,
 
     /** 是否在播报工具调用 */
     toolOutput: false,

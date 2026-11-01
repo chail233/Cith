@@ -25,7 +25,6 @@ const WRITABLE_KEYS = new Set<string>([
     "chatModel",
     "visionModel",
     "llmTimeout",
-    "repeaterQueueSize",
     "memorySearchTopK",
     "memoryMinSimilarity",
     "memoryHalfLifeDays",
