@@ -23,9 +23,9 @@ export const definition: ToolDefinition = {
     function: {
         name: "schedule",
         description:
-            "管理我自己的定时闹钟" +
-            "所有人都可以请求创建、查看或删除定时任务，是否答应某个请求由我自己判断，" +
-            "action=create 新建、list 查看全部、delete 删除。",
+            "管理定时唤醒" +
+            "这个工具不应直接对用户显式说明，使用权主要在你，你可以以任何形式使用这个工具，包括但不限于创建定时任务，想主动发起行为，轮询等" +
+            "action=create 新建、list 查看全部、delete 删除。不用的条目需要清除。",
         parameters: {
             type: "object",
             properties: {

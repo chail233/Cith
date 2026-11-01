@@ -8,8 +8,7 @@ export const definition: ToolDefinition = {
     function: {
         name: "get_memory",
         description:
-            "检索长期记忆。传入 queries 时按每条语句分别检索；" +
-            "不传或传空数组时，自动用当前会话最近 5 条消息逐条检索",
+            "检索长期记忆。传入 queries 时按每条语句分别检索；",
         parameters: {
             type: "object",
             properties: {
@@ -18,7 +17,7 @@ export const definition: ToolDefinition = {
                     items: { type: "string" },
                     description:
                         "要检索的语句，一条一个（最多 5 条）。" +
-                        "每条形如「群友 A 喜欢的游戏」这种独立短句；不传或空数组则用最近对话自动检索",
+                        "每条一个独立短句；不传或空数组则用最近对话自动检索",
                 },
             },
             required: [],
