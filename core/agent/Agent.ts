@@ -102,6 +102,8 @@ export default class Agent extends EventEmitter {
             let tokenCount = 0;
             let toolDepth = 0;
             while (true) {
+                // 请求前守体积：工具痕迹累积超预算时折叠最旧的部分，避免长工具链把上下文撑爆
+                this.memory.compactIfNeeded(config.contextBudgetTokens);
                 result = await request();
                 if (!result || typeof result === "string") {
                     this.deliver([{ cmd: "text", content: typeof result === "string" ? "ERROR:" + result : "ERROR:AI 服务无响应" }], 0);

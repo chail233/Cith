@@ -22,6 +22,7 @@ export interface AgentInfo {
     id: string;
     short: number;
     cache: number;
+    chars: number;
     hasSummary: boolean;
     idleMin: number;
 }
@@ -60,6 +61,7 @@ export function listAgents(): AgentInfo[] {
         id,
         short: e.agent.memory.length,
         cache: e.agent.memory.getCache().length,
+        chars: e.agent.memory.chars,
         hasSummary: !!e.agent.memory.getMidSummary(),
         idleMin: Math.floor((now - e.lastActive) / 60000),
     }));

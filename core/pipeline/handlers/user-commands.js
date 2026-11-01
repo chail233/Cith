@@ -205,7 +205,7 @@ const cmds = [
             const list = listAgents();
             if (list.length === 0) return "当前没有活跃会话";
             const lines = list.map(s =>
-                `${s.id}：短期 ${s.short} 条，缓存 ${s.cache} 条，${s.hasSummary ? "有概要" : "无概要"}，空闲 ${s.idleMin} 分钟`
+                `${s.id}：短期 ${s.short} 条，缓存 ${s.cache} 条，约 ${s.chars} 字，${s.hasSummary ? "有概要" : "无概要"}，空闲 ${s.idleMin} 分钟`
             );
             return `活跃会话（${list.length} 个）：\n${lines.join("\n")}`;
         }

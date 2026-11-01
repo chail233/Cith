@@ -1,4 +1,5 @@
 import config from "../config.js";
+import logger from "../utils/logger.js";
 import { callLLM } from "./client.ts";
 import { addFacts, makeMemoryUserId } from "./long-term-memory.js";
 /**
@@ -9,7 +10,21 @@ import { addFacts, makeMemoryUserId } from "./long-term-memory.js";
  * - 中期缓存（_cache）：被挤出短期的消息暂存区
  * - 中期概括（_midSummary）：缓存满时由 LLM 提取成事实清单，一行一条
  * - 事实清单（_pendingFacts）：与概括同时产出，旧清单被覆盖时逐条写入长期记忆
+ *
  */
+
+/** 预算换算：每 token 约多少字符 */
+const CHARS_PER_TOKEN = 2.5;
+
+/** 折叠标记：带此前缀的消息视为已折叠，不再重复截断 */
+const FOLDED_TAG = "[已折叠] ";
+
+/** 折叠后保留的头部 / 尾部字符数 */
+const FOLD_HEAD = 200;
+const FOLD_TAIL = 100;
+
+/** 原文短于该长度时折叠收益太低，跳过 */
+const FOLD_MIN_CHARS = 800;
 
 /**
  * 把 LLM 返回的事实列表拆成条目
@@ -29,6 +44,19 @@ function parseFacts(text) {
         if (!facts.includes(line)) facts.push(line);
     }
     return facts.slice(0, 30);
+}
+
+/**
+ * 把一条过长的消息截断成「首 + 尾」的折叠形态
+ * @param {string} text 原始文本
+ * @returns {string} 折叠后文本；无需折叠或已折叠时原样返回
+ */
+function foldText(text) {
+    if (typeof text !== "string" || text.length < FOLD_MIN_CHARS) return text;
+    if (text.startsWith(FOLDED_TAG)) return text;
+    const head = text.slice(0, FOLD_HEAD);
+    const tail = text.slice(-FOLD_TAIL);
+    return `${FOLDED_TAG}${head}…[省略 ${text.length - FOLD_HEAD - FOLD_TAIL} 字]…${tail}`;
 }
 
 export class ChatRecorder {
@@ -117,6 +145,48 @@ export class ChatRecorder {
         return this._cache.map((msg) => {
             return {role: msg.role, content: JSON.stringify(msg.content)};
         });
+    }
+
+    /** 短期消息序列化后的字符总量 */
+    _charLength() {
+        let n = 0;
+        for (const msg of this._messages) n += JSON.stringify(msg.content).length;
+        return n;
+    }
+
+    /** 短期消息的字符总量 */
+    get chars() {
+        return this._charLength();
+    }
+
+    /**
+     * 上下文体积守护：超出预算时，从最旧的开始把 system 消息（工具调用痕迹）折叠成首尾摘要
+     * 折叠是纯内存操作、不调模型；折到预算一半以下即停
+     * @param {number} tokenBudget 短期消息的 token 预算
+     * @returns {number} 本次折叠的消息条数
+     */
+    compactIfNeeded(tokenBudget) {
+        const budget = tokenBudget * CHARS_PER_TOKEN;
+        if (!Number.isFinite(budget) || budget <= 0) return 0;
+
+        let total = this._charLength();
+        if (total <= budget) return 0;
+
+        const target = budget / 2;
+        let folded = 0;
+        for (const msg of this._messages) {
+            if (total <= target) break;
+            if (msg.role !== "system") continue;
+            const text = msg.content?.text;
+            const next = foldText(text);
+            if (next === text) continue;
+            const before = JSON.stringify(msg.content).length;
+            msg.content = { ...msg.content, text: next };
+            total -= before - JSON.stringify(msg.content).length;
+            folded++;
+        }
+        if (folded > 0) logger.info(`上下文折叠：${folded} 条工具痕迹，剩余约 ${total} 字`);
+        return folded;
     }
 
     /** 获取中期概括文本 */

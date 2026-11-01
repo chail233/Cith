@@ -31,6 +31,7 @@ const WRITABLE_KEYS = new Set<string>([
     "memoryEmbedProvider",
     "memoryEmbedBaseUrl",
     "toolChainMaxLength",
+    "contextBudgetTokens",
     "toolOutput",
 
     "readFileDirs",

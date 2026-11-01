@@ -141,6 +141,9 @@ const baseConfig = {
     /** Agent 工具链最大轮数 */
     toolChainMaxLength: 30,
 
+    /** 短期消息体积预算（token）：超预算时折叠最旧的工具调用痕迹，降至一半以下 */
+    contextBudgetTokens: 60000,
+
     // ========== 长期记忆（rememori） ==========
 
     /** 长期记忆开关 */
