@@ -11,7 +11,7 @@
  * .js 文件跳过：它们已由 tsc 编译输出，避免源码覆盖编译产物。
  */
 
-import { cpSync, existsSync } from "node:fs";
+import { copyFileSync, cpSync, existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -22,6 +22,8 @@ const distDir = resolve(root, "dist");
 
 /** 需要从 core 同步到 dist 的目录（相对 core） */
 const COPY_DIRS = ["skills", "workspace", "stickers"];
+
+const USER_CONFIG = "config.json";
 
 /** 拷贝时跳过的文件类型（已由 tsc 编译输出） */
 const SKIP_EXT = new Set([".js", ".ts"]);
@@ -50,3 +52,13 @@ for (const dir of COPY_DIRS) {
 }
 
 console.log(`[copy-assets] 完成，共处理 ${copied} 个目录`);
+
+const configFrom = resolve(srcDir, USER_CONFIG);
+const configTo = resolve(distDir, USER_CONFIG);
+if (!existsSync(configFrom)) {
+    console.log(`[copy-assets] 跳过 ${USER_CONFIG}（core 下不存在）`);
+}
+else {
+    copyFileSync(configFrom, configTo);
+    console.log(`[copy-assets] 已覆盖 dist/${USER_CONFIG}（以 core/${USER_CONFIG} 为准）`);
+}

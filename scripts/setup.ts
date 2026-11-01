@@ -15,7 +15,7 @@ const execFileAsync = promisify(execFile);
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const CONFIG_JS = join(ROOT, "core", "config.js");
-const CONFIG_DEV = join(ROOT, "core", "configDev.js");
+const CONFIG_JSON = join(ROOT, "core", "config.json");
 const WEB_ENV = join(ROOT, "web", ".env");
 const WEB_DIST = join(ROOT, "web", "dist", "index.html");
 
@@ -203,56 +203,50 @@ export function parseIdList(text: string): string[] {
     return [...new Set(parts)];
 }
 
-/** 生成 core/configDev.js 内容 */
-export function buildConfigDevSource(a: SetupAnswers, now: Date = new Date()): string {
-    const lines: string[] = [];
-    const push = (key: string, value: unknown): void => { lines.push(`    ${key}: ${JSON.stringify(value)},`); };
+/** 生成 core/config.json 内容（纯 JSON；以 _ 开头的键仅作说明，加载时忽略） */
+export function buildConfigJson(a: SetupAnswers, now: Date = new Date()): string {
+    const cfg: Record<string, unknown> = {
+        owner: a.owner,
+        selfId: a.selfId,
+    };
 
-    push("devMode", true);
-    push("owner", a.owner);
-    push("selfId", a.selfId);
-    if (a.targetGroupId.length > 0) push("targetGroupId", a.targetGroupId);
-    if (a.targetUserId.length > 0) push("targetUserId", a.targetUserId);
-    push("llmApiUrl", a.llmApiUrl);
-    push("aiApiKey", a.aiApiKey);
-    push("chatModel", a.chatModel);
-    push("llmVisionApiUrl", a.llmVisionApiUrl);
-    push("visionApiKey", a.visionApiKey);
-    push("visionModel", a.visionModel);
+    if (a.targetGroupId.length > 0) cfg.targetGroupId = a.targetGroupId;
+    if (a.targetUserId.length > 0) cfg.targetUserId = a.targetUserId;
+
+    Object.assign(cfg, {
+        llmApiUrl: a.llmApiUrl,
+        aiApiKey: a.aiApiKey,
+        chatModel: a.chatModel,
+        llmVisionApiUrl: a.llmVisionApiUrl,
+        visionApiKey: a.visionApiKey,
+        visionModel: a.visionModel,
+    });
+
     if (a.enableLongTermMemory) {
-        push("enableLongTermMemory", true);
-        push("memoryEmbedProvider", a.memoryEmbedProvider);
+        cfg.enableLongTermMemory = true;
+        cfg.memoryEmbedProvider = a.memoryEmbedProvider;
         if (a.memoryEmbedProvider === "openai") {
-            push("memoryEmbedBaseUrl", a.memoryEmbedBaseUrl);
-            push("memoryEmbedApiKey", a.memoryEmbedApiKey);
+            cfg.memoryEmbedBaseUrl = a.memoryEmbedBaseUrl;
+            cfg.memoryEmbedApiKey = a.memoryEmbedApiKey;
         }
         else {
-            push("memoryOllamaUrl", a.memoryOllamaUrl);
+            cfg.memoryOllamaUrl = a.memoryOllamaUrl;
         }
-        push("memoryEmbedModel", a.memoryEmbedModel);
+        cfg.memoryEmbedModel = a.memoryEmbedModel;
     }
-    push("token", a.napcatToken);
-    if (a.wsPort !== DEFAULT_WS_PORT) push("wsPort", a.wsPort);
-    if (a.napcatHttpHost !== DEFAULT_NAPCAT_HTTP) push("napcatHttpHost", a.napcatHttpHost);
-    // web 为对象整体覆盖：四个字段必须写全，否则 path / logBufferSize 会丢
-    lines.push("    web: {");
-    lines.push(`        port: ${a.webPort},`);
-    lines.push(`        path: "/api/v1/ws",`);
-    lines.push(`        token: ${JSON.stringify(a.webToken)},`);
-    lines.push(`        logBufferSize: 1000,`);
-    lines.push("    },");
 
-    return [
-        "/**",
-        " * Cith 开发环境配置（由 scripts/setup.ts 生成）",
-        ` * 生成时间：${now.toISOString()}`,
-        " * 已被 .gitignore 忽略；只写需要覆盖 core/config.js 默认值的字段",
-        " */",
-        "export default {",
-        ...lines,
-        "};",
-        "",
-    ].join("\n");
+    cfg.token = a.napcatToken;
+    if (a.wsPort !== DEFAULT_WS_PORT) cfg.wsPort = a.wsPort;
+    if (a.napcatHttpHost !== DEFAULT_NAPCAT_HTTP) cfg.napcatHttpHost = a.napcatHttpHost;
+
+    // web 是对象浅合并，只写需要覆盖的字段（path / logBufferSize 沿用 config.js）
+    cfg.web = { port: a.webPort, token: a.webToken };
+
+    const head = {
+        _comment: "Cith 用户配置：只写需要覆盖 core/config.js 默认值的键（本文件已 gitignore）",
+        _generatedAt: now.toISOString(),
+    };
+    return `${JSON.stringify({ ...head, ...cfg }, null, 2)}\n`;
 }
 
 /** .env 值：含空白或特殊字符时加双引号，避免被解析截断 */
@@ -367,12 +361,12 @@ ${bold("Cith 一键初始化")}
 选项：
   --check         只读检查：环境、依赖、配置能否加载、端口、.env 是否与 Bot 对齐
   --no-start      只写配置并做校验，不启动进程
-  --force         已存在 configDev.js / .env 时备份后重新生成
+  --force         已存在 config.json / .env 时备份后重新生成
   --skip-install  跳过 npm install（依赖已装好时加快启动）
   -h, --help      显示本帮助
 
 脚本只会生成两个文件（均已被 .gitignore 忽略）：
-  core/configDev.js   开发环境配置，devMode 保持 true
+  core/config.json    用户配置（覆盖 core/config.js 的默认值，生产同样适用）
   web/.env            面板 BFF 配置，token 自动与 Bot 对齐
 `);
 }
@@ -397,21 +391,10 @@ function checkNode(): void {
     ok(`Node.js v${process.versions.node}`);
 }
 
-function checkDevMode(strict: boolean): void {
+function checkConfigJs(): void {
     if (!existsSync(CONFIG_JS)) throw new Error(`未找到 ${CONFIG_JS}`);
-    const text = readFileSync(CONFIG_JS, "utf8");
-    if (/devMode\s*:\s*false/.test(text)) {
-        if (!strict) {
-            warn("core/config.js 处于生产模式（devMode: false）：本脚本不会写 configDev.js，检查的是 config.js 内的配置");
-            return;
-        }
-        bad("core/config.js 处于生产模式（devMode: false），本脚本写入的 configDev.js 不会生效");
-        note("修复（二选一）：");
-        note("  1. 把 core/config.js 里的 devMode 改回 true，再重新运行本脚本");
-        note("  2. 保持生产模式，直接手工在 core/config.js 里填写 owner / aiApiKey 等，然后 npm run setup -- --check");
-        throw new Error("devMode 为 false，无法写入开发配置");
-    }
-    ok("core/config.js 处于开发模式（devMode: true）");
+    ok("core/config.js 存在（默认值层）");
+    if (existsSync(CONFIG_JSON)) note("检测到 core/config.json（用户配置层），其值会覆盖默认值");
 }
 
 async function npmRun(args: string[], cwd: string): Promise<void> {
@@ -540,7 +523,6 @@ function reportPorts(report: PortReport, napcatHost: string): void {
 // ===== 配置加载校验（真跑一次 config.js，而不是猜） =====
 
 interface ConfigSnapshot {
-    devMode: boolean;
     wsPort: number;
     webPort: number;
     webPath: string;
@@ -562,7 +544,6 @@ async function loadConfigSnapshot(): Promise<ConfigSnapshot> {
         `import(${JSON.stringify(configUrl)}).then((m) => {`,
         "  const c = m.default;",
         `  console.log(${JSON.stringify(MARKER)} + JSON.stringify({`,
-        "    devMode: c.devMode === true,",
         "    wsPort: c.wsPort,",
         "    webPort: c.web?.port,",
         "    webPath: c.web?.path,",
@@ -610,7 +591,9 @@ function isBlankList(value: unknown): boolean {
 
 function reportConfig(snapshot: ConfigSnapshot, env: Record<string, string> | null): void {
     heading("配置校验");
-    ok("core/config.js + configDev.js 可正常加载");
+    ok(existsSync(CONFIG_JSON)
+        ? "core/config.js + core/config.json 已合并加载"
+        : "core/config.js 已加载（无 core/config.json，全部使用默认值）");
 
     if (looksPlaceholder(snapshot.owner)) bad("owner 未填写：所有管理指令都会返回无权限");
     else ok("owner 已填写");
@@ -762,15 +745,15 @@ function writeSecretFile(path: string, content: string): void {
     }
 }
 
-function writeConfigDev(answers: SetupAnswers): void {
+function writeConfigJson(answers: SetupAnswers): void {
     heading("写入配置");
-    if (existsSync(CONFIG_DEV)) {
-        const backup = backupIfExists(CONFIG_DEV);
-        if (backup) warn(`旧 core/configDev.js 已备份为 ${backup.slice(ROOT.length + 1)}`);
-        else warn("旧 core/configDev.js 备份失败，将被直接覆盖");
+    if (existsSync(CONFIG_JSON)) {
+        const backup = backupIfExists(CONFIG_JSON);
+        if (backup) warn(`旧 core/config.json 已备份为 ${backup.slice(ROOT.length + 1)}`);
+        else warn("旧 core/config.json 备份失败，将被直接覆盖");
     }
-    writeSecretFile(CONFIG_DEV, buildConfigDevSource(answers));
-    ok("core/configDev.js 已写入（密钥仅本机可见）");
+    writeSecretFile(CONFIG_JSON, buildConfigJson(answers));
+    ok("core/config.json 已写入（密钥仅本机可见）");
 }
 
 function writeWebEnv(answers: SetupAnswers): void {
@@ -952,7 +935,7 @@ async function main(): Promise<void> {
     say(bold("\nCith 一键初始化"));
 
     checkNode();
-    checkDevMode(!flags.check);
+    checkConfigJs();
     await ensureDependencies(flags.skipInstall);
 
     if (flags.check) {
@@ -963,8 +946,8 @@ async function main(): Promise<void> {
     const p = new Prompter();
     let answers: SetupAnswers | null = null;
 
-    if (existsSync(CONFIG_DEV) && !flags.force) {
-        const reuse = await p.confirm("检测到 core/configDev.js：保持现有配置，只做校验与启动？", true);
+    if (existsSync(CONFIG_JSON) && !flags.force) {
+        const reuse = await p.confirm("检测到 core/config.json：保持现有配置，只做校验与启动？", true);
         if (!reuse) answers = await collectAnswers(p);
     }
     else {
@@ -972,12 +955,12 @@ async function main(): Promise<void> {
     }
 
     if (answers) {
-        writeConfigDev(answers);
+        writeConfigJson(answers);
         writeWebEnv(answers);
     }
     else {
         heading("配置文件");
-        ok("沿用现有 core/configDev.js");
+        ok("沿用现有 core/config.json");
     }
 
     const snapshot = await loadConfigSnapshot();

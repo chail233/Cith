@@ -1,19 +1,24 @@
 /**
  * 统一配置模块
  *
- * devMode 为 true 时，从 configDev.js 加载开发环境配置（覆盖本文件默认值）。
+ * config.json 只写需要覆盖默认值的键；开发与生产共用同一套机制，无需切换任何开关。
  */
 import { existsSync, readFileSync, writeFileSync, renameSync } from "node:fs";
-import { fileURLToPath, pathToFileURL } from "node:url";
-import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { dirname, join, resolve } from "node:path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-/** 覆盖层文件：只存运行期被改过的顶层键，不进 git，启动时叠加在 base/dev 之上 */
-const overridePath = join(__dirname, "configOverride.json");
+/** 用户配置层路径：默认与 config.js 同目录，可用 CITH_CONFIG 指向仓库外 */
+const userConfigPath = process.env.CITH_CONFIG
+    ? resolve(process.env.CITH_CONFIG)
+    : join(__dirname, "config.json");
 
-/** 不参与自动持久化的键：Map 无法 JSON 化 / 需整体合并 / 开关本身 */
-const NO_PERSIST_KEYS = new Set(["members", "mcpServers", "devMode"]);
+/** mcpServers 里 command 的占位符：JSON 无法表达 process.execPath */
+const NODE_PLACEHOLDER = "$NODE";
+
+/** 不参与自动持久化的键：Map 结构 / 含机器相关占位符，落盘会把本地值写死 */
+const NO_PERSIST_KEYS = new Set(["members", "mcpServers"]);
 
 /** 密钥类：可持久化但需重启才生效，落盘时提示 */
 const RESTART_KEYS = new Set([
@@ -25,7 +30,6 @@ const RESTART_KEYS = new Set([
  * 新键已显式填写时以新键为准，旧键被丢弃
  */
 const LEGACY_KEY_MAP = {
-    DevMode: "devMode",
     aiAPIKEY: "aiApiKey",
     visionAPIKEY: "visionApiKey",
     EnableProactiveChat: "enableProactiveChat",
@@ -55,11 +59,6 @@ const LEGACY_KEY_MAP = {
 };
 
 const baseConfig = {
-    // ========== 运行环境 ==========
-
-    /** 为 true 时从 configDev.js 加载开发环境配置 */
-    devMode: true,
-
     // ========== 服务与接入 ==========
 
     /** OneBot 反向 WebSocket 服务端口 */
@@ -252,71 +251,120 @@ function normalizeLegacyKeys(target) {
     return renamed;
 }
 
-/** 合并 dev 配置：devMode 为 true 时必须存在 configDev.js */
-async function mergeDevConfig() {
-    const devConfigPath = join(__dirname, "configDev.js");
-    if (!existsSync(devConfigPath)) {
-        console.error(`
-[config] devMode 为 true，但找不到 core/configDev.js
+/** 普通对象判断（排除 Map 等内置类型）：决定是否做一层合并 */
+function isPlainObject(value) {
+    if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+    const proto = Object.getPrototypeOf(value);
+    return proto === Object.prototype || proto === null;
+}
 
-  修复方式（二选一）：
-    1. 新建 core/configDev.js，写入 export default { owner: "你的QQ号", aiApiKey: "..." }
-       （只需写要覆盖的字段，其余沿用 config.js 的默认值）
-    2. 把 core/config.js 中的 devMode 改为 false，并直接填写配置项
+/** JSON 不支持注记：约定以 $ 或 _ 开头的键只作说明，不进入配置 */
+function isCommentKey(key) {
+    return key.startsWith("$") || key.startsWith("_");
+}
+
+/** members 在 config.json 里是普通对象，运行期需要 Map */
+function toMemberMap(raw) {
+    if (!isPlainObject(raw)) return new Map();
+    return new Map(
+        Object.entries(raw)
+            .filter(([id]) => !isCommentKey(id))
+            .map(([id, name]) => [id, typeof name === "string" ? name : String(name)]),
+    );
+}
+
+/** mcpServers.command 写 $NODE 时换成本进程 node，避免在 JSON 里写死绝对路径 */
+function resolveMcpServer(server) {
+    if (!isPlainObject(server) || server.command !== NODE_PLACEHOLDER) return server;
+    return { ...server, command: process.execPath };
+}
+
+/** JSON 表达不了的结构（Map / 占位符）在此还原 */
+function normalizeValue(key, value) {
+    if (key === "members") return toMemberMap(value);
+    if (key === "mcpServers" && Array.isArray(value)) return value.map(resolveMcpServer);
+    return value;
+}
+
+/**
+ * 把用户配置叠加到默认值上：标量与数组整体覆盖；
+ * 两边都是普通对象时合并一层
+ */
+function mergeUserConfig(target, source) {
+    for (const [key, raw] of Object.entries(source)) {
+        if (isCommentKey(key)) continue;
+        const value = normalizeValue(key, raw);
+        target[key] = isPlainObject(target[key]) && isPlainObject(value)
+            ? { ...target[key], ...value }
+            : value;
+    }
+}
+
+/** 读取用户配置；文件损坏时抛错，由调用方决定是退出还是拒绝落盘 */
+function readUserConfigFile() {
+    const text = readFileSync(userConfigPath, "utf8").replace(/^\uFEFF/, "");
+    let data;
+    try {
+        data = JSON.parse(text);
+    }
+    catch (e) {
+        throw new Error(`JSON 解析失败：${e.message}`);
+    }
+    if (!isPlainObject(data)) throw new Error("顶层必须是 JSON 对象");
+    return data;
+}
+
+/** 原子写：先写 tmp 再 rename，避免崩溃瞬间留下半截文件 */
+function writeUserConfigFile(data) {
+    const tmp = `${userConfigPath}.tmp`;
+    writeFileSync(tmp, `${JSON.stringify(data, null, 2)}\n`, "utf8");
+    renameSync(tmp, userConfigPath);
+}
+
+if (existsSync(userConfigPath)) {
+    let userConfig;
+    try {
+        userConfig = readUserConfigFile();
+    }
+    catch (e) {
+        // 静默忽略会让程序带着占位符密钥启动，比启动失败更危险
+        console.error(`
+[config] 用户配置无法解析：${userConfigPath}
+  ${e.message}
+
+  这是配置的唯一来源，已中止启动以免带着默认值运行。
+  修复：检查 JSON 语法（不能有尾逗号；说明文字请写成以 $ 或 _ 开头的键）
 `);
         process.exit(1);
     }
 
-    const rawDev = (await import(pathToFileURL(devConfigPath).href)).default;
-    const devConfig = { ...rawDev };
-    const renamed = normalizeLegacyKeys(devConfig);
+    const renamed = normalizeLegacyKeys(userConfig);
     if (renamed.length > 0) {
-        console.warn(
-            `[config] configDev.js 使用了旧键名，已按新键名生效（建议改为 camelCase）：\n  ${renamed.join("\n  ")}`,
-        );
+        writeUserConfigFile(userConfig);
+        console.warn(`[config] config.json 中的旧键名已自动迁移：\n  ${renamed.join("\n  ")}`);
     }
 
-    // mcpServers 数组追加合并，其余字段直接覆盖
-    const baseMcp = baseConfig.mcpServers ?? [];
-    const devMcp = devConfig.mcpServers ?? [];
-    Object.assign(baseConfig, devConfig);
-    baseConfig.mcpServers = [...baseMcp, ...devMcp];
+    mergeUserConfig(baseConfig, userConfig);
+}
+else {
+    console.warn(`[config] 未找到用户配置：${userConfigPath}（全部使用默认值，可用 npm run setup 生成）`);
 }
 
-/** 读取覆盖层；解析失败返回空对象，避免坏文件导致每次开机崩溃 */
-function readOverride() {
-    if (!existsSync(overridePath)) return { data: {}, renamed: [] };
+/**
+ * 运行期热改落盘（#ms 切模型、面板 set_config 等）：
+ * 读-改-写整个文件，保留用户手写的其他键
+ */
+function persistKey(key, value) {
+    let snapshot;
     try {
-        const data = JSON.parse(readFileSync(overridePath, "utf8"));
-        const renamed = normalizeLegacyKeys(data);
-        return { data, renamed };
+        snapshot = readUserConfigFile();
     }
     catch (e) {
-        console.error("[config] configOverride.json 解析失败，已忽略:", e.message);
-        return { data: {}, renamed: [] };
+        console.error(`[config] ${key} 仅本次运行生效：${userConfigPath} 无法解析（${e.message}），拒绝覆盖以免丢配置`);
+        return;
     }
-}
-
-/** 原子写入覆盖层：先写 tmp 再 rename，防止崩溃瞬间产生半截损坏文件 */
-function writeOverride(data) {
-    const tmp = overridePath + ".tmp";
-    writeFileSync(tmp, JSON.stringify(data, null, 2), "utf8");
-    renameSync(tmp, overridePath);
-}
-
-if (baseConfig.devMode) {
-    await mergeDevConfig();
-}
-
-// 启动合并覆盖层：base → dev → override.json
-const override = readOverride();
-Object.assign(baseConfig, override.data);
-if (override.renamed.length > 0) {
-    // 覆盖层由程序管理，直接迁移落盘；configDev.js 属用户文件，只提示不改写
-    writeOverride(override.data);
-    console.warn(
-        `[config] configOverride.json 中的旧键名已自动迁移：\n  ${override.renamed.join("\n  ")}`,
-    );
+    snapshot[key] = value;
+    writeUserConfigFile(snapshot);
 }
 
 // 用 Proxy 包裹导出：只定义 set，读自动透传到 target。
@@ -341,9 +389,7 @@ const config = new Proxy(baseConfig, {
             console.warn(`[config] ${key} 已持久化`);
         }
 
-        const snapshot = readOverride();
-        snapshot.data[key] = value;
-        writeOverride(snapshot.data);
+        persistKey(key, value);
         return true;
     },
 });

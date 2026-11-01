@@ -12,7 +12,7 @@ SunbatwoBot is a OneBot v11 QQ bot (NapCat transport) that runs an LLM **agent**
 
 ### Config
 
-All config lives in `core/config.js` (defaults, shared constants, and `systemPrompt`). When `devMode: true` (the default), real secrets are loaded from `core/configDev.js` (gitignored). Merge rules: dev values overwrite base, **but `mcpServers` is concatenated** (base first). If `devMode` is true and `configDev.js` is missing, the process exits(1) at import time. `core/app.pem` is also gitignored.
+All config defaults live in `core/config.js` (shared constants and `systemPrompt`); real secrets live in `core/config.json` (gitignored; path overridable via the `CITH_CONFIG` env var). Startup merges `config.js → config.json`: scalars and arrays replace, plain objects merge one level, `members` (object → `Map`) and `mcpServers` (`command: "$NODE"` → `process.execPath`) are normalized, and keys starting with `$` or `_` act as comments. A malformed `config.json` aborts startup. Runtime top-level assignments are written back to `config.json` (except `members` / `mcpServers`). `core/app.pem` is also gitignored.
 
 ## Architecture
 

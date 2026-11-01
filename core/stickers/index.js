@@ -6,7 +6,6 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { resolveSrcPath } from "../utils/file-security.js";
 import logger from "../utils/logger.js";
-import config from "../config.js";
 
 /** 默认索引文件位置（相对 core/），模块自包含 */
 export const DEFAULT_MANIFEST_PATH = "stickers/manifest.json";
@@ -22,17 +21,14 @@ export const MAX_LIMIT = 50;
 const cache = new Map();
 
 /**
- * 解析本次应使用的索引路径：显式传入优先，否则按运行模式选择
- * 开发模式读 manifest.dev.json，生产模式读 manifest.json
+ * 解析本次应使用的索引路径：显式传入优先，否则按文件存在与否选择
+ * 本地存在 manifest.dev.json（已 gitignore）时优先，否则用随仓库分发的 manifest.json
  * @returns {string} 相对 core/ 的索引路径
  */
 export function resolveManifestPath() {
-    if (!config.devMode)
-        return DEFAULT_MANIFEST_PATH;
     const resolved = resolveSrcPath(DEV_MANIFEST_PATH);
     if (!resolved.error && existsSync(resolved.fullPath))
         return DEV_MANIFEST_PATH;
-    logger.warn(`开发模式未找到 ${DEV_MANIFEST_PATH}，回退到 ${DEFAULT_MANIFEST_PATH}`);
     return DEFAULT_MANIFEST_PATH;
 }
 

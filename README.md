@@ -43,11 +43,11 @@ powershell -ExecutionPolicy Bypass -File setup.ps1
 bash setup.sh
 ```
 
-脚本会依次完成：检查 Node 版本 → 安装根目录与 `web/` 依赖 → 交互式询问必填项（`owner`、`selfId`、模型地址与 Key、NapCat 地址、面板端口与密码等）→ 生成 `core/configDev.js` 与 `web/.env`（`BOT_API_TOKEN` 自动与 Bot 的 `web.token` 对齐）→ 校验配置能否真实加载 → 端口检查 →（首次）构建 Web 面板 → 前台启动并打印面板地址与 NapCat 反向 WS 地址。
+脚本会依次完成：检查 Node 版本 → 安装根目录与 `web/` 依赖 → 交互式询问必填项（`owner`、`selfId`、模型地址与 Key、NapCat 地址、面板端口与密码等）→ 生成 `core/config.json` 与 `web/.env`（`BOT_API_TOKEN` 自动与 Bot 的 `web.token` 对齐）→ 校验配置能否真实加载 → 端口检查 →（首次）构建 Web 面板 → 前台启动并打印面板地址与 NapCat 反向 WS 地址。
 
 - 只生成两个已被 gitignore 的文件，**不修改** `core/config.js`；重复运行会先备份旧文件，不会静默覆盖
 - 密钥输入不回显，脚本全程不打印密钥原文
-- `npm run setup -- --check`：只读检查（环境、依赖、配置能否加载、端口、`.env` 是否与 Bot 对齐），生产模式（`devMode: false`）也适用
+- `npm run setup -- --check`：只读检查（环境、依赖、配置能否加载、端口、`.env` 是否与 Bot 对齐），开发与生产同一套配置机制，均适用
 - `npm run setup -- --no-start`：只写配置并校验，不启动；`--force`：跳过「保持现有配置」的询问，备份后重新生成
 
 #### 方式二：手动配置
@@ -76,13 +76,17 @@ NapCat 反向 WebSocket 连接地址：`ws://127.0.0.1:8080/onebot/v11/ws`（端
 
 ### 配置
 
-所有配置集中在 `core/config.js`：
+配置分两层：`core/config.js` 是**随仓库分发的默认值**（可提交，不含真实密钥），`core/config.json` 是**用户配置层**（已 gitignore，只写需要覆盖的键）。启动时按 `config.js → config.json` 合并，**开发与生产共用同一套机制**，`git pull` 永远不会覆盖你的配置。
 
-- **命名规范**：配置键统一 camelCase（`chatModel`、`aiApiKey`、`llmApiUrl` …）。旧版大写键（`CHAT_MODEL`、`aiAPIKEY` 等）仍兼容：启动时自动映射为新键并打印改名提示，`configOverride.json` 自动迁移落盘，`configDev.js` 建议手动改名（不影响使用）。
+- **命名规范**：配置键统一 camelCase（`chatModel`、`aiApiKey`、`llmApiUrl` …）。旧版大写键（`CHAT_MODEL`、`aiAPIKEY` 等）仍兼容：启动时自动映射为新键、迁移落盘并打印改名提示。
+- **覆盖规则**：标量与数组整体覆盖；`web` 这类普通对象只覆盖写了的字段（改端口不用把 `path` / `logBufferSize` 一起写全）。
+- **JSON 表达不了的结构**：`members` 写成 `{"QQ号": "昵称"}` 普通对象，加载时转为 Map；`mcpServers[].command` 写 `"$NODE"` 表示用当前运行的 node 可执行文件。
+- **写说明文字**：标准 JSON 不支持注释，以 `$` 或 `_` 开头的键只作说明，加载时忽略。
+- **坏配置不会静默降级**：`config.json` 解析失败会中止启动并报出具体错误（避免带着占位符密钥运行）；文件带 UTF-8 BOM 也能正确读取。
+- **配置脱离代码目录**：生产可把配置文件放到仓库外，用环境变量 `CITH_CONFIG=/etc/cith/config.json` 指向它。
+- **运行期持久化**：`config` 由 Proxy 包裹，运行期的顶层键赋值（`#ms` 切模型、面板 `set_config` 等）会读-改-写回 `config.json`，保留你手写的其他键（`members` / `mcpServers` 不落盘）。
 
-- **开发环境**：`devMode` 设为 `true`，在 `core/configDev.js`（已 gitignore）中填写真实配置；`devMode` 为 true 但文件缺失时进程直接退出（用 `npm run setup` 可自动生成该文件）。
-- **生产环境**：`devMode` 设为 `false`，直接在 `config.js` 中填写。
-- **运行期持久化**：`config` 由 Proxy 包裹，运行期的顶层键赋值（`#ms` 切模型、面板 `set_config` 等）自动写入 `core/configOverride.json`，重启后叠加生效（`members` / `mcpServers` / `devMode` 不落盘）。
+> 跑 `dist/` 构建产物时配置文件位于 `dist/config.json`：`npm run build` 会用 `core/config.json` **覆盖**它，唯一真源始终是 `core/config.json`。直接用 `start:dist` 跑且在上面热改（`#ms` / 面板保存）时，热改值会在下次构建时被覆盖，需要保留就同步回 `core/config.json`；或用 `CITH_CONFIG` 指向仓库外的固定文件（构建不会碰它）。
 
 **启动自检**：进程启动时会检查关键配置是否仍是模板占位符（`owner`、会话白名单、`aiApiKey`、`llmApiUrl`/`chatModel` 等），把「致命 / 提示」两级问题汇总成中文清单打印到控制台，并存入运行状态供面板「运行状态」页顶部常驻展示——避免配置没填对却看着一切正常、实际收不到任何回复。
 
@@ -304,8 +308,8 @@ Agent 不持有任何聊天通道，所有输出以事件广播——换协议�
 ```
 core/
 ├── index.js                    # 入口：初始化 MCP → 启动 WS 服务（QQ/微信）→ 启动面板 API
-├── config.js                   # 统一配置，Proxy 自动持久化
-├── configDev.js                # 开发环境配置（gitignore，覆盖 config.js）
+├── config.js                   # 默认值层（随仓库分发）+ Proxy 热改落盘
+├── config.json                 # 用户配置层（gitignore，覆盖 config.js 的默认值）
 │
 ├── bot/                        # 通信层：servers（连接/生命周期）+ adapters（协议适配，可插拔）
 │   ├── servers/                # OnebotServer（QQ 反向 WS）/ WechatBotServer（扫码登录）
@@ -385,15 +389,15 @@ CMD_MAP.set("关键词", async (ctx) => {
 
 ### 添加 MCP Server
 
-在 `configDev.js` 的 `mcpServers` 中添加：
+在 `core/config.json` 的 `mcpServers` 中添加（`command` 写 `"$NODE"` 直接用当前运行的 node，避免写死路径）：
 
-```js
+```json
 {
-    name: "github",
-    description: "GitHub 操作",
-    transport: "stdio",        // 或 "sse" / "old_sse"
-    command: "node",
-    args: ["D:/path/to/mcp/github-server/index.js"],
+    "name": "github",
+    "description": "GitHub 操作",
+    "transport": "stdio",
+    "command": "$NODE",
+    "args": ["D:/path/to/mcp/github-server/index.js"]
 }
 ```
 

@@ -39,7 +39,7 @@ export function collectConfigWarnings(): ConfigWarning[] {
             "error",
             "owner",
             "管理员（owner）未配置，所有管理指令（#bind、#do-yes、#ms 等）都会返回「无权限」",
-            'core/configDev.js 或 core/config.js 中填写 owner: "你的QQ号"',
+            'core/config.json 中填写 owner: "你的QQ号"（或改 core/config.js 的默认值）',
         );
     }
 
