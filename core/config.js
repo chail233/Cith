@@ -64,7 +64,9 @@ const baseConfig = {
     /** OneBot 反向 WebSocket 服务端口 */
     wsPort: 8080,
 
-    /** NapCat HTTP API 的鉴权 token */
+    /**
+     * NapCat 鉴权 token
+     */
     token: "your_token_here",
 
     /** NapCat HTTP API 地址（不含协议前缀） */

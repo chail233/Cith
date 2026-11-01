@@ -61,6 +61,8 @@ npm start
 
 NapCat 反向 WebSocket 连接地址：`ws://127.0.0.1:8080/onebot/v11/ws`（端口随 `wsPort` 变化）。
 
+> 该端点与 NapCat 的 HTTP 接口复用同一个 `token`：握手需携带 `Authorization: Bearer <token>`（部分客户端用 `?access_token=` 查询参数亦可），不匹配直接 401 拒绝并按来源 IP 记告警。`token` 留空或仍是模板占位符时不做校验，启动自检会提示风险。
+
 **npm 脚本：**
 
 | 命令 | 说明 |
@@ -95,7 +97,7 @@ NapCat 反向 WebSocket 连接地址：`ws://127.0.0.1:8080/onebot/v11/ws`（端
 | 配置项 | 说明 |
 |--------|------|
 | `wsPort` | OneBot 反向 WebSocket 服务端口（默认 8080） |
-| `token` | NapCat HTTP API 的鉴权 Token（取图等 HTTP 请求使用） |
+| `token` | NapCat 鉴权 Token，HTTP 请求与反向 WebSocket 握手共用同一把 |
 | `napcatHttpHost` | NapCat HTTP API 地址（默认 `127.0.0.1:3000`，图片获取等走 HTTP） |
 | `owner` | 主人（管理员）用户 ID |
 | `targetGroupId` / `targetUserId` | 目标群 / 用户 ID 列表（管理员在目标会话里发 `#bind` 可自动加入） |
@@ -184,7 +186,7 @@ Skill 是包含 `SKILL.md` 描述文件的目录，可附带脚本供 AI 执行�
 
 | 平台 | 适配器 | 说明 |
 |------|--------|------|
-| QQ | `OnebotAdapter` + `OnebotServer` | NapCat + OneBot v11，反向 WebSocket 接入 |
+| QQ | `OnebotAdapter` + `OnebotServer` | NapCat + OneBot v11，反向 WebSocket 接入（握手 token 鉴权） |
 | 微信 | `WechatBotAdapter` + `WechatBotServer` | 官方 iLink Bot 协议，扫码登录，凭证持久化重启复用 |
 
 微信侧为协议层约束的已知限制：好友首次发消息后需把其加密 `userId` 加入 `targetUserId` 白名单（管理员直接在该私聊中发送 `#bind` 即可，无需手抄日志）；拿不到昵称/头像；仅文本消息、仅私聊；只能回复主动发过消息的用户。
@@ -422,6 +424,7 @@ CMD_MAP.set("关键词", async (ctx) => {
 - **子进程隔离**：JS 脚本在独立子进程中执行，带超时限制
 - **写入保护**：`create_file` 禁止覆盖已有文件，`edit_file` 要求文本唯一匹配
 - **面板 API**：仅绑定 `127.0.0.1`、独立 token 鉴权、action 白名单分发、配置输出脱敏、全量 try/catch 故障隔离
+- **OneBot 接入鉴权**：反向 WebSocket 在握手阶段校验 `Authorization: Bearer` / `?access_token=`（与 NapCat 复用同一 token，sha256 + 恒定时间比较），失败回 401 不进入连接回调，并按来源 IP 记告警
 
 ---
 

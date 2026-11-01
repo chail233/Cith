@@ -93,8 +93,16 @@ export function collectConfigWarnings(): ConfigWarning[] {
         add(
             "warn",
             "token",
-            "NapCat HTTP 接口的 token 未配置，取图等 HTTP 请求将不带鉴权",
-            'NapCat 若开启了 HTTP 鉴权，请填写 token: "NapCat 的 access token"',
+            "NapCat 的 access token 未配置：HTTP 请求不带鉴权，且反向 WebSocket（wsPort）不校验来源，任何能连到该端口的客户端都能伪造消息注入",
+            '填写 token: "NapCat 配置的 access token"，并在 NapCat 的 HTTP 鉴权与反向 WS 里填同一个值',
+        );
+    }
+    else if (typeof cfg.token === "string" && cfg.token.trim().length < 8) {
+        add(
+            "warn",
+            "token",
+            `NapCat access token 过短（${cfg.token}），既是 HTTP 鉴权凭证也是反向 WS 的接入凭证，容易被猜测`,
+            "改为 16 位以上随机字符串，并同步修改 NapCat 侧配置",
         );
     }
 
