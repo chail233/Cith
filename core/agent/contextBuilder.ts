@@ -56,7 +56,6 @@ function renderTrigger(trigger: WakeTrigger | null | undefined): string | null {
 export function buildMessages(agent: Agent) {
     const recorder = agent.memory;
     const activePlan = agent.getActivePlan();
-    // 顺序原则：稳定内容靠前、易变内容靠后，提高服务商前缀缓存命中率。
     const messages: Array<{ role: string; content: string }> = [
         { role: "system", content: systemPrompt },
     ];
@@ -78,15 +77,16 @@ export function buildMessages(agent: Agent) {
         messages.push({ role: "system", content: `对话历史概要:${recorder.getMidSummary()}` });
     }
 
+    const tail: Array<{ role: string; content: string }> = [];
     if (activePlan) {
-        messages.push({ role: "system", content: `当前任务计划：\n${renderPlan(activePlan)}\n（勿偏离目标，随进度用 manage_plan 更新状态）` });
+        tail.push({ role: "system", content: `当前任务计划：\n${renderPlan(activePlan)}\n（勿偏离目标，随进度用 manage_plan 更新状态）` });
     }
 
     const trigger = renderTrigger(agent.pendingTrigger);
     if (trigger) {
-        messages.push({ role: "system", content: trigger });
-        agent.pendingTrigger = null;
+        tail.push({ role: "system", content: trigger });
     }
+    agent.pendingTrigger = null;
 
-    return [...messages, ...recorder.getAll()];
+    return [...messages, ...recorder.getAll(), ...tail];
 }
