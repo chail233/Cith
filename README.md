@@ -76,6 +76,17 @@ NapCat 反向 WebSocket 连接地址：`ws://127.0.0.1:8080/onebot/v11/ws`（端
 
 > `start` 与 `start:dist` 行为完全一致，差异仅在运行方式：`start` 依赖 Node 24 现场转译 TS，`start:dist` 跑预编译纯 JS、启动更快，但需先 `npm run build`。`dist/` 不提交 git。
 
+### 更新
+
+```bash
+bash update.sh              # 拉取当前分支 + 按需装依赖 + 编译后端（前端已装过则一并编译）
+bash update.sh --web        # 强制连 Web 面板一起编译
+bash update.sh --stash      # 自动暂存本地未提交改动，结束后恢复
+bash update.sh --force      # 远端无新提交也重新编译（修本地 dist 时用）
+```
+
+脚本只处理已跟踪文件，`core/config.json`、`mcp/`、`core/data/` 等被忽略的本地文件不会被触碰；拉取使用 `--ff-only`，本地分叉时直接报错而不是生成 merge commit；依赖文件（`package.json` / lock）未变时跳过 `npm install`。更新完成不会自动重启服务，按运行方式执行 `npm start` / `npm run start:dist` / `pm2 restart <应用名>` 生效。
+
 ### 配置
 
 配置分两层：`core/config.js` 是**随仓库分发的默认值**（可提交，不含真实密钥），`core/config.json` 是**用户配置层**（已 gitignore，只写需要覆盖的键）。启动时按 `config.js → config.json` 合并，**开发与生产共用同一套机制**，`git pull` 永远不会覆盖你的配置。
