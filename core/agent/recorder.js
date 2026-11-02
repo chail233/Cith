@@ -322,6 +322,7 @@ export class ChatRecorder {
         this._messages = [];
         this._midSummary = "";
         this._chars = 0;
+        this.msgWithoutChat = 0;
         this._epoch++;
     }
 

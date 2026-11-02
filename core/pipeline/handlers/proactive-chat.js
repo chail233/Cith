@@ -14,6 +14,9 @@ import { nowTime} from "../../utils/time.js";
  */
 export default async function proactiveChat(ctx) {
     if(!config.enableProactiveChat) return false;
+    const limit = config.proactiveChatLimit;
+    if (!Number.isFinite(limit) || limit <= 0) return false;
+
     const recorder = getAgent(ctx.space).memory;
     const text = ctx.text + (ctx.imageDescription ? `\n${ctx.imageDescription}` : "");
     recorder.add({
@@ -27,15 +30,14 @@ export default async function proactiveChat(ctx) {
             ...(ctx.at ? { at: ctx.at } : {}),
         },
     });
-    // 检查是否达到主动触发阈值
-    if (recorder.msgWithoutChat >= config.proactiveChatLimit) {
-        logger.info("达到主动聊天阈值，触发 AI 对话");
-        recorder.msgWithoutChat = 0;
-        await runAgent(ctx);
-        return true;
-    }
 
-    // 未达到阈值
     recorder.msgWithoutChat++;
-    return false;
+    if (recorder.msgWithoutChat < limit) return false;
+
+    if (recorder.isRequesting) return false;
+
+    logger.info(`达到主动聊天阈值（${recorder.msgWithoutChat} 条），触发 AI 对话`);
+    recorder.msgWithoutChat = 0;
+    await runAgent(ctx);
+    return true;
 }
