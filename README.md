@@ -120,7 +120,7 @@ bash update.sh --force      # 远端无新提交也重新编译（修本地 dist
 | `memoryEmbedProvider` / `memoryEmbedModel` | embedding 提供方（`ollama` 本地 / `openai` API 兼容接口）与模型名（本地默认 `bge-m3`；API 如百炼 `text-embedding-v4`） |
 | `memoryOllamaUrl` | 本地 Ollama 地址（provider 为 `ollama` 时生效） |
 | `memoryEmbedBaseUrl` / `memoryEmbedApiKey` | OpenAI 兼容接口地址与密钥（provider 为 `openai` 时生效；如百炼 `https://dashscope.aliyuncs.com/compatible-mode/v1`） |
-| `mcpServers` | MCP Server 配置列表 |
+| `mcpServers` | MCP Server 配置列表（`config.js` 默认自带 `websearch`；按 `name` 增量合并，只写要加/要改的项） |
 | `readFileDirs` / `runJsDirs` / `editFileDirs` | 文件工具白名单目录（默认 `skills/`、`workspace/`） |
 | `web` | 面板 API 服务：`port` / `path` / `token` / `logBufferSize` |
 | `githubToken` | GitHub API Token（skill-manager 安装技能、GitHub MCP 使用） |
@@ -411,6 +411,13 @@ CMD_MAP.set("关键词", async (ctx) => {
 在 `agent/tools/` 下新建一个工具模块（导出 `definition` 供模型、`execute` 为实现），再到 `agent/tools.js` 的 `toolRegistry` 中登记，新工具会自动出现在 AI 的可用工具列表中。带文件路径参数的工具还须在 `pathToolWhitelist` 中登记 `{ dirKey, pathKey }`，门禁才会按执行对象目录自动放行或挂起。
 
 ### 添加 MCP Server
+
+`core/config.js` 已自带一个 `websearch` 项（open-websearch，多引擎搜索 + 网页正文抓取，无需任何凭据）。`mcpServers` 是配置里唯一**按 `name` 增量合并**的数组：
+
+- 只写自己要加的项即可，新 `name` 追加到默认项之后；
+- 与默认项同 `name` 时代替整项（不是逐字段合并，`env` 要写全）；
+- 不想用某个默认项，写 `{ "name": "websearch", "disabled": true }` 即可剔除；
+- 你写的项保持你写的先后顺序。
 
 在 `core/config.json` 的 `mcpServers` 中添加（`command` 写 `"$NODE"` 直接用当前运行的 node，避免写死路径）：
 

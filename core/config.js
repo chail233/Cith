@@ -203,8 +203,26 @@ const baseConfig = {
 
     // ========== 外部服务 ==========
 
-    /** MCP Server 配置列表 */
-    mcpServers: [],
+    /**
+     * MCP Server 配置列表
+     *
+     */
+    mcpServers: [
+        {
+            name: "websearch",
+            description: "联网搜索：search 可传 engines 指定引擎（bing=技术类精准，baidu=中文相关，sogou=中文最全但易限流）；另含 fetchWebContent 抓取网页正文",
+            transport: "stdio",
+            command: NODE_PLACEHOLDER,
+            args: ["node_modules/open-websearch/build/index.js"],
+            env: {
+                MODE: "stdio",
+                PORT: "3030",
+                DEFAULT_SEARCH_ENGINE: "baidu",
+                ALLOWED_SEARCH_ENGINES: "bing,baidu,sogou",
+                OPEN_WEBSEARCH_QUIET_STARTUP: "true",
+            },
+        },
+    ],
 
     /** GitHub API Token（skill-manager 安装技能、GitHub MCP 使用） */
     githubToken: null,
@@ -280,20 +298,53 @@ function resolveMcpServer(server) {
     return { ...server, command: process.execPath };
 }
 
-/** JSON 表达不了的结构（Map / 占位符）在此还原 */
+/** 默认配置里的 MCP 项与 config.json 共用同一套占位符，在合并用户配置前先行还原 */
+baseConfig.mcpServers = baseConfig.mcpServers.map(resolveMcpServer);
+
+/** JSON 表达不了的结构（Map）在此还原 */
 function normalizeValue(key, value) {
     if (key === "members") return toMemberMap(value);
-    if (key === "mcpServers" && Array.isArray(value)) return value.map(resolveMcpServer);
     return value;
 }
 
 /**
- * 把用户配置叠加到默认值上：标量与数组整体覆盖；
+ * mcpServers 增量合并
+ */
+function mergeMcpServers(userList, baseList) {
+    if (!Array.isArray(userList)) return baseList;
+
+    const merged = [];
+    const seen = new Set();
+    for (const item of userList) {
+        if (!isPlainObject(item) || typeof item.name !== "string" || item.name === "") {
+            console.warn("[config] 已忽略缺少 name 的 mcpServers 项");
+            continue;
+        }
+        if (seen.has(item.name)) {
+            console.warn(`[config] mcpServers 名称重复，已忽略后一项：${item.name}`);
+            continue;
+        }
+        seen.add(item.name);
+        const server = resolveMcpServer(item);
+        if (server.disabled !== true) merged.push(server);
+    }
+    for (const base of baseList) {
+        if (!seen.has(base.name)) merged.push(base);
+    }
+    return merged;
+}
+
+/**
+ * 把用户配置叠加到默认值；
  * 两边都是普通对象时合并一层
  */
 function mergeUserConfig(target, source) {
     for (const [key, raw] of Object.entries(source)) {
         if (isCommentKey(key)) continue;
+        if (key === "mcpServers") {
+            target.mcpServers = mergeMcpServers(raw, target.mcpServers ?? []);
+            continue;
+        }
         const value = normalizeValue(key, raw);
         target[key] = isPlainObject(target[key]) && isPlainObject(value)
             ? { ...target[key], ...value }

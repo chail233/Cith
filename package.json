@@ -31,6 +31,7 @@
     "axios": "^1.19.0",
     "express": "^5.2.1",
     "node-schedule": "^2.1.1",
+    "open-websearch": "2.2.0",
     "openai": "^7.45.1",
     "rememori": "^0.7.0",
     "typescript": "^7.0.2",
