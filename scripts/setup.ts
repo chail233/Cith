@@ -5,11 +5,12 @@
 import { chmodSync, copyFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { execFile, spawn } from "node:child_process";
+import { execFile, spawn, spawnSync } from "node:child_process";
 import { promisify } from "node:util";
 import { randomBytes } from "node:crypto";
 import { createServer } from "node:net";
 import { networkInterfaces } from "node:os";
+import { createInterface, type Interface } from "node:readline";
 
 const execFileAsync = promisify(execFile);
 
@@ -28,6 +29,21 @@ const DEFAULT_BFF_PORT = 2146;
 
 // ===== 终端输出 =====
 
+/**
+ * Windows 控制台默认代码页（如 936）会把 UTF-8 中文显示成乱码；
+ * 先把本进程所在控制台切到 UTF-8，否则下面所有提示都没法看
+ */
+function ensureUtf8Console(): void {
+    if (process.platform !== "win32" || !process.stdout.isTTY) return;
+    try {
+        // 不能加 windowsHide：那会给子进程单独开一个隐藏控制台，代码页改动就落不到当前终端
+        spawnSync("chcp.com", ["65001"], { stdio: "ignore" });
+    }
+    catch {
+        // 非控制台或 chcp 不可用：不影响主流程
+    }
+}
+
 const COLOR = Boolean(process.stdout.isTTY) && !process.env.NO_COLOR;
 const paint = (code: string, text: string): string => (COLOR ? `\x1b[${code}m${text}\x1b[0m` : text);
 const bold = (t: string) => paint("1", t);
@@ -44,7 +60,7 @@ const bad = (text: string): void => say(`  ${red("×")} ${text}`);
 const note = (text: string): void => say(`  ${dim(text)}`);
 const heading = (text: string): void => say(`\n${cyan("▶")} ${bold(text)}`);
 
-// ===== 交互输入（自实现 raw 模式，密码不回显） =====
+// ===== 交互输入（readline，密码不回显） =====
 
 interface AskOptions {
     default?: string;
@@ -55,16 +71,54 @@ interface AskOptions {
     validate?: (value: string) => string | null;
 }
 
-type RawStdin = NodeJS.ReadStream & {
-    setRawMode?: (mode: boolean) => void;
-    isRaw?: boolean;
-};
+type MaskableInterface = Interface & { _writeToOutput?: (chunk: string) => void };
 
+/**
+ * 交互式提问：基于 readline，不要求 stdin 是 TTY
+ * （IDE 的 Run 窗口、`node scripts/setup.ts < answers.txt` 之类都能跑）
+ */
 class Prompter {
+    private readonly rl: Interface;
+    /** 管道输入会一次性到达，没被消费的行先排队，避免丢行卡死 */
+    private readonly queued: string[] = [];
+    private readonly waiters: Array<(line: string | null) => void> = [];
+    private muted = false;
+    private closed = false;
+    private interrupted = false;
+
     constructor() {
-        if (!process.stdin.isTTY) {
-            throw new Error("需要交互式终端：请直接在终端里运行（只做只读检查用 --check）");
-        }
+        this.rl = createInterface({
+            input: process.stdin,
+            output: process.stdout,
+            terminal: process.stdin.isTTY === true,
+            historySize: 0,
+        });
+        // 密钥输入不回显：终端下丢弃 readline 的全部回显（含退格重绘）
+        (this.rl as MaskableInterface)._writeToOutput = (chunk: string): void => {
+            if (this.muted) return;
+            process.stdout.write(chunk);
+        };
+        this.rl.on("line", (line: string): void => {
+            const waiter = this.waiters.shift();
+            if (waiter) waiter(line);
+            else this.queued.push(line);
+        });
+        this.rl.on("close", (): void => {
+            this.closed = true;
+            for (const waiter of this.waiters.splice(0)) waiter(null);
+        });
+        this.rl.on("SIGINT", (): void => {
+            this.interrupted = true;
+            process.stdout.write("\n");
+            this.rl.close();
+        });
+    }
+
+    /** 用完必须关闭，否则终端可能停在 raw 模式，影响随后启动的 Bot */
+    close(): void {
+        this.rl.close();
+        // readline 在 TTY 下会开启 raw 模式，关闭后显式还原，避免影响后面继承同一终端的子进程
+        if (process.stdin.isTTY) process.stdin.setRawMode?.(false);
     }
 
     async ask(label: string, opts: AskOptions = {}): Promise<string> {
@@ -108,61 +162,44 @@ class Prompter {
         return Number(raw);
     }
 
-    /** 读取一行；secret 为 true 时只回显星号 */
+    /** 读取一行；输入结束（EOF / Ctrl+C）时抛错 */
     private readLine(prompt: string, secret: boolean): Promise<string> {
-        const stdin = process.stdin as RawStdin;
-        process.stdout.write(prompt);
-        stdin.setRawMode?.(true);
-        stdin.resume();
-        stdin.setEncoding("utf8");
+        const muted = secret && process.stdin.isTTY === true;
+        if (this.closed) {
+            // 管道会把输入一次性喂完并立即关闭 stdin，后面排队的问题仍要能问
+            process.stdout.write(prompt);
+        }
+        else {
+            // 先让 readline 把提示打出来，再开启屏蔽：否则终端模式下连提示本身也会被吞
+            this.rl.setPrompt(prompt);
+            this.rl.prompt();
+            this.muted = muted;
+        }
 
         return new Promise<string>((resolveLine, rejectLine) => {
-            let value = "";
-            /** 跳过方向键等转义序列的剩余字符（ESC [ A 这类固定 3 字符） */
-            let skip = 0;
-
-            const finish = (result: string | null, error?: Error): void => {
-                stdin.removeListener("data", onData);
-                stdin.setRawMode?.(false);
-                stdin.pause();
-                process.stdout.write("\n");
-                if (error) rejectLine(error);
-                else resolveLine(result ?? "");
-            };
-
-            const onData = (chunk: string): void => {
-                for (const ch of chunk) {
-                    if (skip > 0) {
-                        skip -= 1;
-                        continue;
-                    }
-                    if (ch === "\u001b") {
-                        skip = 2;
-                        continue;
-                    }
-                    if (ch === "\r" || ch === "\n" || ch === "\u0004") {
-                        finish(value);
-                        return;
-                    }
-                    if (ch === "\u0003") {
-                        finish(null, new Error("__CANCEL__"));
-                        return;
-                    }
-                    if (ch === "\u007f" || ch === "\b") {
-                        if (value.length > 0) {
-                            value = value.slice(0, -1);
-                            process.stdout.write("\b \b");
-                        }
-                        continue;
-                    }
-                    // 忽略其余控制字符（方向键序列等）
-                    if (ch < " ") continue;
-                    value += ch;
-                    process.stdout.write(secret ? "*" : ch);
+            const deliver = (line: string | null): void => {
+                this.muted = false;
+                if (!this.closed) this.rl.pause();
+                // 终端非密钥输入时 readline 已回显换行，其余情况补一个，避免提示挤在一行
+                if (muted || !process.stdin.isTTY) process.stdout.write("\n");
+                if (line === null) {
+                    rejectLine(new Error(this.interrupted
+                        ? "__CANCEL__"
+                        : "输入已结束：stdin 已关闭。请在终端里运行，或先用 --check 只做检查"));
+                    return;
                 }
+                resolveLine(line);
             };
 
-            stdin.on("data", onData);
+            if (this.queued.length > 0) {
+                deliver(this.queued.shift() ?? "");
+                return;
+            }
+            if (this.closed) {
+                deliver(null);
+                return;
+            }
+            this.waiters.push(deliver);
         });
     }
 }
@@ -925,6 +962,7 @@ async function runCheck(): Promise<void> {
 const isMain = process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 
 async function main(): Promise<void> {
+    ensureUtf8Console();
     const flags = parseFlags(process.argv.slice(2));
     if (flags.help) {
         printHelp();
@@ -944,34 +982,46 @@ async function main(): Promise<void> {
     }
 
     const p = new Prompter();
-    let answers: SetupAnswers | null = null;
+    let snapshot!: ConfigSnapshot;
+    let env!: Record<string, string> | null;
 
-    if (existsSync(CONFIG_JSON) && !flags.force) {
-        const reuse = await p.confirm("检测到 core/config.json：保持现有配置，只做校验与启动？", true);
-        if (!reuse) answers = await collectAnswers(p);
+    try {
+        let answers: SetupAnswers | null = null;
+
+        if (!process.stdin.isTTY) {
+            note("非交互终端：可逐行输入答案；只想看检查结果用 --check");
+        }
+        if (existsSync(CONFIG_JSON) && !flags.force) {
+            const reuse = await p.confirm("检测到 core/config.json：保持现有配置，只做校验与启动？", true);
+            if (!reuse) answers = await collectAnswers(p);
+        }
+        else {
+            answers = await collectAnswers(p);
+        }
+
+        if (answers) {
+            writeConfigJson(answers);
+            writeWebEnv(answers);
+        }
+        else {
+            heading("配置文件");
+            ok("沿用现有 core/config.json");
+        }
+
+        snapshot = await loadConfigSnapshot();
+        env = existsSync(WEB_ENV) ? parseEnvText(readFileSync(WEB_ENV, "utf8")) : null;
+        reportConfig(snapshot, env);
+        if (!env) throw new Error("web/.env 缺失：请重新运行并选择重新配置");
+
+        const report = await inspectPorts(snapshot.wsPort, snapshot.webPort, Number(env.WEB_PORT ?? DEFAULT_BFF_PORT), snapshot.napcatHost);
+        reportPorts(report, snapshot.napcatHost);
+
+        await ensureWebBuild(p);
     }
-    else {
-        answers = await collectAnswers(p);
+    finally {
+        // 无论成功、报错还是 Ctrl+C，都要交还终端（否则会一直停在 raw 模式）
+        p.close();
     }
-
-    if (answers) {
-        writeConfigJson(answers);
-        writeWebEnv(answers);
-    }
-    else {
-        heading("配置文件");
-        ok("沿用现有 core/config.json");
-    }
-
-    const snapshot = await loadConfigSnapshot();
-    const env = existsSync(WEB_ENV) ? parseEnvText(readFileSync(WEB_ENV, "utf8")) : null;
-    reportConfig(snapshot, env);
-    if (!env) throw new Error("web/.env 缺失：请重新运行并选择重新配置");
-
-    const report = await inspectPorts(snapshot.wsPort, snapshot.webPort, Number(env.WEB_PORT ?? DEFAULT_BFF_PORT), snapshot.napcatHost);
-    reportPorts(report, snapshot.napcatHost);
-
-    await ensureWebBuild(p);
 
     if (flags.noStart) {
         printStartSummary(snapshot, env);
