@@ -26,6 +26,14 @@ export interface UsageBucket extends ModelUsage {
     models: Record<string, ModelUsage>;
 }
 
+/** 对外返回的统计桶：不含 models 明细，附上算好的缓存命中率 */
+export interface UsageBucketView extends ModelUsage {
+    /** 本地日期 YYYY-MM-DD */
+    date: string;
+    /** 缓存命中率（百分比，保留一位小数）；无输入时为 null */
+    cacheHitRate: number | null;
+}
+
 /** 一次模型调用解析出的用量 */
 export interface LlmUsage {
     model: string;
@@ -62,6 +70,15 @@ function storeFile(): string {
 /** 数值字段归一化：非有限数一律按 0 处理，防脏数据污染累加 */
 function sanitize(n: unknown): number {
     return typeof n === "number" && Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+/**
+ * 缓存命中率
+ * @returns 百分比（保留一位小数）；没有输入时为 null
+ */
+export function cacheHitRate(usage: Pick<ModelUsage, "inputTokens" | "cachedTokens">): number | null {
+    if (!(usage.inputTokens > 0)) return null;
+    return Math.round((usage.cachedTokens / usage.inputTokens) * 1000) / 10;
 }
 
 function emptyBucket(date: string): UsageBucket {
@@ -172,9 +189,17 @@ function sumDays(days: UsageBucket[]): ModelUsage {
     return total;
 }
 
-/** 去掉 models 明细的对外桶 */
-function toPlainBucket(d: UsageBucket): UsageBucket {
-    return { ...d };
+/** 对外视图：去掉 models 明细，只剩本桶合计 + 缓存命中率 */
+function toView(d: UsageBucket): UsageBucketView {
+    return {
+        date: d.date,
+        requests: d.requests,
+        inputTokens: d.inputTokens,
+        outputTokens: d.outputTokens,
+        cachedTokens: d.cachedTokens,
+        totalTokens: d.totalTokens,
+        cacheHitRate: cacheHitRate(d),
+    };
 }
 
 /**
@@ -183,13 +208,18 @@ function toPlainBucket(d: UsageBucket): UsageBucket {
  * @returns today 今日桶 / recent 分天记录 / total 保留窗口内的累计
  */
 export async function getUsageSummary(days = 7): Promise<{
-    today: UsageBucket;
-    recent: UsageBucket[];
-    total: ModelUsage;
+    today: UsageBucketView;
+    recent: UsageBucketView[];
+    total: Omit<UsageBucketView, "date">;
 }> {
     await load();
     const today = todayKey();
     const todayBucket = state.days.find((d) => d.date === today) ?? emptyBucket(today);
-    const recent = state.days.slice(-Math.max(1, Math.min(days, KEEP_DAYS))).map(toPlainBucket);
-    return { today: toPlainBucket(todayBucket), recent, total: sumDays(state.days) };
+    const recent = state.days.slice(-Math.max(1, Math.min(days, KEEP_DAYS))).map(toView);
+    const total = sumDays(state.days);
+    return {
+        today: toView(todayBucket),
+        recent,
+        total: { ...total, cacheHitRate: cacheHitRate(total) },
+    };
 }

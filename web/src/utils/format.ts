@@ -44,3 +44,19 @@ export function formatValue(value: unknown, maxLen = 120): string {
     }
     return text.length > maxLen ? `${text.slice(0, maxLen)}…` : text;
 }
+
+/** token 数紧凑显示：1.2k / 3.45M；过百万自动换单位 */
+export function formatTokens(n: number): string {
+    if (!Number.isFinite(n) || n <= 0) return "0";
+    // 去掉小数末尾的 0，让 1.00M 显示成 1M
+    const trim = (s: string) => (s.includes(".") ? s.replace(/\.?0+$/, "") : s);
+    const k = n / 1000;
+    if (n >= 1_000_000 || k >= 999.95) return `${trim((n / 1_000_000).toFixed(2))}M`;
+    if (n >= 1000) return `${trim(k.toFixed(1))}k`;
+    return String(Math.round(n));
+}
+
+/** 缓存命中率文本：79.2%；无输入或旧版 Bot 未返回时为 "-" */
+export function formatCacheRate(rate: number | null | undefined): string {
+    return typeof rate === "number" && Number.isFinite(rate) ? `${rate}%` : "-";
+}

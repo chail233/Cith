@@ -3,8 +3,8 @@ import { Badge, Card, EmptyState, ErrorBanner, Loading } from "../components/ui"
 import { useEventStream } from "../hooks/event-stream";
 import { usePolling } from "../hooks/usePolling";
 import { rpc } from "../api/client";
-import type { BotStatus, ConfigWarning, TokenUsageSummary } from "../types";
-import { formatTime, formatUptime } from "../utils/format";
+import type { BotStatus, ConfigWarning, TokenUsageBucket, TokenUsageSummary } from "../types";
+import { formatCacheRate, formatTime, formatTokens, formatUptime } from "../utils/format";
 
 export default function Dashboard() {
     const { data: status, error, loading, refresh } = usePolling(() => rpc<BotStatus>("get_status"), 5000);
@@ -82,29 +82,30 @@ export default function Dashboard() {
 
 /** Token 用量卡片：今日概览 + 近 7 天分天明细 + 累计（60s 轮询） */
 function TokenUsageCard({ usage }: { usage: TokenUsageSummary }) {
+    const today = usage.today;
     return (
         <Card title="Token 用量" extra={<span className="text-muted">来自模型服务商 usage 统计，每 60 秒刷新</span>}>
             <div className="stat-grid">
                 <div className="stat-card">
                     <div className="stat-label">今日总消耗</div>
                     <div className="stat-value">
-                        {fmtTokens(usage.today.totalTokens)} <span className="stat-unit">tokens</span>
+                        {formatTokens(today.totalTokens)} <span className="stat-unit">tokens</span>
                     </div>
-                    <div className="stat-sub">{usage.today.requests} 次调用</div>
+                    <div className="stat-sub">{today.requests} 次调用 · 缓存命中 {hitRate(today)}</div>
                 </div>
                 <div className="stat-card">
                     <div className="stat-label">今日输入 / 输出</div>
                     <div className="stat-value stat-value-sm">
-                        {fmtTokens(usage.today.inputTokens)} / {fmtTokens(usage.today.outputTokens)}
+                        {formatTokens(today.inputTokens)} / {formatTokens(today.outputTokens)}
                     </div>
-                    <div className="stat-sub">其中缓存命中 {fmtTokens(usage.today.cachedTokens)}</div>
+                    <div className="stat-sub">缓存命中 {formatTokens(today.cachedTokens)}（{hitRate(today)}）</div>
                 </div>
                 <div className="stat-card">
                     <div className="stat-label">累计总消耗</div>
                     <div className="stat-value">
-                        {fmtTokens(usage.total.totalTokens)} <span className="stat-unit">tokens</span>
+                        {formatTokens(usage.total.totalTokens)} <span className="stat-unit">tokens</span>
                     </div>
-                    <div className="stat-sub">{usage.total.requests} 次调用（保留窗口内）</div>
+                    <div className="stat-sub">{usage.total.requests} 次调用 · 缓存命中 {hitRate(usage.total)}</div>
                 </div>
             </div>
             {usage.recent.length > 0 && (
@@ -115,6 +116,7 @@ function TokenUsageCard({ usage }: { usage: TokenUsageSummary }) {
                             <th>日期</th>
                             <th>输入</th>
                             <th>缓存命中</th>
+                            <th>命中率</th>
                             <th>输出</th>
                             <th>合计</th>
                             <th>调用次数</th>
@@ -124,11 +126,12 @@ function TokenUsageCard({ usage }: { usage: TokenUsageSummary }) {
                         {usage.recent.slice().reverse().map((d) => (
                             <tr key={d.date}>
                                 <td className="mono">{d.date?.slice(5)}</td>
-                                <td>{fmtTokens(d.inputTokens)}</td>
-                                <td>{fmtTokens(d.cachedTokens)}</td>
-                                <td>{fmtTokens(d.outputTokens)}</td>
-                                <td>{fmtTokens(d.totalTokens)}</td>
-                                <td>{d.requests}</td>
+                                <td className="mono">{formatTokens(d.inputTokens)}</td>
+                                <td className="mono">{formatTokens(d.cachedTokens)}</td>
+                                <td className="mono">{hitRate(d)}</td>
+                                <td className="mono">{formatTokens(d.outputTokens)}</td>
+                                <td className="mono">{formatTokens(d.totalTokens)}</td>
+                                <td className="mono">{d.requests}</td>
                             </tr>
                         ))}
                     </tbody>
@@ -139,11 +142,15 @@ function TokenUsageCard({ usage }: { usage: TokenUsageSummary }) {
     );
 }
 
-/** token 数缩写显示：1.2k / 34.5k */
-function fmtTokens(n: number): string {
-    if (!Number.isFinite(n) || n <= 0) return "0";
-    if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
-    return String(n);
+/**
+ * 缓存命中率文本：优先用后端算好的值；
+ * 面板可能连的是旧版 Bot（无 cacheHitRate 字段），此时按 cached / input 兜底
+ */
+function hitRate(b: TokenUsageBucket): string {
+    const rate = typeof b.cacheHitRate === "number"
+        ? b.cacheHitRate
+        : b.inputTokens > 0 ? Math.round((b.cachedTokens / b.inputTokens) * 1000) / 10 : null;
+    return formatCacheRate(rate);
 }
 
 /** 启动配置自检告警：常驻页面顶部，error 级红色、warn 级橙色 */

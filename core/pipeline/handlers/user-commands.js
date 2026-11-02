@@ -15,6 +15,21 @@ const cfg = /** @type {Record<string, any>} */ (config);
 const BOOTSTRAP_COMMANDS = new Set(["bind"]);
 
 /**
+ * token 数紧凑显示：1.2k / 3.45M
+ * 超过百万自动换单位，避免出现「1234.5k」这种要数位的写法
+ * @param {number} n
+ * @returns {string}
+ */
+function fmtTokens(n) {
+    if (!Number.isFinite(n) || n <= 0) return "0";
+    const trim = (s) => (s.includes(".") ? s.replace(/\.?0+$/, "") : s);
+    const k = n / 1000;
+    if (n >= 1e6 || k >= 999.95) return `${trim((n / 1e6).toFixed(2))}M`;
+    if (n >= 1000) return `${trim(k.toFixed(1))}k`;
+    return String(Math.round(n));
+}
+
+/**
  * 是否为「未授权会话也要交给管道处理」的管理员引导指令
  * @param {string} text 原始消息文本
  * @returns {boolean}
@@ -267,14 +282,22 @@ const cmds = [
         handler: async (args, ctx) => {
             const days = Math.min(Math.max(Number.parseInt(args[0] ?? "", 10) || 7, 1), 90);
             const { today, recent, total } = await getUsageSummary(days);
-            const fmt = (n) => n >= 10000 ? `${(n / 1000).toFixed(1)}k` : String(n);
-            const line = (b) => `${b.date.slice(5)}  输入${fmt(b.inputTokens)}（缓存命中${fmt(b.cachedTokens)}） 输出${fmt(b.outputTokens)} 共${fmt(b.totalTokens)}，${b.requests}次`;
-            const recentLines = recent.map(line).join("\n") || "（暂无记录）";
-            return [
-                `今日：输入${fmt(today.inputTokens)}（缓存命中${fmt(today.cachedTokens)}） 输出${fmt(today.outputTokens)} 共${fmt(today.totalTokens)}，${today.requests}次`,
-                `\n近${recent.length}天：\n${recentLines}`,
-                `\n累计：共${fmt(total.totalTokens)} tokens（${total.requests}次调用，输入${fmt(total.inputTokens)}，输出${fmt(total.outputTokens)}，缓存命中${fmt(total.cachedTokens)}）`,
-            ].join("\n");
+            // 缓存命中率以输入为分母；没有输入（如只发生过报错调用）显示 -
+            const rate = (b) => (b.cacheHitRate == null ? "-" : `${b.cacheHitRate}%`);
+            const brief = (b) =>
+                `共${fmtTokens(b.totalTokens)}·${b.requests}次｜输入${fmtTokens(b.inputTokens)}`
+                + `｜缓存${fmtTokens(b.cachedTokens)}（${rate(b)}）｜输出${fmtTokens(b.outputTokens)}`;
+
+            const lines = [`今日  ${brief(today)}`];
+            if (recent.length === 0) {
+                lines.push("（暂无历史记录）");
+            }
+            else {
+                lines.push(`近${recent.length}天`);
+                for (const b of recent) lines.push(`${b.date.slice(5)}  ${brief(b)}`);
+            }
+            lines.push(`累计  ${brief(total)}`);
+            return lines.join("\n");
         }
     },
     {

@@ -51,6 +51,8 @@ export interface TokenUsageBucket {
     outputTokens: number;
     cachedTokens: number;
     totalTokens: number;
+    /** 缓存命中率（百分比，一位小数）；无输入为 null，旧版 Bot 不返回此字段 */
+    cacheHitRate?: number | null;
 }
 
 /** get_token_usage 返回 */
@@ -98,5 +100,5 @@ export const ACTION_DESCRIPTIONS: Record<string, string> = {
     set_config: "热改白名单内的配置字段，白名单外的字段会被 Bot 拒绝",
     get_logs: "按时间戳从环形缓冲补拉历史事件（默认容量 1000 条）",
     list_actions: "获取 Bot 当前支持的 action 清单",
-    get_token_usage: "模型 Token 用量统计：今日 / 近 N 天 / 累计的输入、输出、缓存命中与总消耗",
+    get_token_usage: "模型 Token 用量统计：今日 / 近 N 天 / 累计的输入、输出、缓存命中与命中率、总消耗",
 };
