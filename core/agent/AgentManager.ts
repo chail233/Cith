@@ -21,7 +21,7 @@ interface AgentEntry {
 export interface AgentInfo {
     id: string;
     short: number;
-    cache: number;
+    tokens: number;
     chars: number;
     hasSummary: boolean;
     idleMin: number;
@@ -44,7 +44,7 @@ export function getAgent(space: Space): Agent {
         if (agents.size >= MAX_SESSIONS) {
             retireLeastRecent();
         }
-        entry = { agent: new Agent({ sessionId: id, memory: new ChatRecorder(undefined, id) }), lastActive: Date.now() };
+        entry = { agent: new Agent({ sessionId: id, memory: new ChatRecorder(id) }), lastActive: Date.now() };
         agents.set(id, entry);
         logger.debug(`新建 Agent 会话: ${id}`);
     }
@@ -60,7 +60,7 @@ export function listAgents(): AgentInfo[] {
     return [...agents.entries()].map(([id, e]) => ({
         id,
         short: e.agent.memory.length,
-        cache: e.agent.memory.getCache().length,
+        tokens: e.agent.memory.estimatedTokens,
         chars: e.agent.memory.chars,
         hasSummary: !!e.agent.memory.getMidSummary(),
         idleMin: Math.floor((now - e.lastActive) / 60000),
@@ -95,7 +95,7 @@ function retireLeastRecent(): void {
 }
 
 /**
- * 回收前压缩记忆，失败只记日志（不阻塞会话池操作）
+ * 回收前摘要记忆，失败只记日志（不阻塞会话池操作）
  */
 async function safeCompress(entry: AgentEntry, id: string): Promise<void> {
     try {

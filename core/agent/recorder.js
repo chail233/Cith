@@ -3,18 +3,35 @@ import logger from "../utils/logger.js";
 import { callLLM } from "./client.ts";
 import { addFacts, makeMemoryUserId } from "./long-term-memory.js";
 /**
- * 对话上下文管理器（三层记忆）
+ * 对话上下文管理器（分层记忆）
  *
  * 记忆层级：
- * - 短期记忆（_messages）：最近的消息，超出 limit 则裁剪
- * - 中期缓存（_cache）：被挤出短期的消息暂存区
- * - 中期概括（_midSummary）：缓存满时由 LLM 提取成事实清单，一行一条
- * - 事实清单（_pendingFacts）：与概括同时产出，旧清单被覆盖时逐条写入长期记忆
+ * - 短期记忆（_messages）：全部未摘要的消息，体积由 _chars 增量维护，不再按条数裁剪
+ * - 中期概括（_midSummary）：上下文超过聊天阈值时由 LLM 提取成事实清单，一行一条
+ * - 事实清单：与概括同时产出，逐条写入长期记忆
  *
+ * 两级 token 阈值：
+ * - 工作阈值（config.contextBudgetTokens）：Agent 循环内折叠最旧的工具痕迹
+ * - 聊天阈值（config.chatSummaryThresholdTokens）：一轮 Agent 结束后触发后台摘要
  */
 
 /** 预算换算：每 token 约多少字符 */
 const CHARS_PER_TOKEN = 2.5;
+
+/** 摘要后保留的尾部原文体积比例（避免下一轮丢失即时语境） */
+const KEEP_TAIL_RATIO = 0.3;
+
+/** 概要滚动窗口：最多保留的事实条数 */
+const MAX_SUMMARY_FACTS = 60;
+
+/** 摘要提示词：把对话压缩成可脱离上下文理解的事实清单 */
+const SUMMARY_PROMPT =
+    "请从以下对话历史中提取值得长期记住的事实，每条事实单独一行，以「- 」开头。" +
+    "事实包括讨论过的话题、角色的偏好或特征、已作出的决定或承诺等。" +
+    "一条事实只讲一件事，不要把多个信息点合并成一段；每条事实必须有明确主体，" +
+    "不能直接用用户来指代角色；每条事实都要能脱离上下文单独理解。" +
+    "保持简洁，不要添加原文没有的信息。只输出事实列表，不要序号、标题或其他说明；" +
+    "如果没有值得记住的内容，只输出「无」。";
 
 /** 折叠标记：带此前缀的消息视为已折叠，不再重复截断 */
 const FOLDED_TAG = "[已折叠] ";
@@ -61,25 +78,28 @@ function foldText(text) {
 
 export class ChatRecorder {
     /**
-     * @param {number} [limit] 最大消息条数
      * @param {string} [sessionId] 会话 ID（用于派生长期记忆实体，隔离不同群/私聊）
      */
-    constructor(
-        limit = config.chatHistoryLimit, sessionId = "default") {
+    constructor(sessionId = "default") {
         this._messages = [];
-        this._cache = [];
         this._midSummary = "";
-        this._pendingFacts = [];
-        this._limit = limit;
         this._sessionId = sessionId;
-        this._needsSummarization = false;
+        /** 短期消息序列化后的累计字符数（增量维护，体积判定 O(1)） */
+        this._chars = 0;
+        this._summarizing = false;
         this._requesting = false;
+        /** 代际号：clear() 时自增，让进行中的摘要丢弃过期结果 */
+        this._epoch = 0;
     }
 
     msgWithoutChat = 0;
 
     get isRequesting() {
         return this._requesting;
+    }
+
+    get isSummarizing() {
+        return this._summarizing;
     }
 
     /**
@@ -93,12 +113,12 @@ export class ChatRecorder {
         return true;
     }
 
-    /** 释放本会话的请求名额（与 tryBeginRequest 配对，必须在 finally 中调用） */
+    /** 释放本会话的请求名额 */
     endRequest() {
         this._requesting = false;
     }
 
-    /** 判断一条消息是否计入短期记忆条数：工具、系统消息不计入 */
+    /** 判断一条消息是否计入消息条数：工具、系统消息不计入 */
     _isCounted(msg) {
         return msg.role !== "tool" && msg.role !== "system";
     }
@@ -112,11 +132,14 @@ export class ChatRecorder {
         return n;
     }
 
+    /** 单条消息序列化后的字符数 */
+    _msgChars(msg) {
+        return JSON.stringify(msg.content).length;
+    }
+
     /**
      * 添加一条消息
      * content 统一为对象格式：{ text, ...其他字段 }
-     * 超出短期限制的消息自动进入中期缓存
-     * 计数规则：工具、系统消息不计入条数，仅 user/assistant 等消息参与裁剪
      */
     add(msg) {
         if (msg.role === "user") {
@@ -125,13 +148,7 @@ export class ChatRecorder {
         }
 
         this._messages.push(msg);
-        while (this._counted() > this._limit) {
-            const evicted = this._messages.shift();
-            this._cache.push(evicted);
-        }
-        if (this._cache.length >= this._limit && !this._needsSummarization) {
-            this._needsSummarization = true;
-        }
+        this._chars += this._msgChars(msg);
     }
 
     /** 获取所有短期消息的副本（content 序列化为字符串） */
@@ -141,51 +158,41 @@ export class ChatRecorder {
         });
     }
 
-    getCache() {
-        return this._cache.map((msg) => {
-            return {role: msg.role, content: JSON.stringify(msg.content)};
-        });
-    }
-
-    /** 短期消息序列化后的字符总量 */
-    _charLength() {
-        let n = 0;
-        for (const msg of this._messages) n += JSON.stringify(msg.content).length;
-        return n;
-    }
-
     /** 短期消息的字符总量 */
     get chars() {
-        return this._charLength();
+        return this._chars;
+    }
+
+    /** 短期消息的预估上下文大小（token） */
+    get estimatedTokens() {
+        return Math.ceil(this._chars / CHARS_PER_TOKEN);
     }
 
     /**
-     * 上下文体积守护：超出预算时，从最旧的开始把 system 消息（工具调用痕迹）折叠成首尾摘要
+     * 工作阈值守护：超出预算时，从最旧的开始把 system 消息（工具调用痕迹）折叠成首尾摘要
      * 折叠是纯内存操作、不调模型；折到预算一半以下即停
-     * @param {number} tokenBudget 短期消息的 token 预算
+     * @param {number} tokenBudget 工作阈值（token）
      * @returns {number} 本次折叠的消息条数
      */
     compactIfNeeded(tokenBudget) {
         const budget = tokenBudget * CHARS_PER_TOKEN;
         if (!Number.isFinite(budget) || budget <= 0) return 0;
-
-        let total = this._charLength();
-        if (total <= budget) return 0;
+        if (this._chars <= budget) return 0;
 
         const target = budget / 2;
         let folded = 0;
         for (const msg of this._messages) {
-            if (total <= target) break;
+            if (this._chars <= target) break;
             if (msg.role !== "system") continue;
             const text = msg.content?.text;
             const next = foldText(text);
             if (next === text) continue;
-            const before = JSON.stringify(msg.content).length;
+            const before = this._msgChars(msg);
             msg.content = { ...msg.content, text: next };
-            total -= before - JSON.stringify(msg.content).length;
+            this._chars += this._msgChars(msg) - before;
             folded++;
         }
-        if (folded > 0) logger.info(`上下文折叠：${folded} 条工具痕迹，剩余约 ${total} 字`);
+        if (folded > 0) logger.info(`上下文折叠：${folded} 条工具痕迹，剩余约 ${this._chars} 字`);
         return folded;
     }
 
@@ -195,75 +202,127 @@ export class ChatRecorder {
     }
 
     /**
-     * 执行缓存概括
-     * 异步调用 LLM 把缓存中的对话提取成事实清单。
-     * 在覆盖旧清单前，会先把上一批事实逐条存入长期记忆。
+     * 聊天阈值检查：一轮 Agent 结束后调用，超出阈值就在后台静默摘要
+     * 不 await、不抛错，不阻塞监听器摘除与下一轮对话
+     * @returns {boolean} 是否已启动后台摘要
      */
-    async summarizeCache() {
-        if (!this._needsSummarization || this._cache.length === 0) return;
+    maybeSummarize() {
+        const threshold = config.chatSummaryThresholdTokens;
+        if (!Number.isFinite(threshold) || threshold <= 0) return false;
+        if (this._summarizing) return false;
+        if (this.estimatedTokens <= threshold) return false;
 
-        this._needsSummarization = false;
+        this._summarizing = true;
+        void this._summarize()
+            .catch((err) => logger.warn("上下文摘要失败:", err instanceof Error ? err.message : err))
+            .finally(() => { this._summarizing = false; });
+        return true;
+    }
 
-        // 1. 上一批事实还没入库：逐条写入长期记忆
-        if (this._pendingFacts.length > 0) {
-            const userId = makeMemoryUserId(this._sessionId);
-            await addFacts(userId, this._pendingFacts);
-            this._pendingFacts = [];
+    /** 强制摘要（忽略聊天阈值）：手动 #compress 与会话回收前调用 */
+    async compress() {
+        if (this._summarizing) return;
+        this._summarizing = true;
+        try {
+            await this._summarize();
+        }
+        finally {
+            this._summarizing = false;
+        }
+    }
+
+    /**
+     * 摘要主体：把较旧的对话提取成事实清单
+     * - 先快照：摘要期间新到的消息不参与本次摘要，也不会被误删
+     * - 事实写入长期记忆后才更新概要并移除原文；模型调用失败时原文原样保留
+     */
+    async _summarize() {
+        const epoch = this._epoch;
+        const snapshot = this._messages.slice();
+        if (snapshot.length === 0) return;
+
+        const cut = this._keepTailIndex(snapshot);
+        const older = snapshot.slice(0, cut);
+        if (older.length === 0) return;
+
+        const facts = await this._extractFacts(older);
+        // 没提取到事实（模型无响应/只返回「无」）就不动原文，避免静默丢历史
+        if (facts.length === 0) {
+            logger.debug("上下文摘要未产出事实，保留原文");
+            return;
         }
 
-        // 2. 生成新的事实清单
-        let userMsgs = "";
-        for (let i = 0; i < this._cache.length; i++) {
-            const msg = this._cache[i];
-            userMsgs += `${i + 1}.`;
-            userMsgs += JSON.stringify(msg) + "\n";
+        const written = await addFacts(makeMemoryUserId(this._sessionId), facts);
+        // 长期记忆已开启但一条也没写进去（存储不可用/超时）：保留原文，避免只剩概要
+        if (written === 0 && config.enableLongTermMemory) {
+            logger.warn("上下文摘要入库失败，保留原文");
+            return;
         }
+        // clear() 期间完成的摘要不再回写，避免清空后概要又凭空出现
+        if (epoch !== this._epoch) return;
+        const merged = [];
+        for (const fact of [...parseFacts(this._midSummary), ...facts]) {
+            if (!merged.includes(fact)) merged.push(fact);
+        }
+        this._midSummary = merged.slice(-MAX_SUMMARY_FACTS).join("\n");
+
+        const removed = new Set(older);
+        this._messages = this._messages.filter((msg) => !removed.has(msg));
+        this._recount();
+        logger.info(`上下文摘要：${older.length} 条消息 → ${facts.length} 条事实，剩余约 ${this._chars} 字`);
+    }
+
+    /**
+     * 调 LLM 从消息里提取事实清单
+     * @param {Array<{role: string, content: unknown}>} messages
+     * @returns {Promise<string[]>}
+     */
+    async _extractFacts(messages) {
+        const lines = messages.map((msg, i) => `${i + 1}.${JSON.stringify(msg).slice(0, 500)}`);
         const result = await callLLM({
             model: config.chatModel,
             messages: [
-                {
-                    role: "system",
-                    content:
-                        "请从以下对话历史中提取值得长期记住的事实，每条事实单独一行，以「- 」开头。" +
-                        "事实包括讨论过的话题、角色的偏好或特征、已作出的决定或承诺等。" +
-                        "一条事实只讲一件事，不要把多个信息点合并成一段；每条事实必须有明确主体，" +
-                        "不能直接用用户来指代角色；每条事实都要能脱离上下文单独理解。" +
-                        "保持简洁，不要添加原文没有的信息。只输出事实列表，不要序号、标题或其他说明；" +
-                        "如果没有值得记住的内容，只输出「无」。",
-                },
-                {
-                    role: "user",
-                    content: userMsgs
-                }
+                { role: "system", content: SUMMARY_PROMPT },
+                { role: "user", content: lines.join("\n") },
             ],
             temperature: 0.2,
         });
-
-        if (typeof result !== "string" && result?.message?.content) {
-            const facts = parseFacts(result.message.content);
-            this._pendingFacts = facts;
-            this._midSummary = facts.join("\n");
-        }
-
-        this._cache = [];
+        if (typeof result === "string" || !result?.message?.content) return [];
+        return parseFacts(result.message.content);
     }
 
-    async compress() {
-        if (this._counted() >= 10) {
-            this._cache = this._cache.concat(this._messages);
-            this._messages = [];
+    /**
+     * 计算摘要切分点：尾部按体积比例保留原文，且总是给最新一条留原文
+     * @param {Array<{content: unknown}>} messages 消息快照
+     * @returns {number} 需摘要的前缀消息条数
+     */
+    _keepTailIndex(messages) {
+        let total = 0;
+        for (const msg of messages) total += this._msgChars(msg);
+
+        let keepChars = total * KEEP_TAIL_RATIO;
+        let index = messages.length;
+        while (index > 0 && keepChars > 0) {
+            keepChars -= this._msgChars(messages[--index]);
         }
-        this._needsSummarization = true;
-        await this.summarizeCache();
+
+        const maxCut = Math.max(messages.length - 1, 1);
+        return Math.min(Math.max(index, 1), maxCut);
     }
 
-    /** 清空所有记忆（短期、缓存、概括） */
+    /** 按当前消息重算累计字符数（移除消息后调用） */
+    _recount() {
+        let chars = 0;
+        for (const msg of this._messages) chars += this._msgChars(msg);
+        this._chars = chars;
+    }
+
+    /** 清空所有记忆（短期消息与概括） */
     clear() {
         this._messages = [];
-        this._cache = [];
         this._midSummary = "";
-        this._pendingFacts = [];
-        this._needsSummarization = false;
+        this._chars = 0;
+        this._epoch++;
     }
 
     /** 当前计入条数的短期消息数量（工具、系统消息不计入） */

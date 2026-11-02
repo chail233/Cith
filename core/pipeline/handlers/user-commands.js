@@ -110,20 +110,6 @@ const cmds = [
         }
     },
     {
-        name: "cmsgs",
-        needsAdmin: true,
-        description: "列出缓存记录",
-        params: [],
-        handler: async (args, ctx)=>{
-            const all = getAgent(ctx.space).memory.getCache();
-            if (all.length === 0) return "缓存记录为空";
-            const lines = all.map((m, i) => {
-                return `[${i + 1}] ${m.role}: ${m.content}`;
-            });
-            return `缓存记录共 ${all.length} 条：\n${lines.join("\n")}`;
-        }
-    },
-    {
         name: "sm",
         needsAdmin: true,
         description: "显示中期记忆概括",
@@ -182,16 +168,16 @@ const cmds = [
     {
         name: "compress",
         needsAdmin: true,
-        description: "压缩短期记忆（管理员）",
+        description: "摘要并压缩短期记忆（管理员）",
         params: [],
         handler: async (args, ctx) => {
             try {
                 await getAgent(ctx.space).memory.compress();
-                return "压缩完成";
+                return "摘要完成";
             }
             catch (err) {
-                logger.error("短期记忆压缩失败:", err);
-                return "压缩失败";
+                logger.error("短期记忆摘要失败:", err);
+                return "摘要失败";
             }
 
         }
@@ -205,7 +191,7 @@ const cmds = [
             const list = listAgents();
             if (list.length === 0) return "当前没有活跃会话";
             const lines = list.map(s =>
-                `${s.id}：短期 ${s.short} 条，缓存 ${s.cache} 条，约 ${s.chars} 字，${s.hasSummary ? "有概要" : "无概要"}，空闲 ${s.idleMin} 分钟`
+                `${s.id}：短期 ${s.short} 条，约 ${s.chars} 字（${s.tokens} token），${s.hasSummary ? "有概要" : "无概要"}，空闲 ${s.idleMin} 分钟`
             );
             return `活跃会话（${list.length} 个）：\n${lines.join("\n")}`;
         }

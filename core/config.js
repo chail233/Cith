@@ -33,7 +33,6 @@ const LEGACY_KEY_MAP = {
     aiAPIKEY: "aiApiKey",
     visionAPIKEY: "visionApiKey",
     EnableProactiveChat: "enableProactiveChat",
-    CHAT_HISTORY_LIMIT: "chatHistoryLimit",
     PROACTIVE_CHAT_LIMIT: "proactiveChatLimit",
     LLM_API_URL: "llmApiUrl",
     LLM_VISION_API_URL: "llmVisionApiUrl",
@@ -126,9 +125,6 @@ const baseConfig = {
 
     // ========== 对话行为 ==========
 
-    /** 短期记忆最大保留条数 */
-    chatHistoryLimit: 30,
-
     /** 主动聊天触发阈值：无 @ 的消息累计多少条后唤醒 */
     proactiveChatLimit: 15,
 
@@ -141,8 +137,11 @@ const baseConfig = {
     /** Agent 工具链最大轮数 */
     toolChainMaxLength: 30,
 
-    /** 短期消息体积预算（token）：超预算时折叠最旧的工具调用痕迹，降至一半以下 */
+    /** 工作阈值（token）：Agent 循环内上下文超出时折叠最旧的工具调用痕迹，降至一半以下 */
     contextBudgetTokens: 60000,
+
+    /** 聊天阈值（token）：一轮 Agent 结束后上下文仍超出则后台摘要，压缩较旧的对话 */
+    chatSummaryThresholdTokens: 40000,
 
     // ========== 长期记忆（rememori） ==========
 

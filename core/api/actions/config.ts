@@ -18,7 +18,6 @@ const WRITABLE_KEYS = new Set<string>([
     "aiApiKey",
     "visionApiKey",
     "enableProactiveChat",
-    "chatHistoryLimit",
     "proactiveChatLimit",
     "llmApiUrl",
     "llmVisionApiUrl",
@@ -32,6 +31,7 @@ const WRITABLE_KEYS = new Set<string>([
     "memoryEmbedBaseUrl",
     "toolChainMaxLength",
     "contextBudgetTokens",
+    "chatSummaryThresholdTokens",
     "toolOutput",
 
     "readFileDirs",

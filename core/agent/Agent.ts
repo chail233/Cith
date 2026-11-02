@@ -83,8 +83,6 @@ export default class Agent extends EventEmitter {
             return;
         }
         try {
-            // 触发中期记忆概括（如需）
-            await this.memory.summarizeCache();
             // 每回合现取：开工前重新扫描 skills 目录，保证强加载/技能列表与磁盘一致
             await reloadSkills();
 
@@ -102,7 +100,7 @@ export default class Agent extends EventEmitter {
             let tokenCount = 0;
             let toolDepth = 0;
             while (true) {
-                // 请求前守体积：工具痕迹累积超预算时折叠最旧的部分，避免长工具链把上下文撑爆
+                // 工作阈值守护：请求前守体积，工具痕迹累积超预算时折叠最旧的部分，避免长工具链把上下文撑爆
                 this.memory.compactIfNeeded(config.contextBudgetTokens);
                 result = await request();
                 if (!result || typeof result === "string") {
@@ -143,6 +141,8 @@ export default class Agent extends EventEmitter {
         }
         finally {
             this.memory.endRequest();
+            // 聊天阈值守护：整轮跑完后若上下文仍超阈值，后台静默摘要，不阻塞监听器摘除与后续对话
+            this.memory.maybeSummarize();
         }
     }
 
