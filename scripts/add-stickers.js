@@ -111,7 +111,8 @@ const USAGE = `表情包入库脚本（开发用）
   node scripts/add-stickers.js <图片文件夹> [选项]
 
 选项：
-  --target dev|prod  写入哪个索引，默认跟随 core/config.js 的 DevMode
+  --target dev|prod  写入哪个索引，默认跟随运行时选索引逻辑
+                     （本地存在 manifest.dev.json 时用 dev，否则 prod）
                      dev  -> core/stickers/manifest.dev.json
                      prod -> core/stickers/manifest.json
   --weight N         这批表情的命中权重，默认 1（常用图可以调高）
@@ -240,9 +241,9 @@ function parseArgs(argv) {
  * @returns {{ url: string, key: string, model: string }}
  */
 function resolveApiConfig() {
-    const url = VISION_API.url || process.env.STICKER_API_URL || config.LLM_VISION_API_URL;
-    const key = VISION_API.key || process.env.STICKER_API_KEY || config.visionAPIKEY;
-    const model = VISION_API.model || process.env.STICKER_API_MODEL || config.VISION_MODEL;
+    const url = VISION_API.url || process.env.STICKER_API_URL || config.llmVisionApiUrl;
+    const key = VISION_API.key || process.env.STICKER_API_KEY || config.visionApiKey;
+    const model = VISION_API.model || process.env.STICKER_API_MODEL || config.visionModel;
 
     if (!url || !key || !model)
         throw new Error("视觉模型 API 未配置完整：请填写脚本顶部 VISION_API，或设置 STICKER_API_URL / STICKER_API_KEY / STICKER_API_MODEL");
@@ -733,8 +734,9 @@ async function main() {
     }
     if (!opts.folder)
         throw new Error(`缺少图片文件夹参数\n\n${USAGE}`);
+    // 默认与运行时 resolveManifestPath 保持一致：dev 索引存在即优先
     if (!opts.target)
-        opts.target = config.DevMode ? "dev" : "prod";
+        opts.target = existsSync(MANIFEST_PATHS.dev) ? "dev" : "prod";
 
     const api = resolveApiConfig();
     const folder = resolve(opts.folder);
