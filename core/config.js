@@ -184,8 +184,11 @@ const baseConfig = {
     /** 记忆操作超时（毫秒），避免 Ollama 无响应卡住对话 */
     memoryTimeout: 15000,
 
-    /** 每成功写入多少条记忆执行一次维护（prune + compact），0 表示只在启动时维护 */
+    /** 每成功写入多少条记忆执行一次维护（prune + 容量淘汰 + compact），0 表示只在启动时维护 */
     memoryMaintainEveryWrites: 100,
+
+    /** 记忆条数上限：超出部分按 importance 升序、创建时间升序淘汰，0 表示不限 */
+    memoryMaxRecords: 2000,
 
     /** 长期记忆命名空间前缀（后接会话 ID） */
     memoryUserIdPrefix: "SunBot",

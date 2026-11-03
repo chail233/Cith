@@ -9,6 +9,8 @@ import { ollama, openai } from "rememori/embedders";
 import config from "../config.js";
 import logger from "../utils/logger.js";
 import { resolveSrcPath } from "../utils/file-security.js";
+import { selectEvictions } from "./memory-eviction.ts";
+import type { EvictableRecord } from "./memory-eviction.ts";
 
 /** 单例；null 表示未启用或初始化失败，上层据此跳过长期记忆 */
 let store: Memory | null = null;
@@ -20,6 +22,10 @@ let writeChain: Promise<unknown> = Promise.resolve();
 let writesSinceMaintain = 0;
 /** 是否有维护正在执行，避免重复排队 */
 let maintaining = false;
+/** 记录列表不可读（rememori 内部结构变化）时只提示一次 */
+let recordsUnavailable = false;
+/** 启动后是否已折叠过一次存储，用于清掉历史遗留的 tombstone */
+let foldedOnce = false;
 
 /** 当前记忆实例 */
 export function getMemoryStore(): Memory | null {
@@ -196,16 +202,58 @@ export function enqueueMemoryWrite<T>(task: () => Promise<T>): Promise<T> {
     return next;
 }
 
-/** 维护：清理过期/低重要度记忆并折叠 tombstone（启动时 + 每写满固定次数时执行） */
+/**
+ * 读取全部记录的轻量视图
+ *
+ */
+function listRecords(mem: Memory): EvictableRecord[] | null {
+    const records = (mem as unknown as { records?: EvictableRecord[] }).records;
+    if (!Array.isArray(records)) {
+        if (!recordsUnavailable) {
+            recordsUnavailable = true;
+            logger.warn("长期记忆记录列表不可读，容量淘汰已跳过（rememori 内部结构可能变化）");
+        }
+        return null;
+    }
+    return records;
+}
+
+/** 超出 memoryMaxRecords 的部分逐条 forget，返回实际删除条数 */
+async function evictOverflow(mem: Memory): Promise<number> {
+    const capacity = config.memoryMaxRecords;
+    if (!(capacity > 0)) return 0;
+    const records = listRecords(mem);
+    if (!records) return 0;
+    let removed = 0;
+    for (const id of selectEvictions(records, capacity)) {
+        if (await mem.forget(id)) removed += 1;
+    }
+    return removed;
+}
+
+/**
+ * 维护：过期/低重要度清理 → 容量淘汰 → 折叠存储
+ * （启动时 + 每写满 memoryMaintainEveryWrites 条时执行）
+ */
 export async function maintainMemoryStore(): Promise<void> {
     const mem = store;
     if (!mem || maintaining) return;
     maintaining = true;
     try {
+        // prune / forget / compact 都改动同一个文件，必须留在同一条写队列里串行执行
         await runWrite(async () => {
-            const removed = await mem.prune({ olderThan: "100d", belowImportance: 0.2 });
-            if (removed > 0) {
-                logger.info(`长期记忆维护：清理 ${removed} 条，当前 ${mem.size} 条`);
+            const pruned = await mem.prune({ olderThan: "100d", belowImportance: 0.2 });
+            const evicted = await evictOverflow(mem);
+            if (pruned > 0 || evicted > 0) {
+                logger.info(
+                    `长期记忆维护：清理 ${pruned} 条、容量淘汰 ${evicted} 条，当前 ${mem.size} 条`,
+                );
+            }
+
+            if (!foldedOnce || evicted > 0) {
+                await mem.compact();
+                foldedOnce = true;
+                logger.debug(`长期记忆已折叠存储，当前 ${mem.size} 条`);
             }
         });
     }

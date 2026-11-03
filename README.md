@@ -148,9 +148,9 @@ Agent 本身不持有任何聊天通道，所有输出以事件广播；同一�
 |------|---------|-----------|----------|
 | 短期记忆 | 内存 | 不按条数裁剪，按 `chatSummaryThresholdTokens` 守护 | 每次对话实时更新 |
 | 中期概括 | 内存 | 滚动保留最近 60 条事实 | 一轮 Agent 结束后上下文超聊天阈值 |
-| 长期记忆 | 本地 rememori 文件（`memoryStorePath`） | 无上限 | 摘要产出的每条事实逐条存入（一条事实 = 一条记忆）；AI 通过 `get_memory` 自主检索 |
+| 长期记忆 | 本地 rememori 文件（`memoryStorePath`） | 最多 `memoryMaxRecords` 条（默认 2000） | 摘要产出的每条事实逐条存入（一条事实 = 一条记忆）；AI 通过 `get_memory` 自主检索 |
 
-长期记忆由 `enableLongTermMemory` 控制，**默认关闭**；embedding 二选一：本地 [Ollama](https://ollama.com)（`ollama pull bge-m3`，配 `memoryOllamaUrl`），或任意 OpenAI 兼容接口（`memoryEmbedProvider: "openai"`，配 `memoryEmbedBaseUrl` + `memoryEmbedApiKey`，如阿里云百炼 `text-embedding-v4`）。**换 embedding 提供方或模型 = 旧向量全部失效**，需删除 `memoryStorePath` 文件重新积累。记忆文件是 append-only JSONL，**只支持单进程读写**，不要同时用别的进程打开同一个文件。启动时会做一次清理（`prune`），运行期间每成功写入 `memoryMaintainEveryWrites` 条（默认 100，设 0 关闭）再清理一次。实现细节见 [docs/rememori/使用说明.md](docs/rememori/使用说明.md)。
+长期记忆由 `enableLongTermMemory` 控制，**默认开启**；embedding 二选一：本地 [Ollama](https://ollama.com)（`ollama pull bge-m3`，配 `memoryOllamaUrl`），或任意 OpenAI 兼容接口（`memoryEmbedProvider: "openai"`，配 `memoryEmbedBaseUrl` + `memoryEmbedApiKey`，如阿里云百炼 `text-embedding-v4`）。**换 embedding 提供方或模型 = 旧向量全部失效**，需删除 `memoryStorePath` 文件重新积累。记忆文件是 append-only JSONL，**只支持单进程读写**，不要同时用别的进程打开同一个文件。启动时会做一次维护（`prune` → 容量淘汰 → `compact` 折叠），运行期间每成功写入 `memoryMaintainEveryWrites` 条（默认 100，设 0 关闭）再执行一次；条数超出 `memoryMaxRecords`（默认 2000，设 0 不限）时按 importance 升序、创建时间升序淘汰最弱最旧的记录（写入不足 24 小时的不参与）。实现细节见 [docs/rememori/使用说明.md](docs/rememori/使用说明.md)。
 
 记忆按会话隔离（`AgentManager` 会话池懒创建）：空闲 30 分钟自动回收（回收前摘要归档），会话数超上限（50）时按最久未活跃淘汰。可用 `#sessions` 查看各会话记忆状态。注意：短期/中期记忆按会话隔离，长期记忆**不分会话**（不使用 tag，所有会话共用一个检索空间）。
 
