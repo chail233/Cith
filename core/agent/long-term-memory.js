@@ -178,6 +178,17 @@ function queriesFromMessages(messages) {
 }
 
 /**
+ * 搜索结果条目：内容 + 入库时间
+ *
+ * 入库时间是模型判断「这条记忆是否还成立」的唯一依据，
+ * 丢失它会让旧偏好/旧计划被当成现状，所以必须一路带到调用方
+ *
+ * @typedef {object} RecalledMemory
+ * @property {string} text 记忆内容
+ * @property {number} createdAt 入库时间（毫秒时间戳）
+ */
+
+/**
  * 搜索事实记忆
  *
  * 两种查询方式：
@@ -191,7 +202,7 @@ function queriesFromMessages(messages) {
  * @param {number} [options.topK] 合并后最多返回条数
  * @param {number} [options.minSimilarity] 原始余弦相似度底线
  * @param {number} [options.halfLifeDays] 时间衰减半衰期（天），0 表示不衰减
- * @returns {Promise<Array<string>>} 召回的记忆内容数组，为空表示无相关记忆
+ * @returns {Promise<RecalledMemory[]>} 召回的记忆，为空表示无相关记忆
  */
 export async function searchMemory(userId, messages, options = {}) {
     if (!config.enableLongTermMemory) return [];
@@ -211,7 +222,7 @@ export async function searchMemory(userId, messages, options = {}) {
     if (queries.length === 0) return [];
 
     // 每条语句各召回一次，任一条失败只跳过，不整体放弃
-    /** @type {Map<string, number>} 记忆文本 → 最高相似度 */
+    /** @type {Map<string, RecalledMemory & {similarity: number}>} 记忆文本 → 最佳命中 */
     const best = new Map();
     for (const query of queries) {
         try {
@@ -226,8 +237,15 @@ export async function searchMemory(userId, messages, options = {}) {
             );
             for (const hit of hits) {
                 if (!hit.text) continue;
+                // 同一文本命中多次时保留相似度更高的那条，时间取同一条记录的
                 const prev = best.get(hit.text);
-                if (prev === undefined || hit.similarity > prev) best.set(hit.text, hit.similarity);
+                if (prev === undefined || hit.similarity > prev.similarity) {
+                    best.set(hit.text, {
+                        text: hit.text,
+                        createdAt: hit.createdAt,
+                        similarity: hit.similarity,
+                    });
+                }
             }
         }
         catch (err) {
@@ -236,8 +254,8 @@ export async function searchMemory(userId, messages, options = {}) {
         }
     }
 
-    return [...best.entries()]
-        .sort((a, b) => b[1] - a[1])
+    return [...best.values()]
+        .sort((a, b) => b.similarity - a.similarity)
         .slice(0, topK)
-        .map(([text]) => text);
+        .map(({ text, createdAt }) => ({ text, createdAt }));
 }
