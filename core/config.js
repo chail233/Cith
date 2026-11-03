@@ -140,10 +140,10 @@ const baseConfig = {
     toolChainMaxLength: 30,
 
     /** 工作阈值（token）：Agent 循环内上下文超出时折叠最旧的工具调用痕迹，降至一半以下 */
-    contextBudgetTokens: 60000,
+    contextBudgetTokens: 24000,
 
     /** 聊天阈值（token）：一轮 Agent 结束后上下文仍超出则后台摘要，压缩较旧的对话 */
-    chatSummaryThresholdTokens: 40000,
+    chatSummaryThresholdTokens: 12000,
 
     // ========== 长期记忆（rememori） ==========
 
