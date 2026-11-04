@@ -53,6 +53,10 @@ export interface TokenUsageBucket {
     totalTokens: number;
     /** 缓存命中率（百分比，一位小数）；无输入为 null，旧版 Bot 不返回此字段 */
     cacheHitRate?: number | null;
+    /** 已定价模型折算的金额（元）；旧版 Bot 不返回此字段 */
+    cost?: number;
+    /** 价格表未覆盖的模型名，其 token 未计入 cost */
+    unpricedModels?: string[];
 }
 
 /** get_token_usage 返回 */
@@ -65,6 +69,27 @@ export interface TokenUsageSummary {
 
 /** get_config 返回的脱敏配置快照（键 → 标量/标量数组/"***"） */
 export type ConfigSnapshot = Record<string, unknown>;
+
+/** 单个模型的单价（元 / 百万 tokens） */
+export interface ModelPrice {
+    /** 未命中缓存的输入价 */
+    input: number;
+    /** 缓存命中的输入价，未配置时后端按 input 计 */
+    cachedInput: number;
+    /** 输出价 */
+    output: number;
+}
+
+/** get_model_pricing 返回 */
+export interface ModelPricingInfo {
+    /** 币种，固定 CNY */
+    currency: string;
+    /** 计价单位，固定 per_million_tokens */
+    unit: string;
+    models: Record<string, ModelPrice>;
+    /** 用量里出现过的模型名（按累计 token 降序），供新增价格条目时选填 */
+    seenModels: string[];
+}
 
 /** /api/health 返回 */
 export interface HealthInfo {
@@ -100,5 +125,7 @@ export const ACTION_DESCRIPTIONS: Record<string, string> = {
     set_config: "热改白名单内的配置字段，白名单外的字段会被 Bot 拒绝",
     get_logs: "按时间戳从环形缓冲补拉历史事件（默认容量 1000 条）",
     list_actions: "获取 Bot 当前支持的 action 清单",
-    get_token_usage: "模型 Token 用量统计：今日 / 近 N 天 / 累计的输入、输出、缓存命中与命中率、总消耗",
+    get_token_usage: "模型 Token 用量统计：今日 / 近 N 天 / 累计的输入、输出、缓存命中与命中率、总消耗、花销",
+    get_model_pricing: "读取模型价格表（元/百万 tokens）与用量里出现过的模型名",
+    set_model_pricing: "整体替换模型价格表，保存后用量页金额按新价重算",
 };

@@ -64,7 +64,8 @@ npm run dev             # http://localhost:5173，/api 自动代理到 BFF
 
 | 页面 | 数据来源 | 说明 |
 |------|----------|------|
-| 运行状态 | `get_status`（5s 轮询） | 运行时长 / OneBot 在线 / MCP 连接数 / 内存 / Node 版本 + 最近事件速览 |
+| 运行状态 | `get_status`（5s 轮询）+ `get_token_usage`（60s 轮询） | 运行时长 / OneBot 在线 / MCP 连接数 / 内存 / Node 版本 + Token 用量与花销（今日 / 近 7 天 / 累计，含缓存命中率）+ 最近事件速览 |
+| 模型价格 | `get_model_pricing` / `set_model_pricing` | 按模型填「元 / 百万 tokens」单价，保存即时生效；未定价模型一键补价 |
 | 配置管理 | `get_config` / `set_config` | 脱敏快照展示；非脱敏字段可尝试热改，白名单由 Bot 控制，拒绝原因原样展示 |
 | 事件日志 | `log` 事件流 + `get_logs` | 级别筛选 / 事件类型筛选 / 内容搜索 / 自动滚动；进入页面自动补拉最近 200 条 |
 | 能力清单 | `list_actions`（30s 轮询） | 动态展示 Bot 支持的 action 及说明 |
@@ -84,7 +85,7 @@ web/
 │   │   ├── event-stream.tsx  # 全局 SSE 事件流 Provider（去重 / 排序 / 补拉灌入）
 │   │   └── usePolling.ts     # 轮询 hook（后台标签页暂停）
 │   ├── components/      # 通用 UI（卡片 / 徽标 / 状态灯 / 登录页等）
-│   ├── pages/           # 四个功能页面
+│   ├── pages/           # 五个功能页面
 │   ├── types.ts         # 协议与领域类型（对应 core/api/types.ts）
 │   ├── utils/format.ts  # 展示格式化
 │   └── App.tsx          # 布局 + hash 路由
@@ -99,7 +100,7 @@ web/
 | POST | `/api/login` | `{password}` → `{token}`（未设 `WEB_PASSWORD` 时返回 `required:false`） |
 | GET | `/api/session` | `{required, authed}` 会话探测 |
 | GET | `/api/health` | BFF / Bot 连接状态、最近事件时间戳 |
-| POST | `/api/rpc` | `{action, params}` → Bot 响应；action 仅限白名单（get_status / get_config / set_config / get_logs / list_actions） |
+| POST | `/api/rpc` | `{action, params}` → Bot 响应；action 仅限白名单（get_status / get_config / set_config / get_logs / list_actions / get_token_usage / get_model_pricing / set_model_pricing） |
 | GET | `/api/events` | SSE 事件流；`id` 即事件 ts，支持 `Last-Event-ID` 补拉；15s 心跳注释帧 |
 
 错误约定：白名单外 action → HTTP 403；Bot 未连接 → HTTP 503；Bot 业务错误（如 set_config 拒绝）→ HTTP 200 + `{status:"error", message}`，便于前端区分展示。

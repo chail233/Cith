@@ -5,6 +5,7 @@ import { readFile, writeFile, mkdir, rename } from "node:fs/promises";
 import { dirname } from "node:path";
 import logger from "../utils/logger.js";
 import { resolveSrcPath } from "../utils/file-security.js";
+import { costOfModels, loadPricing } from "./model-pricing.ts";
 
 const STORE_PATH = "data/token-usage.json";
 /** 分天记录保留窗口（天），超出后最旧的天被裁剪，「累计」随之只统计窗口内数据 */
@@ -26,12 +27,16 @@ export interface UsageBucket extends ModelUsage {
     models: Record<string, ModelUsage>;
 }
 
-/** 对外返回的统计桶：不含 models 明细，附上算好的缓存命中率 */
+/** 对外返回的统计桶：不含 models 明细，附上算好的缓存命中率与金额 */
 export interface UsageBucketView extends ModelUsage {
     /** 本地日期 YYYY-MM-DD */
     date: string;
     /** 缓存命中率（百分比，保留一位小数）；无输入时为 null */
     cacheHitRate: number | null;
+    /** 已定价模型折算出的金额（元）；价格表未覆盖的模型不计入 */
+    cost: number;
+    /** 本桶内出现但价格表中缺失的模型名，其 token 未计入 cost */
+    unpricedModels: string[];
 }
 
 /** 一次模型调用解析出的用量 */
@@ -189,8 +194,9 @@ function sumDays(days: UsageBucket[]): ModelUsage {
     return total;
 }
 
-/** 对外视图：去掉 models 明细，只剩本桶合计 + 缓存命中率 */
+/** 对外视图：去掉 models 明细，只剩本桶合计 + 缓存命中率 + 金额 */
 function toView(d: UsageBucket): UsageBucketView {
+    const { cost, unpricedModels } = costOfModels(d.models);
     return {
         date: d.date,
         requests: d.requests,
@@ -199,7 +205,27 @@ function toView(d: UsageBucket): UsageBucketView {
         cachedTokens: d.cachedTokens,
         totalTokens: d.totalTokens,
         cacheHitRate: cacheHitRate(d),
+        cost,
+        unpricedModels,
     };
+}
+
+/** 合并多天里各模型的用量：累计金额必须按模型分别计价，不能拿合计 token 乘一个平均价 */
+function sumModels(days: UsageBucket[]): Record<string, ModelUsage> {
+    const merged: Record<string, ModelUsage> = {};
+    for (const d of days) {
+        for (const [name, m] of Object.entries(d.models ?? {})) {
+            const acc = (merged[name] ??= {
+                requests: 0, inputTokens: 0, outputTokens: 0, cachedTokens: 0, totalTokens: 0,
+            });
+            acc.requests += sanitize(m.requests);
+            acc.inputTokens += sanitize(m.inputTokens);
+            acc.outputTokens += sanitize(m.outputTokens);
+            acc.cachedTokens += sanitize(m.cachedTokens);
+            acc.totalTokens += sanitize(m.totalTokens);
+        }
+    }
+    return merged;
 }
 
 /**
@@ -213,13 +239,27 @@ export async function getUsageSummary(days = 7): Promise<{
     total: Omit<UsageBucketView, "date">;
 }> {
     await load();
+    await loadPricing();
     const today = todayKey();
     const todayBucket = state.days.find((d) => d.date === today) ?? emptyBucket(today);
     const recent = state.days.slice(-Math.max(1, Math.min(days, KEEP_DAYS))).map(toView);
     const total = sumDays(state.days);
+    const totalCost = costOfModels(sumModels(state.days));
     return {
         today: toView(todayBucket),
         recent,
-        total: { ...total, cacheHitRate: cacheHitRate(total) },
+        total: {
+            ...total,
+            cacheHitRate: cacheHitRate(total),
+            cost: totalCost.cost,
+            unpricedModels: totalCost.unpricedModels,
+        },
     };
+}
+
+export async function listUsageModels(): Promise<string[]> {
+    await load();
+    return Object.entries(sumModels(state.days))
+        .sort((a, b) => b[1].totalTokens - a[1].totalTokens)
+        .map(([name]) => name);
 }

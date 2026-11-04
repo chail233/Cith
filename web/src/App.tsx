@@ -5,6 +5,7 @@
  */
 import { useEffect, useState } from "react";
 import Dashboard from "./pages/Dashboard";
+import PricingPage from "./pages/PricingPage";
 import ConfigPage from "./pages/ConfigPage";
 import LogsPage from "./pages/LogsPage";
 import ActionsPage from "./pages/ActionsPage";
@@ -15,10 +16,11 @@ import { usePolling } from "./hooks/usePolling";
 import { fetchHealth, fetchSession } from "./api/client";
 import type { HealthInfo, SessionInfo } from "./types";
 
-type Route = "dashboard" | "config" | "logs" | "actions";
+type Route = "dashboard" | "pricing" | "config" | "logs" | "actions";
 
 const NAV: { id: Route; label: string; icon: string }[] = [
     { id: "dashboard", label: "运行状态", icon: "◉" },
+    { id: "pricing", label: "模型价格", icon: "¥" },
     { id: "config", label: "配置管理", icon: "⚙" },
     { id: "logs", label: "事件日志", icon: "☰" },
     { id: "actions", label: "能力清单", icon: "⚡" },
@@ -26,6 +28,7 @@ const NAV: { id: Route; label: string; icon: string }[] = [
 
 const PAGE_TITLES: Record<Route, string> = {
     dashboard: "运行状态",
+    pricing: "模型价格",
     config: "配置管理",
     logs: "事件日志",
     actions: "能力清单",
@@ -115,6 +118,7 @@ function Shell() {
                 </header>
                 <main className="content">
                     {route === "dashboard" && <Dashboard />}
+                    {route === "pricing" && <PricingPage />}
                     {route === "config" && <ConfigPage />}
                     {route === "logs" && <LogsPage />}
                     {route === "actions" && <ActionsPage />}

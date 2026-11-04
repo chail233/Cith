@@ -60,3 +60,10 @@ export function formatTokens(n: number): string {
 export function formatCacheRate(rate: number | null | undefined): string {
     return typeof rate === "number" && Number.isFinite(rate) ? `${rate}%` : "-";
 }
+
+/** 金额文本（元）：1 元以内保留 4 位小数（单次对话常不到一分钱），0 显示 ¥0 */
+export function formatCost(n: number | null | undefined): string {
+    if (typeof n !== "number" || !Number.isFinite(n) || n <= 0) return "¥0";
+    if (n < 0.0001) return "<¥0.0001";
+    return `¥${n < 1 ? n.toFixed(4) : n.toFixed(2)}`;
+}

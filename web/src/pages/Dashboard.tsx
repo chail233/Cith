@@ -4,7 +4,7 @@ import { useEventStream } from "../hooks/event-stream";
 import { usePolling } from "../hooks/usePolling";
 import { rpc } from "../api/client";
 import type { BotStatus, ConfigWarning, TokenUsageBucket, TokenUsageSummary } from "../types";
-import { formatCacheRate, formatTime, formatTokens, formatUptime } from "../utils/format";
+import { formatCacheRate, formatCost, formatTime, formatTokens, formatUptime } from "../utils/format";
 
 export default function Dashboard() {
     const { data: status, error, loading, refresh } = usePolling(() => rpc<BotStatus>("get_status"), 5000);
@@ -80,11 +80,11 @@ export default function Dashboard() {
     );
 }
 
-/** Token 用量卡片：今日概览 + 近 7 天分天明细 + 累计（60s 轮询） */
+/** Token 用量卡片：今日概览 + 近 7 天分天明细 + 累计（60s 轮询，金额按「模型价格」现算） */
 function TokenUsageCard({ usage }: { usage: TokenUsageSummary }) {
     const today = usage.today;
     return (
-        <Card title="Token 用量" extra={<span className="text-muted">来自模型服务商 usage 统计，每 60 秒刷新</span>}>
+        <Card title="Token 用量" extra={<span className="text-muted">来自模型服务商 usage 统计，每 60 秒刷新；金额按「模型价格」价目折算</span>}>
             <div className="stat-grid">
                 <div className="stat-card">
                     <div className="stat-label">今日总消耗</div>
@@ -99,6 +99,11 @@ function TokenUsageCard({ usage }: { usage: TokenUsageSummary }) {
                         {formatTokens(today.inputTokens)} / {formatTokens(today.outputTokens)}
                     </div>
                     <div className="stat-sub">缓存命中 {formatTokens(today.cachedTokens)}（{hitRate(today)}）</div>
+                </div>
+                <div className="stat-card">
+                    <div className="stat-label">今日花销</div>
+                    <div className="stat-value">{formatCost(today.cost)}</div>
+                    <div className="stat-sub">累计 {formatCost(usage.total.cost)} · {pricingHint(usage.total.unpricedModels)}</div>
                 </div>
                 <div className="stat-card">
                     <div className="stat-label">累计总消耗</div>
@@ -119,6 +124,7 @@ function TokenUsageCard({ usage }: { usage: TokenUsageSummary }) {
                             <th>命中率</th>
                             <th>输出</th>
                             <th>合计</th>
+                            <th>花销</th>
                             <th>调用次数</th>
                         </tr>
                     </thead>
@@ -131,6 +137,7 @@ function TokenUsageCard({ usage }: { usage: TokenUsageSummary }) {
                                 <td className="mono">{hitRate(d)}</td>
                                 <td className="mono">{formatTokens(d.outputTokens)}</td>
                                 <td className="mono">{formatTokens(d.totalTokens)}</td>
+                                <td className="mono">{formatCost(d.cost)}</td>
                                 <td className="mono">{d.requests}</td>
                             </tr>
                         ))}
@@ -151,6 +158,12 @@ function hitRate(b: TokenUsageBucket): string {
         ? b.cacheHitRate
         : b.inputTokens > 0 ? Math.round((b.cachedTokens / b.inputTokens) * 1000) / 10 : null;
     return formatCacheRate(rate);
+}
+
+/** 金额口径提示：有价格表缺失的模型时明确标出，避免把部分金额当成全部 */
+function pricingHint(unpriced: string[] | undefined): string {
+    if (!unpriced || unpriced.length === 0) return "已覆盖全部模型";
+    return `未计价：${unpriced.join("、")}`;
 }
 
 /** 启动配置自检告警：常驻页面顶部，error 级红色、warn 级橙色 */

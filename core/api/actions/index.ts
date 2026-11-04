@@ -7,3 +7,4 @@ import "./config.ts";
 import "./logs.ts";
 import "./meta.ts";
 import "./usage.ts";
+import "./pricing.ts";
