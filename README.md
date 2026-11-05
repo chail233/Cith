@@ -262,21 +262,21 @@ cd web && npm run build && npm run server
 QQ：NapCat 发送事件                     WeChat：iLink 长轮询收到消息
     │                                       │
     ▼                                       ▼
-bot/servers/OnebotServer.js            bot/servers/WechatBotServer.ts
-（反向 WebSocket 服务）                  （扫码登录 / 会话管理）
+bot/servers/OnebotServer.ts            bot/servers/WechatBotServer.ts
+（反向 WebSocket 服务，OneBot 段翻译成统一消息段）（扫码登录 / 会话管理）
     │                                       │
     ▼                                       ▼
 bot/adapters/OnebotAdapter             bot/adapters/WechatBotAdapter
 （OneBot v11 协议解析）                  （归一化为 CtxEvent）
     └──────────────────┬────────────────────┘
                        ▼
-        pipeline/context.ts 构建 Context → pipeline/index.js 管道编排
+        pipeline/context.ts 构建 Context（ctx.message 统一消息段 + ctx.messageId）→ pipeline/index.js 管道编排
     │  （仅 targetGroupId / targetUserId 命中的消息继续；管理员可在未授权会话发 #bind 完成首次绑定）
     │
     ├─ 中间件（全部执行，丰富上下文）
-    │   ├─ image-recognizer  → 识别图片 → ctx.imageDescription
-    │   ├─ at-detector       → 解析 @ 对象 → ctx.at（@bot 时为"我"）
-    │   └─ mini-program      → 处理小程序/链接分享
+    │   └─ image-recognizer  → 识别图片 → ctx.imageDescription
+    │
+    │  @、图片、链接卡片等一律从统一消息段 ctx.message 取，不再有独立中间件
     │
     └─ 处理器（首个返回 true 即停止）
         ├─ user-commands     → # 前缀命令（#help、#plan 等）
@@ -346,7 +346,7 @@ core/
 │   ├── index.js                # 管道编排：中间件 → 处理器
 │   ├── context.ts              # 上下文构建与目标过滤
 │   ├── agent-runner.ts         # Agent 事件 → 适配器分发（节流发送）
-│   ├── middleware/             # image-recognizer / at-detector / mini-program
+│   ├── middleware/             # image-recognizer（图片识别）
 │   └── handlers/               # user-commands / ai-chat / proactive-chat
 │
 ├── agent/                      # Agent 核心（AI 相关代码全部内聚于此）
@@ -368,7 +368,7 @@ core/
 ├── api/                        # Web 面板 API（独立 WS 服务端：鉴权/心跳/白名单/事件总线）
 ├── services/                   # 适配器注册表 / NapCat HTTP / 定时调度 / 苏醒触发 / 启动自检 / 记忆存储
 ├── stickers/                   # 表情包库（index.js 按标签检索 + manifest.json + images/）
-├── types/                      # 跨模块共用类型（Context / CtxEvent / Space 等）
+├── types/                      # 跨模块共用类型（Context / CtxEvent / MessageSegment / Space 等）
 ├── skills/                     # Skill 技能目录（AI 可读写，内置 skill-manager）
 ├── workspace/                  # 工作区（AI 可读写）
 └── utils/                      # logger / file-security（路径防护）/ extractText 等
