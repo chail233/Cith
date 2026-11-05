@@ -1,5 +1,5 @@
 import logger from "./utils/logger.js";
-import { startOneBotServer } from "./bot/servers/OnebotServer.js";
+import { startOneBotServer } from "./bot/servers/OnebotServer.ts";
 import runPipeline from "./pipeline/index.js";
 import {mcpClient} from "./agent/mcp-manager.js";
 import { startApiServer } from "./api/server.ts";

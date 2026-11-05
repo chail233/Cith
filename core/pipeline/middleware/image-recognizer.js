@@ -1,5 +1,3 @@
-// @ts-check
-
 import { getImage } from "../../services/napcat.js";
 import getImageType from "../../utils/image-type.js";
 import recognizeImage from "../../agent/image.js";
@@ -15,13 +13,15 @@ const enable = true;
  */
 export default async function imageRecognizer(ctx) {
     if(!enable) return;
-    const segments = /** @type {Array<{type: string, data: {file: string}}>} */ (ctx.seg || []);
+    const segments = /** @type {Array<{type: string, data: {media?: {raw?: {file?: string}}}}>} */ (ctx.message || []);
     let description = "";
 
     for (const seg of segments) {
         if (seg.type === "image") {
             try {
-                const fileData = await getImage(seg.data.file);
+                const file = seg.data.media?.raw?.file;
+                if (!file) continue;
+                const fileData = await getImage(file);
                 if (!fileData?.data?.file) continue;
 
                 const type = getImageType(fileData.data.file);

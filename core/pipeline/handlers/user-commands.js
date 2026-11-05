@@ -9,6 +9,7 @@ import { runAgent } from "../agent-runner.ts";
 import { isPlaceholder } from "../../services/preflight.ts";
 import { getUsageSummary } from "../../services/token-usage.ts";
 import logger from "../../utils/logger.js";
+import { extractText } from "../../utils/extractText.ts";
 
 const cfg = /** @type {Record<string, any>} */ (config);
 
@@ -349,10 +350,11 @@ function parseCommand(rawText) {
  * @returns {Promise<boolean>}
  */
 export default async function userCommands(ctx) {
+    const text = extractText(ctx.message);
     // trim 后再判断：群内「@机器人 #命令」时，@ 段被丢弃后会留下前导空格
-    if (!ctx.text.trim().startsWith("#")) return false;
+    if (!text.trim().startsWith("#")) return false;
 
-    const { cmd, args } = parseCommand(ctx.text);
+    const { cmd, args } = parseCommand(text);
     if (!cmd) {
         ctx.adapter.sendMsg(ctx.space, "指令格式无效");
         return true;

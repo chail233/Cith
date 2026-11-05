@@ -3,7 +3,7 @@ import config from "../config.js";
 import sleep from "../utils/sleep.js";
 import { nowTime } from "../utils/time.js";
 import { getAgent } from "../agent/AgentManager.ts";
-import { runAgent } from "../pipeline/agent-runner.js";
+import { runAgent } from "../pipeline/agent-runner.ts";
 import { resolveAdapter } from "./adapter-registry.js";
 
 
@@ -66,16 +66,14 @@ async function doWake(task, adapter) {
     });
     const ctx = {
         adapter,
+        message: prompt ? [{ type: "text", data: { text: prompt } }] : [],
         space: task.space,
-        text: prompt,
         senderName: "定时苏醒",
         userId: String(config.selfId ?? "bot"),
         isAdmin: true,
         isTarget: true,
-        at: null,
         imageDescription: null,
         handled: false,
-        seg: [],
         trigger: { type: "schedule", id: task.id, title: task.title },
     };
     logger.info(`定时苏醒：${task.id} ${task.title} → ${task.space.from}:${task.space.id}`);
