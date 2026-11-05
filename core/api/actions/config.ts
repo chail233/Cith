@@ -39,8 +39,7 @@ const WRITABLE_KEYS = new Set<string>([
     "editFileDirs",
 
     "githubToken",
-
-    "systemPrompt",
+    // systemPrompt 不在白名单：提示词已外置为 prompts/system.md，改由 get_prompt / set_prompt 读写
 ]);
 
 /** 输出时直接跳过的复杂/巨大字段 */

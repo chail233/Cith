@@ -4,6 +4,7 @@
  */
 import "./status.ts";
 import "./config.ts";
+import "./prompt.ts";
 import "./logs.ts";
 import "./meta.ts";
 import "./usage.ts";

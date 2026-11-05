@@ -1,14 +1,12 @@
 /**
  * LLM 请求上下文组装
  */
-import config from "../config.js";
 import { skills, forceSkills } from "./skill.js";
 import { mcpClient } from "./mcp-manager.js";
+import { readSystemPrompt } from "../services/prompt-store.ts";
 import type Agent from "./Agent.ts";
 import type { Plan, PlanStatus } from "./types.ts";
 import {listTags} from "../stickers/index.js";
-
-const systemPrompt = config.systemPrompt;
 
 /** 合法状态 → 渲染图标 */
 const STATUS_ICONS: Record<PlanStatus, string> = {
@@ -56,9 +54,9 @@ function renderTrigger(trigger: WakeTrigger | null | undefined): string | null {
 export function buildMessages(agent: Agent) {
     const recorder = agent.memory;
     const activePlan = agent.getActivePlan();
-    const messages: Array<{ role: string; content: string }> = [
-        { role: "system", content: systemPrompt },
-    ];
+    const messages: Array<{ role: string; content: string }> = [];
+    const systemPrompt = readSystemPrompt();
+    if (systemPrompt !== "") messages.push({ role: "system", content: systemPrompt });
 
     if (forceSkills.length > 0) {
         const forceBlock = forceSkills

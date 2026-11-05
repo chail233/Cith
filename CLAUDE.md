@@ -12,7 +12,12 @@ SunbatwoBot is a OneBot v11 QQ bot (NapCat transport) that runs an LLM **agent**
 
 ### Config
 
-All config defaults live in `core/config.js` (shared constants and `systemPrompt`); real secrets live in `core/config.json` (gitignored; path overridable via the `CITH_CONFIG` env var). Startup merges `config.js → config.json`: scalars and arrays replace, plain objects merge one level, `members` (object → `Map`) is normalized, and keys starting with `$` or `_` act as comments. `mcpServers` is the one array that merges **incrementally by `name`** instead of being replaced: user entries keep their written order, a same-`name` entry wholesale overrides the matching default entry, unmatched user entries are appended, remaining defaults are filled in after them, and `"disabled": true` on a user entry drops that default. `command: "$NODE"` is rewritten to `process.execPath` in **both** layers — the default list is resolved right after `baseConfig` is declared, because defaults never pass through the user-config normalizer. A malformed `config.json` aborts startup. Runtime top-level assignments are written back to `config.json` (except `members` / `mcpServers`). `core/app.pem` is also gitignored.
+All config defaults live in `core/config.js` (shared constants); real secrets live in `core/config.json` (gitignored; path overridable via the `CITH_CONFIG` env var). Startup merges `config.js → config.json`: scalars and arrays replace, plain objects merge one level, `members` (object → `Map`) is normalized, and keys starting with `$` or `_` act as comments. `mcpServers` is the one array that merges **incrementally by `name`** instead of being replaced: user entries keep their written order, a same-`name` entry wholesale overrides the matching default entry, unmatched user entries are appended, remaining defaults are filled in after them, and `"disabled": true` on a user entry drops that default. `command: "$NODE"` is rewritten to `process.execPath` in **both** layers — the default list is resolved right after `baseConfig` is declared, because defaults never pass through the user-config normalizer. A malformed `config.json` aborts startup. Runtime top-level assignments are written back to `config.json` (except `members` / `mcpServers`). `core/app.pem` is also gitignored.
+
+The system prompt is not a config value: it lives in `core/prompts/system.md` (path overridable via
+`config.systemPromptPath`), re-read on every turn so edits take effect without a restart. There is no fallback —
+when the file is missing no system message is injected at all. The panel's Prompt page writes the file through
+`get_prompt` / `set_prompt`; `set_config` deliberately cannot touch it.
 
 ## Architecture
 
@@ -66,7 +71,7 @@ A skill is a directory under `core/skills/` containing `SKILL.md` with YAML fron
 
 ## Conventions
 
-- Comments, log strings, and the `systemPrompt` are in Chinese; keep new code consistent.
+- Comments, log strings, and the system prompt file are in Chinese; keep new code consistent.
 - New cross-module interfaces go in `core/types/index.ts`, Agent-only types in `core/agent/types.ts` (not redefined per module elsewhere); new chat platforms are added by subclassing `BaseAdapter` in `bot/adapter/`.
 - Use `utils/logger.js` rather than `console`.
-- `config.systemPrompt` defines both the persona and the strict JSON output contract — changes there affect every reply.
+- `core/prompts/system.md` defines both the persona and the strict JSON output contract — changes there affect every reply. `services/prompt-store.ts` only does type/IO checks (no content validation), so a bad edit is saved as written.

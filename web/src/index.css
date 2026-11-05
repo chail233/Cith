@@ -496,6 +496,46 @@ td.col-actions {
     min-width: 220px;
 }
 
+/* ============ 系统提示词页 ============ */
+.prompt-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 14px;
+    margin-bottom: 12px;
+    font-size: 0.82rem;
+    color: var(--muted);
+}
+
+.prompt-editor {
+    width: 100%;
+    min-height: 460px;
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 0.86rem;
+    line-height: 1.65;
+    tab-size: 4;
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.prompt-editor:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(79, 95, 224, 0.12);
+}
+
+.prompt-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 12px;
+}
+
 /* ============ 日志页 ============ */
 .log-toolbar {
     display: flex;

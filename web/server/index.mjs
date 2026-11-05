@@ -28,6 +28,7 @@ const SSE_HEARTBEAT_MS = 15_000;
 const FORWARDABLE_ACTIONS = new Set([
     "get_status", "get_config", "set_config", "get_logs", "list_actions", "get_token_usage",
     "get_model_pricing", "set_model_pricing",
+    "get_prompt", "set_prompt",
 ]);
 
 const logger = (level, msg) => {

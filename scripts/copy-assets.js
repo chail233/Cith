@@ -20,8 +20,8 @@ const root = resolve(__dirname, "..");
 const srcDir = resolve(root, "core");
 const distDir = resolve(root, "dist");
 
-/** 需要从 core 同步到 dist 的目录（相对 core） */
-const COPY_DIRS = ["skills", "workspace", "stickers"];
+/** 需要从 core 同步到 dist 的目录（相对 core）；prompts 是系统提示词文件，与 SKILL.md 一样属于运行期资源 */
+const COPY_DIRS = ["skills", "workspace", "stickers", "prompts"];
 
 const USER_CONFIG = "config.json";
 
