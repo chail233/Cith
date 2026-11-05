@@ -16,6 +16,7 @@ export function buildContext(event: CtxEvent): Context {
 
     return {
         adapter: event.adapter,
+        messageId: event.messageId,
         message,
         space: event.space,
         senderName: resolveName(event.userId, event.nickName),

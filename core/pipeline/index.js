@@ -20,17 +20,7 @@ const handlers = [
     proactiveChat,
 ];
 
-/** 未授权会话的忽略提示节流：同一会话 10 分钟内最多记一次 */
-const IGNORE_NOTIFY_INTERVAL_MS = 10 * 60 * 1000;
-/** @type {Map<string, number>} */
-const ignoredSessions = new Map();
 
-
-/**
- * 事件管道：接收事件，按中间件→处理器流水线处理
- *
- * @param {import("../types/index.ts").CtxEvent} ctxEvent 事件
- */
 export default async function runPipeline(ctxEvent) {
     //构建上下文
     const ctx = buildContext(ctxEvent);

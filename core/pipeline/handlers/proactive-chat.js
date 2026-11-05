@@ -3,7 +3,7 @@ import { getAgent } from "../../agent/AgentManager.ts";
 import logger from "../../utils/logger.js";
 import config from "../../config.js";
 import { nowTime} from "../../utils/time.js";
-import { extractText } from "../../utils/extractText.ts";
+import { compactSegments } from "../../utils/extractText.ts";
 /**
  * 主动聊天处理器
  * 当群内连续若干条消息无 AI 参与时，主动触发一次对话
@@ -18,23 +18,17 @@ export default async function proactiveChat(ctx) {
     const limit = config.proactiveChatLimit;
     if (!Number.isFinite(limit) || limit <= 0) return false;
 
-    const message = ctx.message || [];
-    const selfMention = message.find((seg) => seg.type === "mention" && seg.data?.isSelf);
-    const at = selfMention
-        ? "我"
-        : (message.find((seg) => seg.type === "mention")?.data?.name ?? null);
-
     const recorder = getAgent(ctx.space).memory;
-    const text = extractText(message) + (ctx.imageDescription ? `\n${ctx.imageDescription}` : "");
+    const compact = compactSegments(ctx.message || [], ctx.imageDescription);
     recorder.add({
         role: "user",
         content: {
             name: ctx.senderName,
             id: ctx.userId,
             time: nowTime(),
-            text: text,
-            //有at时写入字段
-            ...(at ? { at } : {}),
+            // 空字段不写入，省 token
+            ...(ctx.messageId ? { messageId: ctx.messageId } : {}),
+            ...(compact.length ? { message: compact } : {}),
         },
     });
 

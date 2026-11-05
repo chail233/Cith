@@ -5,6 +5,7 @@ export interface MediaRef {
     raw?: Record<string, unknown>;
 }
 
+
 export interface MsgSegment {
     text: { text: string };
     image: { media: MediaRef; alt?: string };
@@ -12,6 +13,5 @@ export interface MsgSegment {
     mention: { id: string; name?: string; isSelf?: boolean };
     reply: { id: string; excerpt?: string };
     link_card: { title: string; url?: string; description?: string };
-    sticker: { id: string };
 }
 

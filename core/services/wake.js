@@ -61,11 +61,12 @@ async function doWake(task, adapter) {
             name: "定时苏醒",
             id: "schedule",
             time: nowTime(),
-            text: prompt || `（闹钟响了：${task.title}）`,
+            message: [{ type: "text", data: { text: prompt || `（闹钟响了：${task.title}）` } }],
         },
     });
     const ctx = {
         adapter,
+        messageId: "",
         message: prompt ? [{ type: "text", data: { text: prompt } }] : [],
         space: task.space,
         senderName: "定时苏醒",

@@ -2,7 +2,7 @@ import { runAgent } from "../agent-runner.ts";
 import logger from "../../utils/logger.js";
 import { getAgent } from "../../agent/AgentManager.ts";
 import {nowTime} from "../../utils/time.js";
-import { extractText } from "../../utils/extractText.ts";
+import { extractText, compactSegments } from "../../utils/extractText.ts";
 
 /**
  * AI 对话处理器
@@ -19,23 +19,19 @@ export default async function aiChat(ctx) {
     const selfMention = message.find((seg) => seg.type === "mention" && seg.data?.isSelf);
     if (ctx.space.from === "group" && !selfMention) return false;
 
-    const content = extractText(message) + (ctx.imageDescription ? `\n${ctx.imageDescription}` : "");
-    const at = selfMention
-        ? "我"
-        : (message.find((seg) => seg.type === "mention")?.data?.name ?? null);
-
+    const compact = compactSegments(message, ctx.imageDescription);
     const msg = {
         role: "user",
         content: {
             name: ctx.senderName,
             id: ctx.userId,
             time: nowTime(),
-            text: content,
-            at,
+            ...(ctx.messageId ? { messageId: ctx.messageId } : {}),
+            ...(compact.length ? { message: compact } : {}),
         },
     };
     getAgent(ctx.space).memory.add(msg);
-    logger.info("AI 对话请求:", content);
+    logger.info("AI 对话请求:", extractText(message));
 
     await runAgent(ctx);
 

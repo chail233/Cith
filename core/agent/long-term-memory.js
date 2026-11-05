@@ -47,9 +47,26 @@ async function withTimeout(task) {
 }
 
 /**
+ * 从对象形式的 content 取纯文本：优先 text 字段（工具痕迹），
+ * 其次 message 字段里的 text 段（用户消息）
+ * @param {{text?: unknown, message?: unknown}} content
+ * @returns {string}
+ */
+function messageTextOfObject(content) {
+    if (typeof content.text === "string") return content.text;
+    if (Array.isArray(content.message)) {
+        return content.message
+            .filter((s) => s?.type === "text")
+            .map((s) => s?.data?.text ?? "")
+            .join("");
+    }
+    return "";
+}
+
+/**
  * 从消息内容中取出纯文本
- * content 可能是字符串、JSON 字符串或 { text } 对象；
- * 结构化消息（如 assistant 的 { action: [...] }、工具痕迹）没有用户可见文本，返回空串
+ * content 可能是字符串、JSON 字符串或 { text } / { message: 段数组 } 对象；
+ * 结构化消息（如 assistant 的 { action: [...] }）没有用户可见文本，返回空串
  * @param {unknown} content
  * @returns {string}
  */
@@ -58,7 +75,7 @@ function messageText(content) {
         try {
             const parsed = JSON.parse(content);
             if (parsed && typeof parsed === "object") {
-                return typeof parsed.text === "string" ? parsed.text : "";
+                return messageTextOfObject(parsed);
             }
         }
         catch {
@@ -66,8 +83,8 @@ function messageText(content) {
         }
         return content;
     }
-    if (content && typeof content === "object" && typeof /** @type {{text?: unknown}} */ (content).text === "string") {
-        return /** @type {{text: string}} */ (content).text;
+    if (content && typeof content === "object") {
+        return messageTextOfObject(content);
     }
     return "";
 }

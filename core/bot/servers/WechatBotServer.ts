@@ -71,6 +71,8 @@ export default async function startWechatBotServer(pipeline: (ctxEvent: CtxEvent
             }
             const ctxEvent:CtxEvent = {
                 adapter: adapter,
+                // 微信侧暂未暴露消息 id
+                messageId: "",
                 message: [
                     {
                         type: "text",

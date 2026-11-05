@@ -20,6 +20,7 @@ interface OneBotEvent {
     message_type?: string;
     group_id?: string | number;
     user_id?: string | number;
+    message_id?: string | number;
     message?: unknown;
     sender?: { nickname?: string };
 }
@@ -65,7 +66,9 @@ function toSegments(raw: unknown): MessageSegment[] {
             case "at": {
                 const id = String(d.qq ?? "");
                 const data: MsgSegment["mention"] = { id, isSelf: id === String(config.selfId ?? "") };
+                // 官方规范：qq 为 QQ 号或 all（@全体成员），all 没有昵称来源，直接给可读名
                 if (d.name) data.name = String(d.name);
+                else if (id === "all") data.name = "全体成员";
                 return { type: "mention", data };
             }
 
@@ -92,6 +95,14 @@ function toSegments(raw: unknown): MessageSegment[] {
                 }
                 catch { /* 解析失败用兜底文案 */ }
                 const data: MsgSegment["link_card"] = { title };
+                return { type: "link_card", data };
+            }
+
+            // 官方链接分享段，与 json 卡片同为链接语义
+            case "share": {
+                const data: MsgSegment["link_card"] = { title: d.title ?? "" };
+                if (d.url) data.url = String(d.url);
+                if (d.content) data.description = String(d.content);
                 return { type: "link_card", data };
             }
 
@@ -140,6 +151,7 @@ export function startOneBotServer(pipeline: (ctxEvent: CtxEvent) => Promise<void
 
                 const ctxEvent: CtxEvent = {
                     adapter: onebotAdapter,
+                    messageId: String(event.message_id ?? ""),
                     message: toSegments(event.message),
                     space,
                     userId: String(event.user_id ?? ""),

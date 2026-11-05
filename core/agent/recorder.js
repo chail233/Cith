@@ -2,6 +2,7 @@ import config from "../config.js";
 import logger from "../utils/logger.js";
 import { callLLM } from "./client.ts";
 import { addFacts, makeMemoryUserId } from "./long-term-memory.js";
+import { extractText } from "../utils/extractText.ts";
 /**
  * 对话上下文管理器（分层记忆）
  *
@@ -47,7 +48,6 @@ const FOLD_MIN_CHARS = 800;
 
 /**
  * 把 LLM 返回的事实列表拆成条目
- * 兼容行首的「- 」「• 」「1. 」「1、」等标记，去重并限制条数
  * @param {string} text
  * @returns {string[]}
  */
@@ -139,13 +139,11 @@ export class ChatRecorder {
         return JSON.stringify(msg.content).length;
     }
 
-    /**
-     * 添加一条消息
-     * content 统一为对象格式：{ text, ...其他字段 }
-     */
     add(msg) {
         if (msg.role === "user") {
-            const realText = (msg.content?.text ?? "").replace(/[\s\u3000\u200b\u200c\u200d]/g, '');
+            const segs = Array.isArray(msg.content?.message) ? msg.content.message : [];
+            const desc = segs.find((s) => s.type === "image")?.data?.description ?? "";
+            const realText = (extractText(segs) + desc).replace(/[\s\u3000\u200b\u200c\u200d]/g, "");
             if (realText === "") return;
         }
 
@@ -153,7 +151,6 @@ export class ChatRecorder {
         this._chars += this._msgChars(msg);
     }
 
-    /** 获取所有短期消息的副本（content 序列化为字符串） */
     getAll() {
         return this._messages.map((msg) => {
             return {role: msg.role, content: JSON.stringify(msg.content)};

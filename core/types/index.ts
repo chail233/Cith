@@ -17,6 +17,7 @@ export interface MessageSegment {
 /** adapters 归一化后传给 buildContext 的事件结构 */
 export interface CtxEvent {
     adapter: BaseAdapter;
+    messageId: string;
     message: MessageSegment[];
     space: Space;
     userId: string;
@@ -25,7 +26,7 @@ export interface CtxEvent {
 
 export interface Context {
     adapter: BaseAdapter;
-    /** 归一化消息段：文本、@、图片一律从这里取，不再单独提字段 */
+    messageId: string;
     message: MessageSegment[];
     space: Space;
     senderName: string;
