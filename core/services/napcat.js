@@ -46,13 +46,3 @@ async function callAPI(action, params) {
 export async function getImage(fileId) {
     return callAPI("get_image", { file: fileId });
 }
-
-/**
- * 通过 HTTP 发送群消息（备用方式，通常走 WebSocket 更高效）
- * @param {string|number} groupId
- * @param {string|object|Array<any>} message
- * @returns {Promise<object|null>}
- */
-export async function sendGroupMsg(groupId, message) {
-    return callAPI("send_group_msg", { group_id: groupId, message });
-}
