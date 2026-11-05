@@ -4,12 +4,11 @@
  */
 import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import config from "../config.js";
 import { resolveSrcPath } from "../utils/file-security.js";
 import logger from "../utils/logger.js";
 
-/** 未配置 systemPromptPath 时的默认文件（相对 core/） */
-const DEFAULT_PROMPT_PATH = "prompts/system.md";
+/** 提示词文件（相对 core/） */
+export const PROMPT_REL_PATH = "prompts/system.md";
 
 /** 提示词快照（面板用） */
 export interface PromptDoc {
@@ -21,48 +20,24 @@ export interface PromptDoc {
     updatedAt: string | null;
 }
 
-interface CacheEntry {
-    mtimeMs: number;
-    size: number;
-    text: string;
-}
-
-const cfg = config as unknown as Record<string, unknown>;
-
-let cache: CacheEntry | null = null;
 let missingWarned = false;
 
-/** 提示词文件路径（相对 core/），可由 config.systemPromptPath 覆盖 */
-export function promptRelPath(): string {
-    const configured = cfg.systemPromptPath;
-    const text = typeof configured === "string" ? configured.trim() : "";
-    return text === "" ? DEFAULT_PROMPT_PATH : text;
-}
-
 function promptFilePath(): string {
-    const r = resolveSrcPath(promptRelPath());
+    const r = resolveSrcPath(PROMPT_REL_PATH);
     if (r.error) throw new Error(r.error);
     return r.fullPath ?? "";
 }
 
-/** 读取文件内容；文件不存在或不可读时返回 null */
-function readFileEntry(): CacheEntry | null {
-    const file = promptFilePath();
-    let stat;
+/** 读文件内容；不存在或不可读时返回 null */
+function readPromptText(): string | null {
     try {
-        stat = statSync(file);
+        return readFileSync(promptFilePath(), "utf8");
     }
     catch {
-        return null;
-    }
-    if (cache && cache.mtimeMs === stat.mtimeMs && cache.size === stat.size) return cache;
-    try {
-        const text = readFileSync(file, "utf8");
-        cache = { mtimeMs: stat.mtimeMs, size: stat.size, text };
-        return cache;
-    }
-    catch (err) {
-        logger.error(`系统提示词文件读取失败：${promptRelPath()}`, err);
+        if (!missingWarned) {
+            missingWarned = true;
+            logger.warn(`系统提示词文件不存在或不可读：${PROMPT_REL_PATH}（本回合不注入系统提示词）`);
+        }
         return null;
     }
 }
@@ -70,36 +45,29 @@ function readFileEntry(): CacheEntry | null {
 /**
  * 当前生效的系统提示词
  *
- * 同步实现：Agent 每回合都要构建上下文，文件未变时只是一次 stat + 内存命中。
  * 文件不存在时返回空串，由 contextBuilder 跳过这条 system 消息。
  */
 export function readSystemPrompt(): string {
-    const entry = readFileEntry();
-    if (entry) return entry.text;
-    if (!missingWarned) {
-        missingWarned = true;
-        logger.warn(`系统提示词文件不存在：${promptRelPath()}（本回合不注入系统提示词）`);
-    }
-    return "";
+    return readPromptText() ?? "";
 }
 
 /** 面板读取用的提示词快照 */
 export function getPromptDoc(): PromptDoc {
-    const entry = readFileEntry();
-    const text = entry?.text ?? "";
-    return {
-        path: promptRelPath(),
-        text,
-        bytes: Buffer.byteLength(text, "utf8"),
-        updatedAt: entry ? new Date(entry.mtimeMs).toISOString() : null,
-    };
+    const text = readPromptText() ?? "";
+    let updatedAt: string | null = null;
+    try {
+        updatedAt = new Date(statSync(promptFilePath()).mtimeMs).toISOString();
+    }
+    catch {
+    }
+    return { path: PROMPT_REL_PATH, text, bytes: Buffer.byteLength(text, "utf8"), updatedAt };
 }
 
 /**
  * 保存提示词到文件
  *
  * @param raw 面板提交的文本
- * @throws 非文本、路径非法或落盘失败时抛错，文案直接展示给面板用户
+ * @throws 非文本或落盘失败时抛错，文案直接展示给面板用户
  */
 export function saveSystemPrompt(raw: unknown): PromptDoc {
     if (typeof raw !== "string") throw new Error("提示词必须是文本");
@@ -113,8 +81,7 @@ export function saveSystemPrompt(raw: unknown): PromptDoc {
     const tmp = `${file}.tmp`;
     writeFileSync(tmp, text, "utf8");
     renameSync(tmp, file);
-    cache = null;
     missingWarned = false;
-    logger.info(`系统提示词已保存：${promptRelPath()}（${Buffer.byteLength(text, "utf8")} 字节），下一回合生效`);
+    logger.info(`系统提示词已保存：${PROMPT_REL_PATH}（${Buffer.byteLength(text, "utf8")} 字节），下一回合生效`);
     return getPromptDoc();
 }

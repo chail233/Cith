@@ -1,8 +1,3 @@
-/**
- * 配置页：get_config 查看脱敏快照 + set_config 白名单字段热改。
- * 白名单由 Bot 端控制且随迭代变化，前端不硬编码：对所有非脱敏字段开放编辑，
- * 非法修改（字段不存在 / 不在白名单）由 Bot 返回错误并在此展示。
- */
 import { useState } from "react";
 import { Badge, Card, EmptyState, ErrorBanner, Loading } from "../components/ui";
 import { usePolling } from "../hooks/usePolling";

@@ -19,6 +19,8 @@ const CONFIG_JS = join(ROOT, "core", "config.js");
 const CONFIG_JSON = join(ROOT, "core", "config.json");
 const WEB_ENV = join(ROOT, "web", ".env");
 const WEB_DIST = join(ROOT, "web", "dist", "index.html");
+/** 系统提示词文件（相对 core/），与 core/services/prompt-store.ts 的 PROMPT_REL_PATH 保持一致 */
+const PROMPT_REL = "prompts/system.md";
 
 const DEFAULT_LLM_URL = "https://workspace.aliyuncs.com/v1/chat/completions";
 const DEFAULT_CHAT_MODEL = "deepseek-v4.1-flash-1017";
@@ -573,7 +575,6 @@ interface ConfigSnapshot {
     napcatHost: string;
     targetGroupId: string[];
     targetUserId: string[];
-    systemPromptPath: string;
 }
 
 const MARKER = "__SETUP_SNAPSHOT__";
@@ -595,7 +596,6 @@ async function loadConfigSnapshot(): Promise<ConfigSnapshot> {
         "    napcatHost: c.napcatHttpHost,",
         "    targetGroupId: c.targetGroupId ?? [],",
         "    targetUserId: c.targetUserId ?? [],",
-        "    systemPromptPath: c.systemPromptPath ?? \"prompts/system.md\",",
         "  }));",
         "}).catch((e) => { console.error(e); process.exit(1); });",
     ].join("\n");
@@ -634,19 +634,19 @@ function isBlankList(value: unknown): boolean {
  * 系统提示词检查：提示词没有内置兜底，
  * 文件缺失或为空时 Bot 不会注入任何 system 消息，JSON 输出格式会直接失效。
  */
-function reportPromptFile(relPath: string): void {
-    const file = resolve(join(ROOT, "core"), relPath);
+function reportPromptFile(): void {
+    const file = resolve(join(ROOT, "core"), PROMPT_REL);
     if (!existsSync(file)) {
-        bad(`系统提示词文件缺失：${relPath}（Bot 将不注入任何系统提示词）`);
+        bad(`系统提示词文件缺失：${PROMPT_REL}（Bot 将不注入任何系统提示词）`);
         note("修复：恢复该文件，或在面板「系统提示词」页保存一次自动创建");
         return;
     }
     const text = readFileSync(file, "utf8");
     if (text.trim() === "") {
-        bad(`系统提示词为空：${relPath}（Bot 将不注入任何系统提示词）`);
+        bad(`系统提示词为空：${PROMPT_REL}（Bot 将不注入任何系统提示词）`);
         return;
     }
-    ok(`系统提示词：${relPath}（${Buffer.byteLength(text, "utf8")} 字节，面板可在线编辑）`);
+    ok(`系统提示词：${PROMPT_REL}（${Buffer.byteLength(text, "utf8")} 字节，面板可在线编辑）`);
 }
 
 function reportConfig(snapshot: ConfigSnapshot, env: Record<string, string> | null): void {
@@ -670,7 +670,7 @@ function reportConfig(snapshot: ConfigSnapshot, env: Record<string, string> | nu
         ok(`会话白名单：${groups} 个群 / ${users} 个私聊`);
     }
 
-    reportPromptFile(snapshot.systemPromptPath || "prompts/system.md");
+    reportPromptFile();
 
     if (!env) {
         warn("web/.env 不存在：面板 BFF 无法启动（可用本脚本生成）");
@@ -887,7 +887,7 @@ function printStartSummary(snapshot: ConfigSnapshot, env: Record<string, string>
     say("  在目标群里 @机器人 发送 #bind（私聊直接发 #bind），无需手抄群号");
     say("");
     say(`${bold("系统提示词")}`);
-    say(`  ${green(snapshot.systemPromptPath || "prompts/system.md")}${dim("（也可在面板「系统提示词」页编辑）")}`);
+    say(`  ${green(PROMPT_REL)}${dim("（也可在面板「系统提示词」页编辑）")}`);
     say(bold("────────────────────────────────────────────"));
     say("");
 }

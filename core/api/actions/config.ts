@@ -1,6 +1,4 @@
-/**
- * config action：配置只读查询与受控热改
- */
+
 import config from "../../config.js";
 import { registerAction } from "../router.ts";
 
@@ -39,13 +37,11 @@ const WRITABLE_KEYS = new Set<string>([
     "editFileDirs",
 
     "githubToken",
-    // systemPrompt 不在白名单：提示词已外置为 prompts/system.md，改由 get_prompt / set_prompt 读写
 ]);
 
 /** 输出时直接跳过的复杂/巨大字段 */
 const SKIP_KEYS = new Set<string>([
     "members",          // Map
-    "systemPrompt",     // 巨大提示词文本
 ]);
 
 function isSensitiveKey(key: string): boolean {

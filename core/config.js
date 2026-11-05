@@ -53,7 +53,6 @@ const LEGACY_KEY_MAP = {
     MEMORY_MAINTAIN_EVERY_WRITES: "memoryMaintainEveryWrites",
     TOOLCHAIN_MAX_LENGTH: "toolChainMaxLength",
     MEMORY_USER_ID_PREFIX: "memoryUserIdPrefix",
-    SYSTEM_PROMPT: "systemPrompt",
 };
 
 const baseConfig = {
@@ -229,13 +228,6 @@ const baseConfig = {
 
     /** GitHub API Token（skill-manager 安装技能、GitHub MCP 使用） */
     githubToken: null,
-
-    // ========== 提示词 ==========
-
-    /**
-     * 系统提示词文件（相对 core/）
-     */
-    systemPromptPath: "prompts/system.md",
 };
 
 /**

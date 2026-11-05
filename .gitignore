@@ -16,6 +16,10 @@
 /dist/
 /core/stickers/manifest.dev.json
 
+# 提示词面板保存时产生的备份与临时文件
+/core/prompts/*.bak
+/core/prompts/*.tmp
+
 # 长期记忆数据（rememori append-only 文件）
 /core/data/rememori/
 
