@@ -146,8 +146,8 @@ export function startOneBotServer(pipeline: (ctxEvent: CtxEvent) => Promise<void
                 if (event.post_type !== "message") return;
 
                 const space: Space = event.message_type === "group"
-                    ? { from: "group", id: String(event.group_id ?? "") }
-                    : { from: "user", id: String(event.user_id ?? "") };
+                    ? { from: "group", id: String(event.group_id ?? ""), channel: "onebot" }
+                    : { from: "user", id: String(event.user_id ?? ""), channel: "onebot" };
 
                 const ctxEvent: CtxEvent = {
                     adapter: onebotAdapter,

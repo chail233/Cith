@@ -22,7 +22,9 @@ function isUsable(adapter) {
 }
 
 export function resolveAdapter(space) {
-    const order = space?.from === "group" ? ["onebot"] : ["onebot", "wechat"];
+    const order = space?.from === "group" || space?.channel !== "wechat"
+        ? ["onebot", "wechat"]
+        : ["wechat", "onebot"];
     for (const kind of order) {
         const adapter = adapters.get(kind);
         if (isUsable(adapter))

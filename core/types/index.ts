@@ -4,6 +4,7 @@ import type BaseAdapter from "../bot/adapters/BaseAdapter.ts";
 export interface Space {
     from: "user" | "group";
     id: string;
+    channel: "onebot" | "wechat";
 }
 
 /** OneBot 消息段 */

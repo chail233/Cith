@@ -218,7 +218,9 @@ function normalizeSpace(raw) {
     const id = raw.id == null ? "" : String(raw.id).trim();
     if (!from || !id)
         return null;
-    return { from, id };
+    // 渠道：字段加入前的历史任务没有 channel，回落 onebot 保持旧路由行为
+    const channel = raw.channel === "wechat" ? "wechat" : "onebot";
+    return { from, id, channel };
 }
 
 function normalizeTask(raw) {

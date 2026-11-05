@@ -68,6 +68,7 @@ export default async function startWechatBotServer(pipeline: (ctxEvent: CtxEvent
             const space:Space = {
                 from: "user",
                 id: msg.userId,
+                channel: "wechat",
             }
             const ctxEvent:CtxEvent = {
                 adapter: adapter,

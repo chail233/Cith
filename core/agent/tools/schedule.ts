@@ -1,4 +1,5 @@
 import { createTask, listTasks, removeTask } from "../../services/scheduler.js";
+import type { Space } from "../../types/index.ts";
 import type { ToolContext, ToolDefinition, ToolModule } from "../types.ts";
 
 
@@ -15,7 +16,7 @@ export interface ScheduleParams {
         times?: unknown;
         expr?: unknown;
     };
-    space?: { from?: unknown; id?: unknown };
+    space?: { from?: unknown; id?: unknown; channel?: unknown };
 }
 
 export const definition: ToolDefinition = {
@@ -57,6 +58,7 @@ export const definition: ToolDefinition = {
                     properties: {
                         from: { type: "string", enum: ["group", "user"] },
                         id: { type: "string", description: "群号或用户号" },
+                        channel: { type: "string", enum: ["onebot", "wechat"], description: "消息渠道，缺省跟随当前会话" },
                     },
                 },
             },
@@ -65,11 +67,14 @@ export const definition: ToolDefinition = {
     },
 };
 
-/** 归一化目标会话：优先用模型指定的 space，否则回落当前会话 */
-function pickSpace(param: ScheduleParams, ctx?: ToolContext) {
+/** 归一化目标会话：优先用模型指定的 space，否则回落当前会话；渠道缺省继承当前会话 */
+function pickSpace(param: ScheduleParams, ctx?: ToolContext): Space | null {
     const raw = param?.space;
     if (raw && raw.from && raw.id) {
-        return { from: raw.from === "user" ? "user" : "group", id: String(raw.id) };
+        const channel = raw.channel === "wechat" || raw.channel === "onebot"
+            ? raw.channel
+            : ctx?.space.channel ?? "onebot";
+        return { from: raw.from === "user" ? "user" : "group", id: String(raw.id), channel };
     }
     return ctx?.space ?? null;
 }
