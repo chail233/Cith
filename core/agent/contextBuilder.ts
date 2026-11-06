@@ -6,7 +6,6 @@ import { mcpClient } from "./mcp-manager.js";
 import { readSystemPrompt } from "../services/prompt-store.ts";
 import type Agent from "./Agent.ts";
 import type { Plan, PlanStatus } from "./types.ts";
-import {listTags} from "../stickers/index.js";
 
 /** 合法状态 → 渲染图标 */
 const STATUS_ICONS: Record<PlanStatus, string> = {
@@ -68,7 +67,6 @@ export function buildMessages(agent: Agent) {
     messages.push(
         { role: "system", content: `技能列表：${JSON.stringify(skills)}` },
         { role: "system", content: `mcp列表：${renderMcpServers()}` },
-        { role: "system", content: `表情包tags：${JSON.stringify(listTags())}` },
     );
 
     if (recorder.getMidSummary()) {

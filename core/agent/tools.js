@@ -11,7 +11,7 @@ import deleteFileTool from "./tools/delete-file.ts";
 import listFilesTool from "./tools/list-files.ts";
 import editFileTool from "./tools/edit-file.ts";
 import manageMcpTool from "./tools/manage-mcp.ts";
-import getStickersTool from "./tools/get-stickers.ts";
+import listStickersTool from "./tools/list-stickers.ts";
 import managePlanTool from "./tools/manage-plan.ts";
 import scheduleTool from "./tools/schedule.ts";
 import reportProgressTool from "./tools/report-progress.ts";
@@ -28,7 +28,7 @@ const toolRegistry = [
     listFilesTool,
     editFileTool,
     manageMcpTool,
-    getStickersTool,
+    listStickersTool,
     managePlanTool,
     scheduleTool,
     reportProgressTool,

@@ -175,7 +175,7 @@ AI 可自主判断并调用以下工具，所有文件操作都受**路径白名
 | `manage_plan` | 创建/更新当前会话的任务计划 |
 | `report_progress` | 长任务中向用户简短播报当前在做什么，避免长时间静默 |
 | `schedule` | 给自己设定时任务，到点自动苏醒 |
-| `get_stickers` | 按标签检索表情包并发送 |
+| `list_stickers` | 获取完整表情包列表（id + 画面描述），AI 从中选图发送 |
 
 **文件操作安全门禁**按执行对象所在目录判定而非按工具名一刀切：白名单目录内直接放行不打扰管理员；白名单外挂起待确认（生成编号 `#xxxx`，管理员 `#do-yes` / `#do-no` 处置，10 分钟超时作废）；`../` 目录穿越无论如何被硬拦截。
 
@@ -197,7 +197,7 @@ Skill 是包含 `SKILL.md` 描述文件的目录，可附带脚本供 AI 执行�
 - **视觉能力**：群内图片自动调用视觉模型识别内容并注入上下文，让 AI 能"看到"图片（独立 `visionModel` / `visionApiKey` 配置）。
 - **主动聊天**：群内累计 `proactiveChatLimit` 条无人 @ 的消息后，AI 带完整上下文被唤醒，自主判断是否参与对话；计数在第 N 条消息上触发，AI 接话（或被 @ 对话）后归零，`#pchat` 可整体开关，阈值设为 `<= 0` 等同于关闭。上一轮模型请求尚未结束时不会插队，计数保留到下一条消息再试。
 - **定时任务**：AI 可通过 `schedule` 工具"给自己设闹钟"（一次性 / 固定间隔 / 每日定点 / cron），到点触发完整 Agent 苏醒流程。任务持久化到 `data/schedule.json`，重启不丢失，停机期间错过的触发按追赶策略处理。
-- **表情包**：内置表情包库（`manifest.json` 描述画面与标签），AI 按标签检索表情让回复更生动。
+- **表情包**：内置表情包库（`manifest.json` 描述每张图的画面），AI 调用 `list_stickers` 拿到全量列表后按语境选图，让回复更生动。
 
 ### 多平台接入
 
@@ -367,7 +367,7 @@ core/
 │
 ├── api/                        # Web 面板 API（独立 WS 服务端：鉴权/心跳/白名单/事件总线）
 ├── services/                   # 适配器注册表 / NapCat HTTP / 定时调度 / 苏醒触发 / 启动自检 / 记忆存储
-├── stickers/                   # 表情包库（index.js 按标签检索 + manifest.json + images/）
+├── stickers/                   # 表情包库（index.js 提供全量列表与按 id 取图 + manifest.json + images/）
 ├── types/                      # 跨模块共用类型（Context / CtxEvent / MessageSegment / Space 等）
 ├── skills/                     # Skill 技能目录（AI 可读写，内置 skill-manager）
 ├── workspace/                  # 工作区（AI 可读写）

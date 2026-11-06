@@ -1,15 +1,10 @@
-// @ts-check
-
 /**
  * 开发用表情包入库脚本
  *
- * 把一个文件夹里的表情包图片交给多模态模型，生成「描述 + 标签」后写入
+ * 把一个文件夹里的表情包图片交给多模态模型，生成画面描述后写入
  * core/stickers/manifest.dev.json（开发索引）或 core/stickers/manifest.json（生产索引）。
  *
- * 标签不允许模型自由发挥：词表固定在下方 TAGS 里，模型只能从中挑选，
- * 避免跑出一堆近义、散装标签导致检索命中率下降。
- *
- * 用法：node scripts/add-stickers.js <图片文件夹> [--target dev|prod] [--weight N]
+ * 用法：node scripts/add-stickers.js <图片文件夹> [--target dev|prod]
  *       [--force] [--dry] [--concurrency N]
  */
 
@@ -58,19 +53,6 @@ const VISION_API = {
     model: "",
 };
 
-/**
- * 固定标签词表
- * 模型只能从中原样挑选，词表同时会合并进 manifest 的 vocabulary
- * 增删标签直接改这个数组即可，无需改提示词
- */
-/** @type {string[]} */
-const TAGS = [
-    "开心", "得意", "害羞", "惊讶",
-    "疑惑", "无语", "生气", "委屈",
-    "害怕", "摸鱼", "笑", "无意义冒泡",
-    "点赞", "加油", "安慰", "吐槽",
-];
-
 /** 支持的图片扩展名（实际类型以魔数为准） */
 const SUPPORTED_EXT = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif"]);
 /** 图片魔数类型 → MIME */
@@ -82,7 +64,6 @@ const MIME = {
     gif: "image/gif",
 };
 
-const MAX_TAGS = 3;
 const MAX_DESC_LEN = 100;
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const MAX_RETRIES = 3;
@@ -91,19 +72,17 @@ const API_TIMEOUT = 90_000;
 const DEFAULT_CONCURRENCY = 3;
 
 const SYSTEM_PROMPT = `你是一名表情包标注员，负责给聊天表情包写「入库标注」。
-你会收到一张表情包图片和一份固定标签词表，请按要求只输出一个 JSON 对象。
+你会收到一张表情包图片，请按要求只输出一个 JSON 对象。
 
 输出格式（严格遵守，只输出 JSON 本体）：
-{"desc": "画面 + 情绪 + 适用场景的一句话描述", "tags": ["标签1", "标签2"]}
+{"desc": "画面 + 情绪 + 适用场景的一句话描述"}
 
 标注规则：
-1. desc 控制在 30～70 个汉字，按「画面 → 情绪」顺序写成一句自然的中文：画面里是谁或什么、在做什么表情动作、传递什么情绪。不要分点，不要用"这张图""该表情包"开头。
+1. desc 控制在 30～70 个汉字，按「画面 → 情绪/场景」顺序写成一句自然的中文：画面里是谁或什么、在做什么表情动作、适合在什么聊天情境下使用。不要分点，不要用"这张图""该表情包"开头。
 2. 若图上有配文、字幕或梗文字，必须把文字内容及其语气写进 desc；水印、平台 Logo、聊天气泡等界面元素忽略。
-3. 用词具体、口语化，让人不看图也能想象出画面；不要堆形容词，不写"非常可爱""很有趣"这类空泛评价。
-4. tags 只能从给定词表里原样挑选：禁止自造词、禁止近义改写、禁止输出词表外的词。按贴合度从高到低给 1～2 个最合适的，最多 3 个，宁缺毋滥；画面和词表完全不搭时可以给空数组。
-5. 标签要覆盖不同维度：优先「最直接的情绪」，其次「动作或场景」；同一含义只选一个标签。
-6. 不要描述背景颜色、构图、分辨率、画质等与聊天使用无关的信息；不要输出色情、暴力、人身攻击类内容。
-7. 输出必须能被 JSON.parse 直接解析，不要加代码块、注释或任何解释文字。`;
+3. 用词具体、口语化，让人不看图也能想象出画面，并与其他表情包明确区分开；不要堆形容词，不写"非常可爱""很有趣"这类空泛评价。
+4. 不要描述背景颜色、构图、分辨率、画质等与聊天使用无关的信息；不要输出色情、暴力、人身攻击类内容。
+5. 输出必须能被 JSON.parse 直接解析，不要加代码块、注释或任何解释文字。`;
 
 const USAGE = `表情包入库脚本（开发用）
 
@@ -115,7 +94,6 @@ const USAGE = `表情包入库脚本（开发用）
                      （本地存在 manifest.dev.json 时用 dev，否则 prod）
                      dev  -> core/stickers/manifest.dev.json
                      prod -> core/stickers/manifest.json
-  --weight N         这批表情的命中权重，默认 1（常用图可以调高）
   --force            索引里已存在的图片重新标注并覆盖
   --dry              只请求模型并打印结果，不写索引、不拷贝图片
   --concurrency N    并发请求数，默认 ${DEFAULT_CONCURRENCY}
@@ -126,7 +104,6 @@ const USAGE = `表情包入库脚本（开发用）
  * @typedef {Object} Options
  * @property {string} folder 源图片文件夹
  * @property {"" | "dev" | "prod"} target 目标索引
- * @property {number} weight 命中权重
  * @property {boolean} force 是否覆盖已有条目
  * @property {boolean} dry 是否只试跑
  * @property {number} concurrency 并发数
@@ -138,15 +115,12 @@ const USAGE = `表情包入库脚本（开发用）
  * @property {string} id
  * @property {string} file 相对 baseDir 的路径，统一用 /
  * @property {string} desc
- * @property {string[]} tags
- * @property {number} weight
  */
 
 /**
  * @typedef {Object} StickerManifest
  * @property {number} version
  * @property {string} baseDir
- * @property {string[]} vocabulary
  * @property {StickerItem[]} items
  */
 
@@ -161,7 +135,6 @@ const USAGE = `表情包入库脚本（开发用）
 /**
  * @typedef {Object} Annotation
  * @property {string} desc
- * @property {string[]} tags
  * @property {number} tokens
  */
 
@@ -181,7 +154,6 @@ function parseArgs(argv) {
     const opts = {
         folder: "",
         target: "",
-        weight: 1,
         force: false,
         dry: false,
         concurrency: DEFAULT_CONCURRENCY,
@@ -200,14 +172,6 @@ function parseArgs(argv) {
                 if (value !== "dev" && value !== "prod")
                     throw new Error(`--target 只能是 dev 或 prod，收到：${value ?? "(空)"}`);
                 opts.target = value;
-                break;
-            }
-            case "--weight": {
-                const raw = argv[i += 1];
-                const value = Number(raw);
-                if (!Number.isFinite(value) || value <= 0)
-                    throw new Error(`--weight 需要正数，收到：${raw ?? "(空)"}`);
-                opts.weight = value;
                 break;
             }
             case "--concurrency": {
@@ -393,7 +357,7 @@ function materialize(placement) {
 function readManifest(manifestPath) {
     if (!existsSync(manifestPath)) {
         console.warn(`[add-stickers] 索引不存在，将新建：${relative(root, manifestPath)}`);
-        return { version: 1, baseDir: BASE_DIR, vocabulary: [], items: [] };
+        return { version: 1, baseDir: BASE_DIR, items: [] };
     }
 
     /** @type {any} */
@@ -414,14 +378,11 @@ function readManifest(manifestPath) {
             id: item.id,
             file: item.file,
             desc: typeof item.desc === "string" ? item.desc : "",
-            tags: Array.isArray(item.tags) ? item.tags.filter((tag) => typeof tag === "string") : [],
-            weight: Number(item.weight) > 0 ? Number(item.weight) : 1,
         }));
 
     return {
         version: Number.isInteger(raw.version) ? raw.version : 1,
         baseDir: typeof raw.baseDir === "string" && raw.baseDir.trim() ? raw.baseDir.trim() : BASE_DIR,
-        vocabulary: Array.isArray(raw.vocabulary) ? raw.vocabulary.filter((tag) => typeof tag === "string") : [],
         items,
     };
 }
@@ -435,22 +396,6 @@ function writeManifest(manifestPath, manifest) {
     const tmp = `${manifestPath}.tmp`;
     writeFileSync(tmp, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
     renameSync(tmp, manifestPath);
-}
-
-/**
- * 合并词表：保留旧词表顺序，再追加固定词表里的新标签
- * @param {string[]} existing
- * @param {string[]} tags
- * @returns {string[]}
- */
-function mergeVocabulary(existing, tags) {
-    /** @type {string[]} */
-    const out = [];
-    for (const tag of [...existing, ...tags]) {
-        if (typeof tag === "string" && tag && !out.includes(tag))
-            out.push(tag);
-    }
-    return out;
 }
 
 /**
@@ -478,7 +423,7 @@ function buildId(fileRef, usedIds) {
 
 /**
  * @param {string} text
- * @returns {{ desc: string, tags: string[] }}
+ * @returns {string} desc
  */
 function parseAnnotation(text) {
     const jsonText = extractJsonText(text);
@@ -495,11 +440,7 @@ function parseAnnotation(text) {
     if (!desc)
         throw new Error("模型没有给出有效描述");
 
-    const { tags, invalid } = cleanTags(parsed?.tags);
-    if (invalid.length)
-        console.warn(`[add-stickers] 已忽略词表外标签：${invalid.join("、")}`);
-
-    return { desc, tags };
+    return desc;
 }
 
 /**
@@ -531,40 +472,6 @@ function cleanDesc(value) {
         console.warn(`[add-stickers] 描述超过 ${MAX_DESC_LEN} 字，已截断`);
     }
     return desc;
-}
-
-/**
- * 只保留词表内标签，去重、限个
- * @param {unknown} raw
- * @returns {{ tags: string[], invalid: string[] }}
- */
-function cleanTags(raw) {
-    /** @type {string[]} */
-    const tags = [];
-    /** @type {string[]} */
-    const invalid = [];
-    if (!Array.isArray(raw))
-        return { tags, invalid };
-
-    for (const value of raw) {
-        if (typeof value !== "string")
-            continue;
-        const tag = value.trim().replace(/^#/, "").trim();
-        if (!tag)
-            continue;
-        if (!TAGS.includes(tag)) {
-            invalid.push(tag);
-            continue;
-        }
-        if (tags.includes(tag))
-            continue;
-        if (tags.length >= MAX_TAGS) {
-            invalid.push(tag);
-            continue;
-        }
-        tags.push(tag);
-    }
-    return { tags, invalid };
 }
 
 /**
@@ -637,9 +544,8 @@ async function describeSticker(api, imagePath, categoryLabel) {
                 },
             });
             const content = extractContent(resp.data);
-            const annotation = parseAnnotation(content);
             return {
-                ...annotation,
+                desc: parseAnnotation(content),
                 tokens: Number(resp.data?.usage?.total_tokens) || 0,
             };
         }
@@ -656,13 +562,12 @@ async function describeSticker(api, imagePath, categoryLabel) {
 }
 
 /**
- * 构造单张图片的附加提示（词表 + 分类）
+ * 构造单张图片的附加提示（分类）
  * @param {string} categoryLabel
  * @returns {string}
  */
 function buildUserHint(categoryLabel) {
     return [
-        `标签词表（只能原样挑选）：${TAGS.join("、")}`,
         `所属分类：${categoryLabel}`,
         "请按系统要求输出这张表情包的标注 JSON。",
     ].join("\n");
@@ -716,14 +621,6 @@ function errorMessage(err) {
     if (err instanceof Error)
         return err.message;
     return String(err);
-}
-
-/**
- * @param {string[]} tags
- * @returns {string}
- */
-function formatTags(tags) {
-    return tags.length ? `  标签：${tags.join("、")}` : "  标签：（空）";
 }
 
 async function main() {
@@ -812,29 +709,20 @@ async function main() {
             id: result.existing !== undefined ? manifest.items[result.existing].id : buildId(result.fileRef, usedIds),
             file: result.fileRef,
             desc: result.annotation.desc,
-            tags: result.annotation.tags,
-            weight: opts.weight,
         };
-
-        if (item.tags.length === 0)
-            console.warn(`[add-stickers] 注意：${item.id} 没有选出标签，只有无标签查询才能命中它`);
 
         if (result.existing !== undefined) {
             manifest.items[result.existing] = item;
             stats.replaced += 1;
-            console.log(`[add-stickers] 覆盖 [${item.id}] ${item.desc}${formatTags(item.tags)}`);
+            console.log(`[add-stickers] 覆盖 [${item.id}] ${item.desc}`);
         }
         else {
             manifest.items.push(item);
             fileIndex.set(result.fileRef, manifest.items.length - 1);
             stats.added += 1;
-            console.log(`[add-stickers] 新增 [${item.id}] ${item.desc}${formatTags(item.tags)}`);
+            console.log(`[add-stickers] 新增 [${item.id}] ${item.desc}`);
         }
     }
-
-    const oldVocabulary = manifest.vocabulary.join("\u0000");
-    manifest.vocabulary = mergeVocabulary(manifest.vocabulary, TAGS);
-    const vocabularyChanged = manifest.vocabulary.join("\u0000") !== oldVocabulary;
 
     console.log("");
     console.log(`[add-stickers] 完成：新增 ${stats.added}，覆盖 ${stats.replaced}，跳过 ${stats.skipped}，失败 ${stats.failed}，tokens ${stats.tokens}`);
@@ -842,7 +730,7 @@ async function main() {
     if (opts.dry) {
         console.log("[add-stickers] dry-run：未写入索引、未拷贝图片");
     }
-    else if (stats.added + stats.replaced > 0 || vocabularyChanged) {
+    else if (stats.added + stats.replaced > 0) {
         writeManifest(manifestPath, manifest);
         console.log(`[add-stickers] 已写入：${relative(root, manifestPath)}`);
     }
