@@ -15,12 +15,7 @@ const cfg = /** @type {Record<string, any>} */ (config);
 
 const BOOTSTRAP_COMMANDS = new Set(["bind"]);
 
-/**
- * token 数紧凑显示：1.2k / 3.45M
- * 超过百万自动换单位，避免出现「1234.5k」这种要数位的写法
- * @param {number} n
- * @returns {string}
- */
+
 function fmtTokens(n) {
     if (!Number.isFinite(n) || n <= 0) return "0";
     const trim = (s) => (s.includes(".") ? s.replace(/\.?0+$/, "") : s);
@@ -30,11 +25,6 @@ function fmtTokens(n) {
     return String(Math.round(n));
 }
 
-/**
- * 金额显示：单次对话常在分以下，1 元以内保留 4 位小数
- * @param {number} n 元
- * @returns {string}
- */
 function fmtCost(n) {
     if (!Number.isFinite(n) || n <= 0) return "¥0";
     if (n < 0.0001) return "<¥0.0001";
@@ -165,17 +155,6 @@ const cmds = [
         }
     },
     {
-        name: "ms",
-        needsAdmin: true,
-        description: "设置文本模型（管理员）",
-        params: [{ name: "模型名称", desc: "模型ID" }],
-        handler: async (args, ctx) => {
-            if (args.length === 0) return "缺少参数";
-            config.chatModel = args[0];
-            return `切换了模型为 ${args[0]}`;
-        }
-    },
-    {
         name: "skills",
         description: "列出技能列表",
         params: [],
@@ -211,8 +190,7 @@ const cmds = [
     },
     {
         name: "sessions",
-        needsAdmin: true,
-        description: "列出活跃会话（管理员）",
+        description: "列出活跃会话",
         params: [],
         handler: async (args, ctx) => {
             const list = listAgents();
@@ -288,13 +266,11 @@ const cmds = [
     },
     {
         name: "tokens",
-        needsAdmin: true,
         description: "查看模型Token用量与花销统计",
         params: [{ name: "天数", desc: "可选，默认7" }],
         handler: async (args, ctx) => {
             const days = Math.min(Math.max(Number.parseInt(args[0] ?? "", 10) || 7, 1), 90);
             const { today, recent, total } = await getUsageSummary(days);
-            // 缓存命中率以输入为分母；没有输入（如只发生过报错调用）显示 -
             const rate = (b) => (b.cacheHitRate == null ? "-" : `${b.cacheHitRate}%`);
             const brief = (b) =>
                 `共${fmtTokens(b.totalTokens)}·${b.requests}次｜花销${fmtCost(b.cost)}｜输入${fmtTokens(b.inputTokens)}`
@@ -309,7 +285,6 @@ const cmds = [
                 for (const b of recent) lines.push(`${b.date.slice(5)}  ${brief(b)}`);
             }
             lines.push(`累计  ${brief(total)}`);
-            // 价格表未覆盖的模型不计入金额，必须显式提示，否则会误以为花销只有这么点
             if (total.unpricedModels?.length > 0) {
                 lines.push(`未计价模型（未计入花销）：${total.unpricedModels.join("、")}，可在面板「模型价格」补价`);
             }
