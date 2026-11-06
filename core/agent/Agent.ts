@@ -86,12 +86,13 @@ export default class Agent extends EventEmitter {
             // 每回合现取：开工前重新扫描 skills 目录，保证强加载/技能列表与磁盘一致
             await reloadSkills();
 
-            const request = () => callLLM({
+            // withTools=false 用于达到工具链上限后的收敛请求：不带工具，逼模型直接作答
+            const request = (withTools = true) => callLLM({
                 model: config.chatModel,
                 messages: buildMessages(this),
                 temperature: 0.2,
                 responseFormat: { type: "json_object" },
-                tools: getAllTools(),
+                ...(withTools ? { tools: getAllTools() } : {}),
             });
 
             const toolCtx: AgentToolContext = { ...ctx, agent: this };
@@ -108,8 +109,17 @@ export default class Agent extends EventEmitter {
                     return;
                 }
                 tokenCount += result.totalTokens;
-                // 无工具调用 → 最终回复；工具链达到长度上限 → 强制收敛
-                if (!result.message.tool_calls || toolDepth > config.toolChainMaxLength) break;
+                // 无工具调用 → 最终回复
+                if (!result.message.tool_calls) break;
+                // 工具链达到长度上限 → 强制收敛：不带工具再请求一次，逼模型直接作答，避免空回复把整轮吞掉
+                if (toolDepth >= config.toolChainMaxLength) {
+                    const final = await request(false);
+                    if (final && typeof final !== "string") {
+                        tokenCount += final.totalTokens;
+                        result = final;
+                    }
+                    break;
+                }
                 toolDepth++;
 
                 // 同一轮多个工具调用并行执行；失败不抛断流程，错误原因回写为 tool 消息供模型自我修正
