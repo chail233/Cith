@@ -23,5 +23,8 @@
 # 长期记忆数据（rememori append-only 文件）
 /core/data/rememori/
 
+# 微信图片落地（图像识别用的临时缓存）
+/core/data/images/
+
 # 微信登录凭证（wechatStorageDir 指向仓库内目录时）
 /core/data/wechatbot*/

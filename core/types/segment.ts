@@ -1,5 +1,6 @@
 export interface MediaRef {
     uri: string;
+    localPath?: string;
     mime?: string;
     size?: number;
     raw?: Record<string, unknown>;

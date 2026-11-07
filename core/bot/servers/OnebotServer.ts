@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import config from "../../config.js";
 import logger from "../../utils/logger.js";
 import OnebotAdapter from "../adapters/OnebotAdapter.ts";
+import { getImage } from "../../services/napcat.js";
 import { runtimeState } from "../../api/runtime-state.ts";
 import { registerAdapter, unregisterAdapter } from "../../services/adapter-registry.js";
 import { isPlaceholder } from "../../services/preflight.ts";
@@ -48,14 +49,12 @@ function tokenMatches(candidate: string): boolean {
     return crypto.timingSafeEqual(given, expect);
 }
 
-/**
- * OneBot 消息段 → 统一段
- */
-function toSegments(raw: unknown): MessageSegment[] {
-    if (typeof raw === "string") return [{ type: "text", data: { text: raw } }];
+
+
+async function toSegments(raw: unknown): Promise<MessageSegment[]> {
     if (!Array.isArray(raw)) return [];
 
-    return (raw as OneBotSegment[]).map((seg): MessageSegment => {
+    return Promise.all((raw as OneBotSegment[]).map(async (seg): Promise<MessageSegment> => {
         const d = seg.data ?? {};
         switch (seg.type) {
             case "text": {
@@ -66,7 +65,6 @@ function toSegments(raw: unknown): MessageSegment[] {
             case "at": {
                 const id = String(d.qq ?? "");
                 const data: MsgSegment["mention"] = { id, isSelf: id === String(config.selfId ?? "") };
-                // 官方规范：qq 为 QQ 号或 all（@全体成员），all 没有昵称来源，直接给可读名
                 if (d.name) data.name = String(d.name);
                 else if (id === "all") data.name = "全体成员";
                 return { type: "mention", data };
@@ -79,6 +77,17 @@ function toSegments(raw: unknown): MessageSegment[] {
                         raw: { file: d.file, file_id: d.file_id, sub_type: d.sub_type },
                     },
                 };
+                const fileId = d.file;
+                if (typeof fileId === "string" && fileId !== "") {
+                    const fileData = await getImage(fileId);
+                    const localPath = fileData?.data?.file;
+                    if (typeof localPath === "string" && localPath !== "") {
+                        data.media.localPath = localPath;
+                    }
+                    else {
+                        logger.warn(`NapCat get_image 未返回本地路径: ${fileId}`);
+                    }
+                }
                 return { type: "image", data };
             }
 
@@ -109,7 +118,7 @@ function toSegments(raw: unknown): MessageSegment[] {
             default:
                 return { type: seg.type ?? "unknown", data: d };
         }
-    });
+    }));
 }
 
 export function startOneBotServer(pipeline: (ctxEvent: CtxEvent) => Promise<void>): WebSocketServer {
@@ -139,7 +148,7 @@ export function startOneBotServer(pipeline: (ctxEvent: CtxEvent) => Promise<void
         // 主动链路（定时苏醒）需要拿到发送通道
         registerAdapter("onebot", onebotAdapter);
 
-        ws.on("message", (data) => {
+        ws.on("message", async (data) => {
             try {
                 const event = JSON.parse(data.toString()) as OneBotEvent;
                 logger.debug("收到事件:", event);
@@ -149,10 +158,12 @@ export function startOneBotServer(pipeline: (ctxEvent: CtxEvent) => Promise<void
                     ? { from: "group", id: String(event.group_id ?? ""), channel: "onebot" }
                     : { from: "user", id: String(event.user_id ?? ""), channel: "onebot" };
 
+                const message = await toSegments(event.message);
+
                 const ctxEvent: CtxEvent = {
                     adapter: onebotAdapter,
                     messageId: String(event.message_id ?? ""),
-                    message: toSegments(event.message),
+                    message,
                     space,
                     userId: String(event.user_id ?? ""),
                     nickName: event.sender?.nickname ?? "未知",

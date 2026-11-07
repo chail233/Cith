@@ -1,16 +1,55 @@
 import {WeChatBot} from "@wechatbot/wechatbot";
-import type { Logger } from "@wechatbot/wechatbot";
+import type { IncomingMessage, Logger } from "@wechatbot/wechatbot";
+import { randomBytes } from "node:crypto";
+import { mkdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import config from "../../config.js";
 import logger from "../../utils/logger.js";
-import type { CtxEvent, Space } from "../../types/index.ts";
+import { resolveSrcPath } from "../../utils/file-security.js";
+import type { CtxEvent, MessageSegment, Space } from "../../types/index.ts";
 import WechatBotAdapter from "../adapters/WechatBotAdapter.ts";
 import { registerAdapter, unregisterAdapter } from "../../services/adapter-registry.js";
 
 /** 项目根：源码在 core/bot/servers、构建产物在 dist/bot/servers，向上三级都落到项目根 */
 const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
+
+/** 微信图片落地目录（相对于 core/，与 rememori 同级） */
+const WECHAT_IMAGE_DIR = "data/images";
+
+async function saveImageFile(buf: Buffer): Promise<string> {
+    const resolved = resolveSrcPath(WECHAT_IMAGE_DIR);
+    if (resolved.error || !resolved.fullPath) {
+        throw new Error(`图片目录路径非法: ${resolved.error ?? WECHAT_IMAGE_DIR}`);
+    }
+    await mkdir(resolved.fullPath, { recursive: true });
+    const fileName = `wechat-${Date.now()}-${randomBytes(4).toString("hex")}.img`;
+    const fullPath = join(resolved.fullPath, fileName);
+    await writeFile(fullPath, buf);
+    return fullPath;
+}
+
+
+async function toSegments(bot: WeChatBot, msg: IncomingMessage): Promise<MessageSegment[]> {
+    const segments: MessageSegment[] = [];
+    if (msg.type === "text" && msg.text) {
+        segments.push({ type: "text", data: { text: msg.text } });
+    }
+    for (const img of msg.images) {
+        if (!img.media) continue;
+        try {
+            const buf = await bot.downloadRaw(img.media, img.aeskey);
+            const localPath = await saveImageFile(buf);
+            logger.info(`WechatBot图片已落地: ${localPath} (${buf.length} 字节)`);
+            segments.push({ type: "image", data: { media: { uri: img.url ?? "", localPath } } });
+        }
+        catch (err) {
+            logger.error("WechatBot图片下载落地失败，跳过:", err);
+        }
+    }
+    return segments;
+}
 
 export function resolveWechatStorageDir(raw: unknown): string | undefined {
     const text = typeof raw === "string" ? raw.trim() : "";
@@ -64,28 +103,24 @@ export default async function startWechatBotServer(pipeline: (ctxEvent: CtxEvent
 
     bot.onMessage(async (msg) => {
         logger.info("WechatBot收到消息:", msg);
-        if(msg.type==="text"){
-            const space:Space = {
-                from: "user",
-                id: msg.userId,
-                channel: "wechat",
-            }
-            const ctxEvent:CtxEvent = {
-                adapter: adapter,
-                // 微信侧暂未暴露消息 id
-                messageId: "",
-                message: [
-                    {
-                        type: "text",
-                        data: { text: msg.text }
-                    }
-                ],
-                space,
-                userId: msg.userId,
-                nickName: msg.userId,
-            }
-            const result = await adapter.onMessage(ctxEvent);
+        const message = await toSegments(bot, msg);
+        // 纯语音/文件/视频等暂不支持，转换结果为空直接忽略
+        if (message.length === 0) return;
+        const space:Space = {
+            from: "user",
+            id: msg.userId,
+            channel: "wechat",
         }
+        const ctxEvent:CtxEvent = {
+            adapter: adapter,
+            // 微信侧暂未暴露消息 id
+            messageId: "",
+            message,
+            space,
+            userId: msg.userId,
+            nickName: msg.userId,
+        }
+        await adapter.onMessage(ctxEvent);
     });
 
     // 是否走过扫码：login 会优先复用已保存凭证，此时不会有任何二维码
