@@ -62,7 +62,7 @@ NapCat(反向WS) / 微信(长轮询)
 
 `Agent` 是 EventEmitter，每会话一实例，由 `AgentManager` 池管理（空闲 30 分钟回收、上限 50）。**Agent 只"想"不"说"**：只广播 `reply` / `tool-call` / `tool-result` 等事件，`pipeline/agent-runner.ts` 订阅后经适配器按拟人节奏发送。同一会话同时只允许一个模型请求。
 
-每轮流程：`contextBuilder.ts` 组装上下文（系统提示 + 强加载技能正文 + 技能/MCP 列表 + 记忆概要 + 历史 + 尾部易变项：活跃计划/唤醒说明）→ 带全量工具定义调 LLM → 同轮多个工具调用**并行执行** → 结果以 `role:"system"` 消息回填 → 再请求。最多 `toolChainMaxLength`（30）轮；达到上限后补发一次**无工具**请求强制收敛。回复必须是严格 JSON `{"action": [{"type": "text", "data": {"text": "..."}}, {"type": "sticker", "data": {"id": "..."}}]}`（消息段格式，与接收方向统一段同构），`replyParser.ts` 把它归一化为统一消息段（sticker 段经 `getSticker` 解析为带 `media.localPath` 的 image 段；解析宽松：也接受裸数组、旧 `{cmd,content}` 格式、坏输出降级为单条文本）。
+每轮流程：`contextBuilder.ts` 组装上下文（系统提示 + 强加载技能正文 + 技能/MCP 列表 + 记忆概要 + 历史 + 尾部易变项：活跃计划/唤醒说明）→ 带全量工具定义调 LLM → 同轮多个工具调用**并行执行** → 结果以 `role:"system"` 消息回填 → 再请求。最多 `toolChainMaxLength`（30）轮；达到上限后补发一次**无工具**请求强制收敛。回复必须是严格 JSON `{"action": [消息段...]}`，词表为 text / sticker / image / file / mention / reply（link_card 未开放，解析层直接丢弃），与接收方向统一段同构；`replyParser.ts` 把它归一化为统一消息段（sticker 段经 `getSticker` 解析为带 `media.localPath` 的 image 段；解析宽松：也接受裸数组、旧 `{cmd,content}` 格式、坏输出降级为单条文本）。agent-runner 按段顺序逐个发送，reply/mention 攒到下一个内容段合并为一条（OneBot 语义）；平台不支持的段类型由 Adapter 自行跳过（微信不支持 mention/reply）。
 
 技能目录在**每次 `Agent.run()` 开头重扫**，没有 `#reloadskls` 命令。
 

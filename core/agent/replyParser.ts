@@ -44,11 +44,32 @@ function toSegment(value: unknown): MessageSegment[] {
 
     // 标准段格式：{type, data}
     const data = isJsonObject(value.data) ? value.data : {};
-    if (value.type === "text" && typeof data.text === "string") {
-        return [{ type: "text", data: { text: data.text } }];
-    }
-    if (value.type === "sticker") {
-        return stickerToImage(typeof data.id === "string" ? data.id : "");
+    switch (value.type) {
+        case "text":
+            if (typeof data.text !== "string") break;
+            return [{ type: "text", data: { text: data.text } }];
+        case "sticker":
+            return stickerToImage(typeof data.id === "string" ? data.id : "");
+        case "image": {
+            const media = toMediaRef(data.media);
+            if (!media) break;
+            return [{ type: "image", data: { media } }];
+        }
+        case "file": {
+            const media = toMediaRef(data.media);
+            if (!media) break;
+            const seg: MessageSegment = { type: "file", data: { media } };
+            if (typeof data.name === "string" && data.name !== "") seg.data.name = data.name;
+            return [seg];
+        }
+        case "mention":
+            if (typeof data.id !== "string" || data.id === "") break;
+            return [{ type: "mention", data: { id: data.id } }];
+        case "reply":
+            if (typeof data.id !== "string" || data.id === "") break;
+            return [{ type: "reply", data: { id: data.id } }];
+        default:
+            break;
     }
 
     // 旧版动作格式过渡容错：{cmd, content}
@@ -60,6 +81,15 @@ function toSegment(value: unknown): MessageSegment[] {
 
     logger.warn("AI 回复包含无法识别的消息段，已丢弃:", JSON.stringify(value));
     return [];
+}
+
+/** 媒体引用守卫：uri（http/https 链接）或 localPath（本地路径）至少有其一 */
+function toMediaRef(value: unknown): { uri: string; localPath?: string } | null {
+    if (!isJsonObject(value)) return null;
+    const uri = typeof value.uri === "string" ? value.uri : "";
+    const localPath = typeof value.localPath === "string" ? value.localPath : "";
+    if (uri === "" && localPath === "") return null;
+    return uri !== "" ? { uri } : { uri: "", localPath };
 }
 
 /** 表情包 id → image 段（解析出本地路径）；id 无效时丢弃（getSticker 内已记日志） */

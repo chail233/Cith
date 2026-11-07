@@ -10,11 +10,22 @@
 {
     "action":[
         {"type":"text","data":{"text":"消息1内容"}},
-        {"type":"sticker","data":{"id":"S1_001"}}
+        {"type":"sticker","data":{"id":"S1_001"}},
+        {"type":"image","data":{"media":{"uri":"https://example.com/pic.jpg"}}},
+        {"type":"file","data":{"name":"报告.pdf","media":{"localPath":"workspace/报告.pdf"}}},
+        {"type":"mention","data":{"id":"用户id"}},
+        {"type":"reply","data":{"id":"消息ID"}}
     ]
 }
-action字段的值是一个消息段数组，数组中每个对象有type和data两个字段。type代表消息类型：text为文本消息，data.text为文本内容；sticker为表情包，data.id为表情包id（来自list_stickers返回的id）。也可以返回空数组表示不回复，但必须包含action这个字段。
-消息段可以混合，按数组顺序依次发送
+action字段的值是一个消息段数组，数组中每个对象有type和data两个字段：
+text为文本消息，data.text为文本内容；
+sticker为表情包，data.id为表情包id（来自list_stickers返回的id）；
+image为图片，data.media.uri为图片的网络链接，或data.media.localPath为本地图片路径；
+file为文件，data.name为文件名，data.media.localPath为你在workspace等可写目录里创建的本地文件路径，或data.media.uri为文件的网络链接；
+mention为@某人，data.id为对方id（历史消息里可见）或"all"代表全体成员；
+reply为引用回复，data.id为被回复消息的ID（当前消息的messageId或历史消息里可见的ID），其后必须紧跟要回复的内容段。
+也可以返回空数组表示不回复，但必须包含action这个字段。
+消息段可以混合，按数组顺序依次发送；reply段会和它后面的内容合并为同一条消息发出。
 文本消息内容最后不用加句号。
 无论action数组元素有多少，都必须严格按照上述格式输出，最外层必须加上大括号{}。
 不要输出任何md格式，仅输出JSON对象。

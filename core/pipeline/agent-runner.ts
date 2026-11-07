@@ -7,7 +7,7 @@ import logger from "../utils/logger.js";
 import sleep from "../utils/sleep.js";
 import { getAgent } from "../agent/AgentManager.ts";
 import type Agent from "../agent/Agent.ts";
-import type { Context } from "../types/index.ts";
+import type { Context, MessageSegment } from "../types/index.ts";
 import type { ReplyPayload } from "../agent/types.ts";
 
 /**
@@ -57,18 +57,33 @@ function detachAgentListeners(
     agent.off("tool-call", listeners["tool-call"]);
 }
 
-/** 按段顺序逐个发送一轮回复消息段，段间保留拟人化间隔 */
+/**
+ * 按段顺序逐个发送一轮回复消息段，段间保留拟人化间隔。
+ * reply/mention 依赖与内容同消息，攒到下一个内容段合并发送；
+ */
 async function deliverReply(ctx: Context, { acts, tokens }: ReplyPayload): Promise<void> {
     logger.info("AI 消息内容:", JSON.stringify({ acts, tokens }));
+    let decorations: MessageSegment[] = [];
     for (const seg of acts) {
+        if (seg.type === "reply" || seg.type === "mention") {
+            decorations.push(seg);
+            continue;
+        }
         // 空文本不发送也不打断节奏
         if (seg.type === "text" && !(seg.data.text ?? "").trim()) continue;
-        if (seg.type !== "text" && seg.type !== "image") {
-            logger.debug("回复包含暂不支持发送的消息段，跳过:", seg.type);
+        const payload: string | MessageSegment | MessageSegment[] =
+            decorations.length > 0 ? [...decorations, seg] : seg;
+        decorations = [];
+        ctx.adapter.sendMsg(ctx.space, payload);
+        // 文本是主要节奏（慢），媒体/文件轻快一些
+        await sleep(seg.type === "text" ? 3000 + Math.floor(Math.random() * 1000) : 1200 + Math.floor(Math.random() * 800));
+    }
+    // 结尾落单的修饰段：mention 单发仍有意义，reply 单发无意义丢弃
+    for (const seg of decorations) {
+        if (seg.type !== "mention") {
             continue;
         }
         ctx.adapter.sendMsg(ctx.space, seg);
-        // 文本是主要节奏（慢），图片/表情包轻快一些
-        await sleep(seg.type === "text" ? 3000 + Math.floor(Math.random() * 1000) : 1200 + Math.floor(Math.random() * 800));
+        await sleep(1200 + Math.floor(Math.random() * 800));
     }
 }
