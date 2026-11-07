@@ -5,9 +5,7 @@
 import config from "../config.js";
 import logger from "../utils/logger.js";
 import sleep from "../utils/sleep.js";
-import { pathToFileURL } from "node:url";
 import { getAgent } from "../agent/AgentManager.ts";
-import { getSticker } from "../stickers/index.js";
 import type Agent from "../agent/Agent.ts";
 import type { Context } from "../types/index.ts";
 import type { ReplyPayload } from "../agent/types.ts";
@@ -59,29 +57,18 @@ function detachAgentListeners(
     agent.off("tool-call", listeners["tool-call"]);
 }
 
-/** 分段发送一轮回复动作，消息间保留拟人化间隔 */
+/** 按段顺序逐个发送一轮回复消息段，段间保留拟人化间隔 */
 async function deliverReply(ctx: Context, { acts, tokens }: ReplyPayload): Promise<void> {
     logger.info("AI 消息内容:", JSON.stringify({ acts, tokens }));
-    for (const act of acts) {
-        // 表情包动作：id → 本地图片 → image 消息段
-        if (act.cmd === "sticker") {
-            const sticker = getSticker(act.content.trim());
-            if (!sticker) {
-                logger.warn("表情包发送失败，id 不存在:", act.content);
-                continue;
-            }
-            logger.info("AI 发送表情包:", sticker.id);
-            ctx.adapter.sendMsg(ctx.space, [
-                { type: "image", data: { file: pathToFileURL(sticker.path).href } },
-            ]);
-            await sleep(1200 + Math.floor(Math.random() * 800));
+    for (const seg of acts) {
+        // 空文本不发送也不打断节奏
+        if (seg.type === "text" && !(seg.data.text ?? "").trim()) continue;
+        if (seg.type !== "text" && seg.type !== "image") {
+            logger.debug("回复包含暂不支持发送的消息段，跳过:", seg.type);
             continue;
         }
-
-        if (act.cmd !== "text") continue;
-        const content = act.content;
-        if (content.trim() === "") continue;
-        ctx.adapter.sendMsg(ctx.space, content);
-        await sleep(3000 + Math.floor(Math.random() * 1000));
+        ctx.adapter.sendMsg(ctx.space, seg);
+        // 文本是主要节奏（慢），图片/表情包轻快一些
+        await sleep(seg.type === "text" ? 3000 + Math.floor(Math.random() * 1000) : 1200 + Math.floor(Math.random() * 800));
     }
 }

@@ -9,12 +9,12 @@
 你可以根据情境决定消息一次发送还是分成多条发送以模仿网上聊天的效果，但必须以JSON格式输出，严格按照如下格式：
 {
     "action":[
-        {"cmd":"text","content":"消息1内容"},
-        {"cmd":"sticker","content":"S1_001"}
+        {"type":"text","data":{"text":"消息1内容"}},
+        {"type":"sticker","data":{"id":"S1_001"}}
     ]
 }
-action字段的值是一个数组，数组中每个对象有cmd和content两个字段。cmd代表消息类型：text为文本消息，content为文本内容；sticker为表情包，content为表情包id。也可以返回空数组表示不回复，但必须包含action这个字段。
-文本和表情包可以混合，按数组顺序依次发送
-数组中的文本消息内容最后不用加句号。
+action字段的值是一个消息段数组，数组中每个对象有type和data两个字段。type代表消息类型：text为文本消息，data.text为文本内容；sticker为表情包，data.id为表情包id（来自list_stickers返回的id）。也可以返回空数组表示不回复，但必须包含action这个字段。
+消息段可以混合，按数组顺序依次发送
+文本消息内容最后不用加句号。
 无论action数组元素有多少，都必须严格按照上述格式输出，最外层必须加上大括号{}。
 不要输出任何md格式，仅输出JSON对象。

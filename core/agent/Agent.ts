@@ -16,8 +16,8 @@ import { parseReply } from "./replyParser.ts";
 import config from "../config.js";
 import logger from "../utils/logger.js";
 import type { ChatRecorder } from "./recorder.js";
-import type { Context } from "../types/index.ts";
-import type { LlmResult, Plan, PlanStatus, RawTodo, ReplyAct, ReplyPayload } from "./types.ts";
+import type { Context, MessageSegment } from "../types/index.ts";
+import type { LlmResult, Plan, PlanStatus, RawTodo, ReplyPayload } from "./types.ts";
 
 /** 传给工具层的上下文：管道上下文 + 发起本次调用的 Agent（工具据此访问记忆与会话 ID） */
 export type AgentToolContext = Context & { agent: Agent };
@@ -73,7 +73,7 @@ export default class Agent extends EventEmitter {
     narrate(text: string): boolean {
         const content = text.trim();
         if (!content) return false;
-        this.deliver([{ cmd: "text", content }], 0);
+        this.deliver([{ type: "text", data: { text: content } }], 0);
         return true;
     }
 
@@ -105,7 +105,7 @@ export default class Agent extends EventEmitter {
                 this.memory.compactIfNeeded(config.contextBudgetTokens);
                 result = await request();
                 if (!result || typeof result === "string") {
-                    this.deliver([{ cmd: "text", content: typeof result === "string" ? "ERROR:" + result : "ERROR:AI 服务无响应" }], 0);
+                    this.deliver([{ type: "text", data: { text: typeof result === "string" ? "ERROR:" + result : "ERROR:AI 服务无响应" } }], 0);
                     return;
                 }
                 tokenCount += result.totalTokens;
@@ -177,7 +177,7 @@ export default class Agent extends EventEmitter {
     /**
      * 产出一轮回复：广播 "reply" 事件供分发方消费，
      */
-    private deliver(acts: ReplyAct[], tokens: number): void {
+    private deliver(acts: MessageSegment[], tokens: number): void {
         const payload: ReplyPayload = { acts, tokens };
         this.broadcast("reply", payload);
         this.memory.add({ role: "assistant", content: { action: acts } });

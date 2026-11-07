@@ -209,7 +209,7 @@ Skill 是包含 `SKILL.md` 描述文件的目录，可附带脚本供 AI 执行�
 | QQ | `OnebotServer`（NapCat + OneBot v11，反向 WebSocket 接入，握手 token 鉴权） | `OnebotAdapter` |
 | 微信 | `WechatBotServer`（官方 iLink Bot 协议，扫码登录，凭证持久化重启复用） | `WechatBotAdapter` |
 
-**设计模式：Server 接收并格式化信息，Adapter 处理对外的动作。** Server 继承 `BaseServer` 抽象基类：`toSegments` 把平台消息一次性转成统一消息段（图片就地下载/解析落地，写好 `media.localPath`），`toEventMeta` 产出会话与发送者元信息，基类 `dispatch` 统一装配 `CtxEvent` 推入管道。Adapter 继承 `BaseAdapter` 抽象基类，只实现 `sendMsg()` 负责把回复发回平台。接入新平台 = 写这两个子类，管道与处理器零改动。
+**设计模式：Server 接收并格式化信息，Adapter 处理对外的动作。** Server 继承 `BaseServer` 抽象基类：`toSegments` 把平台消息一次性转成统一消息段（图片就地下载/解析落地，写好 `media.localPath`），`toEventMeta` 产出会话与发送者元信息，基类 `dispatch` 统一装配 `CtxEvent` 推入管道。Adapter 继承 `BaseAdapter` 抽象基类，只实现 `sendMsg()` 按统一消息段类型执行平台动作（text → 文本、image → 平台图片）。发送方向与接收对称：模型回复同样产出统一消息段——`replyParser` 把模型输出的 `{action:[...]}` 归一化为段（sticker 归一化为 image 段），多个段按顺序逐个发送。接入新平台 = 写这两个子类，管道与处理器零改动。
 
 微信侧为协议层约束的已知限制：好友首次发消息后需把其加密 `userId` 加入 `targetUserId` 白名单（管理员直接在该私聊中发送 `#bind` 即可，无需手抄日志）；拿不到昵称/头像；文本与图片消息、仅私聊；只能回复主动发过消息的用户。
 
@@ -360,7 +360,7 @@ core/
 │   ├── Agent.ts                # 循环主体 + 会话任务计划，只产出事件不碰通道
 │   ├── AgentManager.ts         # 会话池：空闲回收 / 数量上限
 │   ├── contextBuilder.ts       # LLM 请求上下文组装
-│   ├── replyParser.ts          # 模型回复解析（{action:[...]}）
+│   ├── replyParser.ts          # 模型回复解析：{action:[...]} → 统一消息段（sticker 归一化为 image 段）
 │   ├── client.js               # LLM API 客户端（文本 / 视觉）
 │   ├── tools.js                # 工具定义、调度与路径门禁
 │   ├── tools/                  # 细粒度工具模块（一个工具一个文件）

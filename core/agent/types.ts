@@ -1,7 +1,7 @@
 /**
  * Agent 系统独有类型
  */
-import type { Context, Space } from "../types/index.ts";
+import type { Context, MessageSegment, Space } from "../types/index.ts";
 import type Agent from "./Agent.ts";
 
 /** 模型返回的待执行工具调用 */
@@ -38,15 +38,9 @@ export interface LlmResult {
     usage: LlmUsage | null;
 }
 
-/** AI 回复动作：{action:[...]} 数组中的单条 */
-export interface ReplyAct {
-    cmd: string;
-    content: string;
-}
-
-/** Agent "reply" 事件负载：本轮解析出的动作 + 累计 tokens */
+/** Agent "reply" 事件负载：本轮解析出的回复消息段 + 累计 tokens */
 export interface ReplyPayload {
-    acts: ReplyAct[];
+    acts: MessageSegment[];
     tokens: number;
 }
 

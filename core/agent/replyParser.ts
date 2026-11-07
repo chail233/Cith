@@ -1,18 +1,15 @@
-/**
- * AI 回复解析
- * 从原 chat.js 的 handleReply 抽离，负责把模型输出解析为动作数组
- */
 import logger from "../utils/logger.js";
-import type { ReplyAct } from "./types.ts";
+import { getSticker } from "../stickers/index.js";
+import type { MessageSegment } from "../types/index.ts";
 
 /**
- * 处理 AI 回复内容
- * 支持三种格式：
- *   1. {action: [...]}  — 预期的标准格式
- *   2. [...]            — AI 直接返回数组
- *   3. 纯文本           — 降级为 text 消息
+ * 处理 AI 回复内容，支持三种格式：
+ *   1. {action: [...]}  — 预期的标准格式（type/data 消息段）
+ *   2. [...]            — AI 直接返回段数组
+ *   3. 纯文本           — 降级为单个 text 段
+ * 兼容旧版 {cmd, content} 动作格式（过渡容错）
  */
-export function parseReply(content: string | null | undefined): ReplyAct[] {
+export function parseReply(content: string | null | undefined): MessageSegment[] {
     if (!content || content.trim() === "") return [];
     let parsed: unknown;
     try {
@@ -20,20 +17,20 @@ export function parseReply(content: string | null | undefined): ReplyAct[] {
     }
     catch {
         logger.error("AI 返回非 JSON 格式:", content);
-        return [{ cmd: "text", content: content }];
+        return textSegment(content);
     }
 
-    // 标准格式：{action: [...]}，逐项守卫校验，过滤模型产生的非法条目
+    // 标准格式：{action: [...]}
     if (isJsonObject(parsed) && Array.isArray(parsed.action)) {
-        return parsed.action.filter(isReplyAct);
+        return parsed.action.flatMap<MessageSegment>(toSegment);
     }
-    // AI 直接返回数组：[{cmd, content}, ...]
+    // AI 直接返回数组
     if (Array.isArray(parsed)) {
-        return parsed.filter(isReplyAct);
+        return parsed.flatMap<MessageSegment>(toSegment);
     }
     // JSON 对象但没有合法 action 字段，降级为文本
     logger.warn("AI 返回 JSON 但格式不匹配:", content);
-    return [{ cmd: "text", content: content }];
+    return textSegment(content);
 }
 
 /** 守卫：任意 JSON 对象（非数组） */
@@ -41,7 +38,39 @@ function isJsonObject(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/** 守卫：合法的回复动作条目 */
-function isReplyAct(value: unknown): value is ReplyAct {
-    return isJsonObject(value) && typeof value.cmd === "string" && typeof value.content === "string";
+/** 单条模型输出 → 统一消息段；无法识别的条目丢弃（返回空数组） */
+function toSegment(value: unknown): MessageSegment[] {
+    if (!isJsonObject(value)) return [];
+
+    // 标准段格式：{type, data}
+    const data = isJsonObject(value.data) ? value.data : {};
+    if (value.type === "text" && typeof data.text === "string") {
+        return [{ type: "text", data: { text: data.text } }];
+    }
+    if (value.type === "sticker") {
+        return stickerToImage(typeof data.id === "string" ? data.id : "");
+    }
+
+    // 旧版动作格式过渡容错：{cmd, content}
+    if (typeof value.cmd === "string") {
+        const content = typeof value.content === "string" ? value.content : "";
+        if (value.cmd === "text") return [{ type: "text", data: { text: content } }];
+        if (value.cmd === "sticker") return stickerToImage(content);
+    }
+
+    logger.warn("AI 回复包含无法识别的消息段，已丢弃:", JSON.stringify(value));
+    return [];
+}
+
+/** 表情包 id → image 段（解析出本地路径）；id 无效时丢弃（getSticker 内已记日志） */
+function stickerToImage(id: string): MessageSegment[] {
+    const sticker = getSticker(id.trim());
+    if (!sticker) return [];
+    logger.info("AI 发送表情包:", sticker.id);
+    return [{ type: "image", data: { media: { uri: "", localPath: sticker.path } } }];
+}
+
+/** 降级用：裸文本 → 单个 text 段 */
+function textSegment(text: string): MessageSegment[] {
+    return [{ type: "text", data: { text } }];
 }
