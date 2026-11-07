@@ -72,10 +72,7 @@ async function toSegments(raw: unknown): Promise<MessageSegment[]> {
 
             case "image": {
                 const data: MsgSegment["image"] = {
-                    media: {
-                        uri: d.url ?? "",
-                        raw: { file: d.file, file_id: d.file_id, sub_type: d.sub_type },
-                    },
+                    media: { uri: d.url ?? "" },
                 };
                 const fileId = d.file;
                 if (typeof fileId === "string" && fileId !== "") {
