@@ -43,12 +43,14 @@
 
 ### 事件管道
 
+**设计模式：Server 接收并格式化信息，Adapter 处理对外的动作。**
+
 ```
 NapCat(反向WS) / 微信(长轮询)
-  → bot/servers/OnebotServer.ts | WechatBotServer.ts   连接生命周期与鉴权
-  → bot/adapters/OnebotAdapter | WechatBotAdapter      协议归一化为 CtxEvent
+  → bot/servers/*（BaseServer 子类）                    连接生命周期；toSegments 收到消息时归一化为统一段（图片就地落地写 media.localPath），toEventMeta 出会话/发送者元信息，dispatch 统一装配 CtxEvent
   → pipeline/context.ts buildContext                   构建 ctx + 目标过滤
   → pipeline/index.js                                  中间件 → 处理器
+  ← bot/adapters/*（BaseAdapter 子类）                 对外动作：仅 sendMsg() 发送
 ```
 
 - `ctx` 字段：`{ adapter, messageId, message(统一消息段数组), space{from,id,channel}, senderName, userId, isAdmin, isTarget, imageDescription, handled }`。@、图片、链接等一律从 `ctx.message` 消息段取。
@@ -105,7 +107,7 @@ NapCat(反向WS) / 微信(长轮询)
 - **加用户命令**：`pipeline/handlers/user-commands.js` 的 `cmds` 数组加一项（`name` / `description` / `needsAdmin` / `params` / `handler`）。
 - **加关键词命令**：`keyword-commands.js` 的 `CMD_MAP`（当前为空骨架）。
 - **加工具**：`agent/tools/` 下新建模块 → 在 `toolRegistry` 登记；带文件路径参数的工具还须在 `pathToolWhitelist` 登记 `{ dirKey, pathKey }`，门禁才会识别它。
-- **加聊天平台**：继承 `bot/adapters/BaseAdapter.ts` 实现 `sendMsg()`，并在 `bot/servers/` 加对应连接服务、在 `services/adapter-registry.js` 注册；管道与处理器零改动。
+- **加聊天平台**：`bot/servers/` 加一个 `BaseServer` 子类（实现 `toSegments` 把平台消息归一化为统一段、`toEventMeta` 出元信息，媒体在 `toSegments` 内就地落地）+ `bot/adapters/` 加一个 `BaseAdapter` 子类（实现 `sendMsg()` 对外发送），并在 `services/adapter-registry.js` 注册；管道与处理器零改动。
 - **加 MCP Server**：写进 `core/config.json` 的 `mcpServers`（按 `name` 增量合并规则，见上）。默认自带 `websearch`（open-websearch，无需凭据）。
 - **加技能**：`core/skills/<名称>/SKILL.md`（frontmatter `name`、`description`，可选 `force: true` 使正文固定注入上下文）+ `scripts/` 下 JS 脚本（`process.argv[2]` 收 JSON 参数、`console.log` 出结果、30 秒超时）。社区技能经内置 `skills/skill-manager/` 从 GitHub 安装。
 

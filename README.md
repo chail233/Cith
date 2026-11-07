@@ -204,12 +204,14 @@ Skill 是包含 `SKILL.md` 描述文件的目录，可附带脚本供 AI 执行�
 
 ### 多平台接入
 
-| 平台 | 适配器 | 说明 |
-|------|--------|------|
-| QQ | `OnebotAdapter` + `OnebotServer` | NapCat + OneBot v11，反向 WebSocket 接入（握手 token 鉴权） |
-| 微信 | `WechatBotAdapter` + `WechatBotServer` | 官方 iLink Bot 协议，扫码登录，凭证持久化重启复用 |
+| 平台 | Server | Adapter |
+|------|--------|---------|
+| QQ | `OnebotServer`（NapCat + OneBot v11，反向 WebSocket 接入，握手 token 鉴权） | `OnebotAdapter` |
+| 微信 | `WechatBotServer`（官方 iLink Bot 协议，扫码登录，凭证持久化重启复用） | `WechatBotAdapter` |
 
-微信侧为协议层约束的已知限制：好友首次发消息后需把其加密 `userId` 加入 `targetUserId` 白名单（管理员直接在该私聊中发送 `#bind` 即可，无需手抄日志）；拿不到昵称/头像；仅文本消息、仅私聊；只能回复主动发过消息的用户。
+**设计模式：Server 接收并格式化信息，Adapter 处理对外的动作。** Server 继承 `BaseServer` 抽象基类：`toSegments` 把平台消息一次性转成统一消息段（图片就地下载/解析落地，写好 `media.localPath`），`toEventMeta` 产出会话与发送者元信息，基类 `dispatch` 统一装配 `CtxEvent` 推入管道。Adapter 继承 `BaseAdapter` 抽象基类，只实现 `sendMsg()` 负责把回复发回平台。接入新平台 = 写这两个子类，管道与处理器零改动。
+
+微信侧为协议层约束的已知限制：好友首次发消息后需把其加密 `userId` 加入 `targetUserId` 白名单（管理员直接在该私聊中发送 `#bind` 即可，无需手抄日志）；拿不到昵称/头像；文本与图片消息、仅私聊；只能回复主动发过消息的用户。
 
 **同机多实例**：登录凭证（`credentials`）、长轮询游标（`cursor`）、`context_tokens`、`typing_tickets` 全部落在同一个目录，默认是 `~/.wechatbot`。两个进程共用会互抢 token、互相覆盖游标导致丢消息，一边 `session:expired` 清空凭证还会把另一边一起踢下线。多开时给每个实例配独立的 `wechatStorageDir`（支持 `~`、绝对路径、相对项目根的路径），启动日志会打印实际目录以及是「复用已保存凭证」还是「本次扫码登录」。同一个微信账号也只能被一个进程登录。
 
@@ -265,19 +267,17 @@ cd web && npm run build && npm run server
 QQ：NapCat 发送事件                     WeChat：iLink 长轮询收到消息
     │                                       │
     ▼                                       ▼
-bot/servers/OnebotServer.ts            bot/servers/WechatBotServer.ts
-（反向 WebSocket 服务，OneBot 段翻译成统一消息段）（扫码登录 / 会话管理）
-    │                                       │
-    ▼                                       ▼
-bot/adapters/OnebotAdapter             bot/adapters/WechatBotAdapter
-（OneBot v11 协议解析）                  （归一化为 CtxEvent）
+bot/servers/*（BaseServer 子类）—— Server 接收并格式化信息
+    │  OnebotServer：反向 WS 服务 + 鉴权；toSegments 把 OneBot 段转统一段（图片就地解析本地路径）
+    │  WechatBotServer：扫码登录 / 会话管理；toSegments 下载解密图片并落地（media.localPath）
+    │  基类 dispatch：toSegments + toEventMeta → 统一装配 CtxEvent 推入管道
     └──────────────────┬────────────────────┘
                        ▼
         pipeline/context.ts 构建 Context（ctx.message 统一消息段 + ctx.messageId）→ pipeline/index.js 管道编排
     │  （仅 targetGroupId / targetUserId 命中的消息继续；管理员可在未授权会话发 #bind 完成首次绑定）
     │
     ├─ 中间件（全部执行，丰富上下文）
-    │   └─ image-recognizer  → 识别图片 → ctx.imageDescription
+    │   └─ image-recognizer  → 读 media.localPath 识别图片 → ctx.imageDescription
     │
     │  @、图片、链接卡片等一律从统一消息段 ctx.message 取，不再有独立中间件
     │
@@ -285,6 +285,10 @@ bot/adapters/OnebotAdapter             bot/adapters/WechatBotAdapter
         ├─ user-commands     → # 前缀命令（#help、#plan 等）
         ├─ ai-chat           → @机器人（或私聊）时触发 Agent 循环
         └─ proactive-chat    → 记录上下文，达阈值时主动聊天
+                       │
+                       ▼
+bot/adapters/*（BaseAdapter 子类）—— Adapter 处理对外的动作
+    └─ sendMsg() 把回复发回平台（分段、拟人化节流由 agent-runner 编排）
 ```
 
 ### Agent 对话流程
@@ -341,9 +345,9 @@ core/
 ├── config.js                   # 默认值层（随仓库分发）+ Proxy 热改落盘
 ├── config.json                 # 用户配置层（gitignore，覆盖 config.js 的默认值）
 │
-├── bot/                        # 通信层：servers（连接/生命周期）+ adapters（协议适配，可插拔）
-│   ├── servers/                # OnebotServer（QQ 反向 WS）/ WechatBotServer（扫码登录）
-│   └── adapters/               # BaseAdapter 抽象基类 + Onebot / WechatBot 实现
+├── bot/                        # 通信层：Server 接收并格式化信息，Adapter 处理对外的动作
+│   ├── servers/                # BaseServer 抽象基类（toSegments 归一化 + dispatch）+ Onebot / WechatBot 实现
+│   └── adapters/               # BaseAdapter 抽象基类（sendMsg 对外发送）+ Onebot / WechatBot 实现
 │
 ├── pipeline/                   # 事件处理管道
 │   ├── index.js                # 管道编排：中间件 → 处理器
