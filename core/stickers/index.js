@@ -68,30 +68,21 @@ export function loadManifest(options = {}) {
 
 
 /**
- * 列出全部表情包（id + 描述），供模型直接挑选
+ * 列出全部表情包（画面描述 + 可直接发送的绝对路径），供模型挑选后走 image 段发送
+ * 路径非法的条目跳过并告警
  */
 export function listStickers(options = {}) {
-    return loadManifest(options).items.map(({ id, desc }) => ({ id, desc }));
-}
-
-/**
- * 按 id 取完整条目，附上可直接发送的绝对路径
- */
-export function getSticker(id, options = {}) {
-    if (!id)
-        return null;
     const manifest = loadManifest(options);
-    const item = manifest.items.find((it) => it.id === id);
-    if (!item) {
-        logger.warn("表情包 id 不存在:", id);
-        return null;
+    const out = [];
+    for (const item of manifest.items) {
+        const fullPath = resolveStickerFile(item, manifest.baseDir);
+        if (!fullPath) {
+            logger.warn("表情包文件路径非法:", item.id, item.file);
+            continue;
+        }
+        out.push({ desc: item.desc, path: fullPath });
     }
-    const fullPath = resolveStickerFile(item, manifest.baseDir);
-    if (!fullPath) {
-        logger.warn("表情包文件路径非法:", item.id, item.file);
-        return null;
-    }
-    return { ...item, path: fullPath };
+    return out;
 }
 
 /**

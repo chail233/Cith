@@ -178,7 +178,7 @@ AI 可自主判断并调用以下工具，所有文件操作都受**路径白名
 | `manage_plan` | 创建/更新当前会话的任务计划 |
 | `report_progress` | 长任务中向用户简短播报当前在做什么，避免长时间静默 |
 | `schedule` | 给自己设定时任务，到点自动苏醒 |
-| `list_stickers` | 获取完整表情包列表（id + 画面描述），AI 从中选图发送 |
+| `list_stickers` | 获取完整表情包列表（文件路径 + 画面描述），AI 挑选后以 image 段发送 |
 
 **文件操作安全门禁**按执行对象所在目录判定而非按工具名一刀切：白名单目录内直接放行不打扰管理员；白名单外挂起待确认（生成编号 `#xxxx`，管理员 `#do-yes` / `#do-no` 处置，10 分钟超时作废）；`../` 目录穿越无论如何被硬拦截。
 
@@ -200,7 +200,7 @@ Skill 是包含 `SKILL.md` 描述文件的目录，可附带脚本供 AI 执行�
 - **视觉能力**：群内图片自动调用视觉模型识别内容并注入上下文，让 AI 能"看到"图片（独立 `visionModel` / `visionApiKey` 配置）。
 - **主动聊天**：群内累计 `proactiveChatLimit` 条无人 @ 的消息后，AI 带完整上下文被唤醒，自主判断是否参与对话；计数在第 N 条消息上触发，AI 接话（或被 @ 对话）后归零，`#pchat` 可整体开关，阈值设为 `<= 0` 等同于关闭。上一轮模型请求尚未结束时不会插队，计数保留到下一条消息再试。
 - **定时任务**：AI 可通过 `schedule` 工具"给自己设闹钟"（一次性 / 固定间隔 / 每日定点 / cron），到点触发完整 Agent 苏醒流程。任务持久化到 `data/schedule.json`，重启不丢失，停机期间错过的触发按追赶策略处理。
-- **表情包**：内置表情包库（`manifest.json` 描述每张图的画面），AI 调用 `list_stickers` 拿到全量列表后按语境选图，让回复更生动。
+- **表情包**：内置表情包库（`manifest.json` 描述每张图的画面），AI 调用 `list_stickers` 拿到全量列表（文件路径 + 画面描述）后按语境选图，以 image 消息段直接发送，让回复更生动。
 
 ### 多平台接入
 
@@ -209,7 +209,7 @@ Skill 是包含 `SKILL.md` 描述文件的目录，可附带脚本供 AI 执行�
 | QQ | `OnebotServer`（NapCat + OneBot v11，反向 WebSocket 接入，握手 token 鉴权） | `OnebotAdapter` |
 | 微信 | `WechatBotServer`（官方 iLink Bot 协议，扫码登录，凭证持久化重启复用） | `WechatBotAdapter` |
 
-**设计模式：Server 接收并格式化信息，Adapter 处理对外的动作。** Server 继承 `BaseServer` 抽象基类：`toSegments` 把平台消息一次性转成统一消息段（图片就地下载/解析落地，写好 `media.localPath`），`toEventMeta` 产出会话与发送者元信息，基类 `dispatch` 统一装配 `CtxEvent` 推入管道。Adapter 继承 `BaseAdapter` 抽象基类，只实现 `sendMsg()` 按统一消息段类型执行平台动作。收发两个方向都走统一消息段：模型回复产出 `{action:[消息段]}`（词表 text / sticker / image / file / mention / reply），`replyParser` 归一化后按段顺序逐个发送，平台不支持的段类型由 Adapter 自动跳过（如微信不支持 @ 与引用回复）。接入新平台 = 写这两个子类，管道与处理器零改动。
+**设计模式：Server 接收并格式化信息，Adapter 处理对外的动作。** Server 继承 `BaseServer` 抽象基类：`toSegments` 把平台消息一次性转成统一消息段（图片就地下载/解析落地，写好 `media.localPath`），`toEventMeta` 产出会话与发送者元信息，基类 `dispatch` 统一装配 `CtxEvent` 推入管道。Adapter 继承 `BaseAdapter` 抽象基类，只实现 `sendMsg()` 按统一消息段类型执行平台动作。收发两个方向都走统一消息段：模型回复产出 `{action:[消息段]}`（词表 text / image / file / mention / reply，表情包即 image 段），`replyParser` 归一化后按段顺序逐个发送，平台不支持的段类型由 Adapter 自动跳过（如微信不支持 @ 与引用回复）。接入新平台 = 写这两个子类，管道与处理器零改动。
 
 微信侧为协议层约束的已知限制：好友首次发消息后需把其加密 `userId` 加入 `targetUserId` 白名单（管理员直接在该私聊中发送 `#bind` 即可，无需手抄日志）；拿不到昵称/头像；文本与图片消息、仅私聊；只能回复主动发过消息的用户。
 
@@ -360,7 +360,7 @@ core/
 │   ├── Agent.ts                # 循环主体 + 会话任务计划，只产出事件不碰通道
 │   ├── AgentManager.ts         # 会话池：空闲回收 / 数量上限
 │   ├── contextBuilder.ts       # LLM 请求上下文组装
-│   ├── replyParser.ts          # 模型回复解析：{action:[...]} → 统一消息段（sticker 归一化为 image 段）
+│   ├── replyParser.ts          # 模型回复解析：{action:[...]} → 统一消息段
 │   ├── client.js               # LLM API 客户端（文本 / 视觉）
 │   ├── tools.js                # 工具定义、调度与路径门禁
 │   ├── tools/                  # 细粒度工具模块（一个工具一个文件）
@@ -374,7 +374,7 @@ core/
 │
 ├── api/                        # Web 面板 API（独立 WS 服务端：鉴权/心跳/白名单/事件总线）
 ├── services/                   # 适配器注册表 / NapCat HTTP / 定时调度 / 苏醒触发 / 启动自检 / 记忆存储
-├── stickers/                   # 表情包库（index.js 提供全量列表与按 id 取图 + manifest.json + images/）
+├── stickers/                   # 表情包库（index.js 提供全量列表：画面描述 + 文件路径 + manifest.json + images/）
 ├── types/                      # 跨模块共用类型（Context / CtxEvent / MessageSegment / Space 等）
 ├── skills/                     # Skill 技能目录（AI 可读写，内置 skill-manager）
 ├── workspace/                  # 工作区（AI 可读写）

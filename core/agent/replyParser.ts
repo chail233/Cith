@@ -1,5 +1,4 @@
 import logger from "../utils/logger.js";
-import { getSticker } from "../stickers/index.js";
 import type { MessageSegment } from "../types/index.ts";
 
 /**
@@ -7,7 +6,6 @@ import type { MessageSegment } from "../types/index.ts";
  *   1. {action: [...]}  — 预期的标准格式（type/data 消息段）
  *   2. [...]            — AI 直接返回段数组
  *   3. 纯文本           — 降级为单个 text 段
- * 兼容旧版 {cmd, content} 动作格式（过渡容错）
  */
 export function parseReply(content: string | null | undefined): MessageSegment[] {
     if (!content || content.trim() === "") return [];
@@ -48,8 +46,6 @@ function toSegment(value: unknown): MessageSegment[] {
         case "text":
             if (typeof data.text !== "string") break;
             return [{ type: "text", data: { text: data.text } }];
-        case "sticker":
-            return stickerToImage(typeof data.id === "string" ? data.id : "");
         case "image": {
             const media = toMediaRef(data.media);
             if (!media) break;
@@ -72,12 +68,6 @@ function toSegment(value: unknown): MessageSegment[] {
             break;
     }
 
-    // 旧版动作格式过渡容错：{cmd, content}
-    if (typeof value.cmd === "string") {
-        const content = typeof value.content === "string" ? value.content : "";
-        if (value.cmd === "text") return [{ type: "text", data: { text: content } }];
-        if (value.cmd === "sticker") return stickerToImage(content);
-    }
 
     logger.warn("AI 回复包含无法识别的消息段，已丢弃:", JSON.stringify(value));
     return [];
@@ -89,15 +79,12 @@ function toMediaRef(value: unknown): { uri: string; localPath?: string } | null 
     const uri = typeof value.uri === "string" ? value.uri : "";
     const localPath = typeof value.localPath === "string" ? value.localPath : "";
     if (uri === "" && localPath === "") return null;
-    return uri !== "" ? { uri } : { uri: "", localPath };
-}
-
-/** 表情包 id → image 段（解析出本地路径）；id 无效时丢弃（getSticker 内已记日志） */
-function stickerToImage(id: string): MessageSegment[] {
-    const sticker = getSticker(id.trim());
-    if (!sticker) return [];
-    logger.info("AI 发送表情包:", sticker.id);
-    return [{ type: "image", data: { media: { uri: "", localPath: sticker.path } } }];
+    // 模型把本地路径误填进 uri 字段时纠正为 localPath
+    if (uri !== "") {
+        if (!/^https?:\/\//.test(uri)) return { uri: "", localPath: uri };
+        return { uri };
+    }
+    return localPath !== "" ? { uri: "", localPath } : null;
 }
 
 /** 降级用：裸文本 → 单个 text 段 */

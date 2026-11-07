@@ -5,7 +5,7 @@ export const definition: ToolDefinition = {
     type: "function",
     function: {
         name: "list_stickers",
-        description: "获取完整表情包列表，每行一条，格式为「id|画面描述」。想发表情包时先调用本工具，从列表中挑选最贴合当前语境的一个 id，再在 action 数组中添加 {\"cmd\":\"sticker\",\"content\":\"id\"} 发送。根据情境适当选择，不应滥用。本次对话中已经返回过列表时直接复用其中的 id，无需重复调用。",
+        description: "获取完整表情包列表，每行一条，格式为「路径|画面描述」。想发表情包时先调用本工具，挑选最贴合当前语境的一条，再在 action 数组中添加 {\"type\":\"image\",\"data\":{\"media\":{\"localPath\":\"<路径>\"}}} 发送。根据情境适当选择，不应滥用。本次对话中已经返回过列表时直接复用其中的路径，无需重复调用。",
         parameters: {
             type: "object",
             properties: {},
@@ -28,8 +28,8 @@ export async function execute(): Promise<string> {
     const items = shuffle(listStickers());
     if (items.length === 0) return "表情包库为空";
 
-    const lines = items.map((item) => `${item.id}|${item.desc}`);
-    return ["表情包列表（发送时 content 填 id）：", ...lines].join("\n");
+    const lines = items.map((item) => `${item.path}|${item.desc}`);
+    return ["表情包列表（发送时路径填 image 段的 media.localPath）：", ...lines].join("\n");
 }
 
 export default { definition, execute } satisfies ToolModule<Record<string, never>>;

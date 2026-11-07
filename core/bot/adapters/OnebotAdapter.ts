@@ -1,7 +1,7 @@
 import BaseAdapter from "./BaseAdapter.ts";
 import type { CtxEvent, MessageSegment, Space } from "../../types/index.ts";
 import logger from "../../utils/logger.js";
-import { mediaBasename } from "../../utils/segment-media.ts";
+import { mediaBasename, resolveSendablePath } from "../../utils/segment-media.ts";
 import { pathToFileURL } from "node:url";
 
 export default class OnebotAdapter extends BaseAdapter{
@@ -95,9 +95,12 @@ interface MediaLike {
     localPath?: string;
 }
 
-/** 媒体引用 → OneBot file 字段值：本地路径转 file:// URL，http(s) 链接直传 */
+/** 媒体引用 → OneBot file 字段值：本地路径钉到 core/ 后转 file:// URL，http(s) 链接直传 */
 function toOnebotFile(media: MediaLike | undefined | null): string | null {
-    if (media?.localPath) return pathToFileURL(media.localPath).href;
+    if (media?.localPath) {
+        const localPath = resolveSendablePath(media.localPath);
+        return localPath ? pathToFileURL(localPath).href : null;
+    }
     if (media?.uri && /^https?:\/\//.test(media.uri)) return media.uri;
     return null;
 }

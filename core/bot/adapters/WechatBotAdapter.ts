@@ -1,7 +1,7 @@
 import BaseAdapter from "./BaseAdapter.ts";
 import type { CtxEvent, MessageSegment, Space } from "../../types/index.ts";
 import logger from "../../utils/logger.js";
-import { mediaBasename } from "../../utils/segment-media.ts";
+import { mediaBasename, resolveSendablePath } from "../../utils/segment-media.ts";
 import { readFile } from "node:fs/promises";
 import {WeChatBot} from "@wechatbot/wechatbot";
 
@@ -14,13 +14,14 @@ export default class WechatBotAdapter extends BaseAdapter{
 
     async sendMsg(space:Space, message: string | MessageSegment | MessageSegment[]) {
         const segments = Array.isArray(message) ? message : [message];
-        try {
-            for (const seg of segments) {
+        for (const seg of segments) {
+            try {
                 await this.sendSegment(space.id, seg);
             }
-        }
-        catch (err) {
-            logger.error("WechatBot 发送失败:", err);
+            catch (err) {
+                // 单段失败不中断同批后续段
+                logger.error("WechatBot 发送消息段失败:", err);
+            }
         }
     }
 
@@ -42,10 +43,11 @@ export default class WechatBotAdapter extends BaseAdapter{
 
             case "image": {
                 const media = (message.data as { media?: MediaLike }).media;
-                if (media?.localPath) {
-                    const buffer = await readFile(media.localPath);
+                const localPath = media?.localPath ? resolveSendablePath(media.localPath) : null;
+                if (localPath) {
+                    const buffer = await readFile(localPath);
                     await this.bot.send(userId, { image: buffer });
-                    logger.info(`WechatBot 发送图片: ${media.localPath} (${buffer.length} 字节)`);
+                    logger.info(`WechatBot 发送图片: ${localPath} (${buffer.length} 字节)`);
                     return;
                 }
                 // SDK 的 url 变体会自行下载转发
@@ -60,10 +62,11 @@ export default class WechatBotAdapter extends BaseAdapter{
             case "file": {
                 const media = (message.data as { media?: MediaLike }).media;
                 const name = (message.data as { name?: string }).name;
-                if (media?.localPath) {
-                    const buffer = await readFile(media.localPath);
+                const localPath = media?.localPath ? resolveSendablePath(media.localPath) : null;
+                if (localPath) {
+                    const buffer = await readFile(localPath);
                     await this.bot.send(userId, { file: buffer, fileName: name ?? mediaBasename(media) });
-                    logger.info(`WechatBot 发送文件: ${media.localPath} (${buffer.length} 字节)`);
+                    logger.info(`WechatBot 发送文件: ${localPath} (${buffer.length} 字节)`);
                     return;
                 }
                 if (media?.uri) {
