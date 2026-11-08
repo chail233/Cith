@@ -77,5 +77,14 @@ export function compactSegments(
         }
     }
 
+    // 纯图片的消息数组补一个文本段：给模型一个自然语言锚点，否则倾向把图片段当不存在
+    if (out.length > 0 && out.every((s) => s.type === "image")) {
+        const alts = out
+            .map((s) => (s.type === "image" ? (s.data as { alt?: string }).alt : ""))
+            .filter(Boolean);
+        const what = alts.length > 0 ? `发送了图片：${alts.join("、")}` : "发送了一张图片";
+        out.push({ type: "text", data: { text: `（对方${what}；需要看内容时调用 recognize_image）` } });
+    }
+
     return out;
 }
