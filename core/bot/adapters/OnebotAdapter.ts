@@ -95,7 +95,7 @@ interface MediaLike {
     localPath?: string;
 }
 
-/** 媒体引用 → OneBot file 字段值：本地路径钉到 core/ 后转 file:// URL，http(s) 链接直传 */
+/** 媒体引用 → OneBot file 字段值：本地路径转绝对路径后转 file:// URL，http(s) 链接直传 */
 function toOnebotFile(media: MediaLike | undefined | null): string | null {
     if (media?.localPath) {
         const localPath = resolveSendablePath(media.localPath);
