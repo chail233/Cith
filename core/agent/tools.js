@@ -101,15 +101,16 @@ export async function callTool(tool_call, ctx, confirmed = false){
         }
     }
 
-    // run_shell 门禁：不走路径白名单。管理员/已确认直通；否则按 shellGate：
-    if (!confirmed && !ctx?.isAdmin && name === "run_shell" && config.shellGate !== "open") {
+    // run_shell 门禁：不走路径白名单。已确认重执行直通；非管理员任何模式都审查，
+    // 管理员仅 guard 模式审查、open 模式直通。allow 放行，deny/unsure/未配置 guardModel/调用失败一律挂起
+    if (!confirmed && name === "run_shell" && !(config.shellGate === "open" && ctx?.isAdmin)) {
         const verdict = await checkShellCommand(String(parameter?.command ?? ""));
         if (!verdict || verdict.verdict !== "allow") {
             const id = hold(tool_call, ctx);
             if (!id) return `${name} 被拒绝：待确认队列已满，请稍后再试`;
             const why = verdict
                 ? `guard 判定 ${verdict.verdict}：${verdict.reason || "无"}`
-                : "未配置 guard 模型（shellGate=guard）";
+                : "未配置 guard 模型";
             return `run_shell 命令需要管理员确认（${why}）。已登记为待确认操作 #${id}。`;
         }
         logger.info(`guard 放行 run_shell: ${verdict.reason}`);

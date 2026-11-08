@@ -20,7 +20,7 @@ export const definition: ToolDefinition = {
     type: "function",
     function: {
         name: "run_shell",
-        description: `执行 shell 命令并返回输出与退出码。${SHELL_HINT}。非管理员触发的命令会经安全审查，可疑命令需管理员确认`,
+        description: `执行 shell 命令并返回输出与退出码。${SHELL_HINT}。命令会经安全审查（open 模式下管理员豁免），可疑命令需管理员确认`,
         parameters: {
             type: "object",
             properties: {

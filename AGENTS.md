@@ -74,7 +74,7 @@ NapCat(反向WS) / 微信(长轮询)
 
 - `utils/file-security.js` 的 `resolveSrcPath` 把所有文件工具路径钉死在 `core/` 内，`..` 穿越**硬拒绝**——永不挂起、永不放行，是安全底线。
 - 门禁集中在 `callTool()`，**按路径判定而非按工具名**：非管理员对 `pathToolWhitelist` 内文件工具的调用，解析出的目标目录若在其白名单（`readFileDirs` / `runJsDirs` / `editFileDirs`，默认 `skills/`、`workspace/`）内→直接放行；白名单外→挂起（10 分钟超时），等管理员 `#do-yes <id>` / `#do-no` / `#do-pending`，确认执行链在 `agent/approval-runner.ts`。管理员调用与已确认调用直接放行。
-- `run_shell` 不走路径门禁（Issue #42，与文件工具并存而非替代）：管理员与已确认调用直通；非管理员按 `shellGate`（`"guard"` 默认 / `"open"` 放行）——guard 模式经小模型三分类（`agent/shell-guard.ts`，无状态、无会话上下文，guard 端点/密钥缺省回落 `llmApiUrl`/`aiApiKey`），`allow` 放行，`deny` / `unsure` / 未配置 `guardModel` / 调用失败一律挂起等 `#do-yes`。
+- `run_shell` 不走路径门禁（Issue #42，与文件工具并存而非替代）：已确认调用直通；**非管理员任何模式都审查**，管理员仅 `shellGate: "guard"`（默认）审查、`"open"` 直通——审查经小模型三分类（`agent/shell-guard.ts`，无状态、无会话上下文，guard 端点/密钥缺省回落 `llmApiUrl`/`aiApiKey`），`allow` 放行，`deny` / `unsure` / 未配置 `guardModel` / 调用失败一律挂起等 `#do-yes`。
 - `run_JS` 在子进程中执行（30 秒超时）。`create_file` 禁止覆盖已有文件；`edit_file` 要求文本唯一匹配。
 
 ### 记忆系统（`agent/recorder.js` + `agent/long-term-memory.js` + `services/memory-store.ts`）

@@ -125,8 +125,8 @@ bash update.sh --force      # 远端无新提交也重新编译（修本地 dist
 | `memoryEmbedBaseUrl` / `memoryEmbedApiKey` | OpenAI 兼容接口地址与密钥（provider 为 `openai` 时生效；如百炼 `https://dashscope.aliyuncs.com/compatible-mode/v1`） |
 | `mcpServers` | MCP Server 配置列表（`config.js` 默认自带 `websearch`；按 `name` 增量合并，只写要加/要改的项） |
 | `readFileDirs` / `runJsDirs` / `editFileDirs` | 文件工具白名单目录（默认 `skills/`、`workspace/`） |
-| `shellGate` | run_shell 门禁模式：`guard`（默认，小模型审查）/ `open`（完全放行） |
-| `guardApiUrl` / `guardApiKey` / `guardModel` | guard 模型端点与密钥（缺省回落 `llmApiUrl` / `aiApiKey`）；`guardModel` 未配置时非管理员的 run_shell 调用逐条挂起等确认 |
+| `shellGate` | run_shell 门禁模式：`guard`（默认，所有 run_shell 都经小模型审查）/ `open`（仅非管理员审查，管理员直通） |
+| `guardApiUrl` / `guardApiKey` / `guardModel` | guard 模型端点与密钥（缺省回落 `llmApiUrl` / `aiApiKey`）；`guardModel` 未配置时需审查的调用逐条挂起等确认 |
 | `web` | 面板 API 服务：`port` / `path` / `token` / `logBufferSize` |
 | `githubToken` | GitHub API Token（skill-manager 安装技能、GitHub MCP 使用） |
 | `enableProactiveChat` / `proactiveChatLimit` | 主动聊天开关与触发阈值（默认 15 条） |
@@ -184,7 +184,7 @@ AI 可自主判断并调用以下工具，所有文件操作都受**路径白名
 | `schedule` | 给自己设定时任务，到点自动苏醒 |
 | `list_stickers` | 获取完整表情包列表（文件路径 + 画面描述），AI 挑选后以 image 段发送 |
 
-**文件操作安全门禁**按执行对象所在目录判定而非按工具名一刀切：白名单目录内直接放行不打扰管理员；白名单外挂起待确认（生成编号 `#xxxx`，管理员 `#do-yes` / `#do-no` 处置，10 分钟超时作废）；`../` 目录穿越无论如何被硬拦截。`run_shell` 不走路径门禁：管理员直通；非管理员按 `shellGate`——`guard` 模式经无状态小模型三分类（`allow` 放行，`deny` / `unsure` / 未配置 `guardModel` / 调用失败一律挂起等 `#do-yes`），`open` 模式完全放行。
+**文件操作安全门禁**按执行对象所在目录判定而非按工具名一刀切：白名单目录内直接放行不打扰管理员；白名单外挂起待确认（生成编号 `#xxxx`，管理员 `#do-yes` / `#do-no` 处置，10 分钟超时作废）；`../` 目录穿越无论如何被硬拦截。`run_shell` 不走路径门禁：非管理员任何模式都经小模型审查；管理员仅 `guard` 模式（默认）审查、`open` 模式直通。审查为无状态三分类（`allow` 放行，`deny` / `unsure` / 未配置 `guardModel` / 调用失败一律挂起等 `#do-yes`）。
 
 ### Skill 技能系统
 

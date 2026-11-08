@@ -203,7 +203,7 @@ const baseConfig = {
 
     // ========== 工具与安全白名单（相对 core/） ==========
 
-    /** run_shell 门禁模式："guard"=小模型审查（未配置 guardModel 时逐条挂起），"open"=完全放行 */
+    /** run_shell 门禁模式："guard"=所有人经小模型审查，"open"=仅非管理员审查（管理员直通）；未配置 guardModel 时需审查的调用逐条挂起 */
     shellGate: "guard",
 
     /** 文件读取白名单目录 */
