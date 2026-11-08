@@ -127,7 +127,7 @@ const baseConfig = {
     // ========== 对话行为 ==========
 
     /** 主动聊天触发阈值：无 @ 的消息累计多少条后唤醒 */
-    proactiveChatLimit: 15,
+    proactiveChatLimit: 25,
 
     /** 主动聊天开关 */
     enableProactiveChat: true,
