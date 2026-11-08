@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 
 /**
  * 文件路径安全工具
- * 封装路径解析、穿越防护和白名单校验，供 LLM 工具统一调用
+ * 封装路径解析与穿越防护，供内部服务与 run_shell 的 cwd 解析使用
  */
 
 /** core/ 目录的绝对路径（file-security.js 在 core/utils/，回退一级到 core/） */
@@ -23,26 +23,6 @@ export function resolveSrcPath(filepath) {
     }
 
     return { fullPath };
-}
-
-/**
- * 检查路径是否在白名单允许的目录内
- * @param {string} fullPath 文件绝对路径
- * @param {string[]} whitelist 白名单目录列表（相对于 core/）
- * @param {string} operationName 操作名称，用于生成错误提示（如"读取"、"编辑"、"执行"）
- * @returns {{allowed: true} | {error: string}}
- */
-export function checkPathWhitelist(fullPath, whitelist, operationName) {
-    const allowed = whitelist.some(dir => {
-        const allowedDir = resolve(baseDir, dir);
-        return fullPath === allowedDir || fullPath.startsWith(allowedDir + sep);
-    });
-
-    if (!allowed) {
-        return { error: `无权${operationName}该路径，仅允许以下目录：${whitelist.join(", ")}` };
-    }
-
-    return { allowed: true };
 }
 
 export { baseDir };

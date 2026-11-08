@@ -17,11 +17,11 @@
 它不是又一个聊天机器人——聊天机器人等你的下一句话，它等的是把事情办完。你说一句需求，它自己拆解任务、调用工具、观察结果、继续推理，办妥之后再像朋友一样回你一条消息：看得懂你发的图，说话有节奏，偶尔还带张表情包。
 
 - **住在聊天软件里** —— QQ、微信哪个常用住哪个，私聊群聊都行，像跟一位普通联系人说话一样交代任务
-- **真正能做事** —— 多轮推理中自主调用工具：读写文件、隔离子进程执行脚本、动态接入 MCP 工具；长任务中还会主动播报"正在做什么"，把一句需求变成一件办完的事
+- **真正能做事** —— 多轮推理中自主调用工具：执行 shell 命令与脚本、动态接入 MCP 工具；长任务中还会主动播报"正在做什么"，把一句需求变成一件办完的事
 - **越用越懂你** —— 四层记忆 + 本地语义检索，记得你的一切，越用越成为独一无二的"你的"AI；上下文超长自动摘要归档，聊得再久也不失忆
 - **自己扩展自己** —— `SKILL.md` 驱动的技能系统，支持从 GitHub 安装社区技能，它甚至可以自己给自己装技能
 - **会主动干活** —— 会给自己设闹钟，到点自动苏醒执行任务；群里冷场时也会判断要不要搭句话
-- **默认自持** —— 部署在自己的机器上，OpenAI 兼容协议接入任意模型端点；文件操作有白名单门禁、目录穿越硬拦截与待确认队列，shell 命令有 guard 审查兜底，能干活但不越权
+- **默认自持** —— 部署在自己的机器上，OpenAI 兼容协议接入任意模型端点；shell 命令有 guard 审查与待确认队列兜底，能干活但不越权
 - **自带驾驶舱** —— 开箱即用的 Web 管理面板：运行状态、Token 用量与花销、实时事件日志、配置热改、提示词在线编辑
 
 ## 快速开始
@@ -124,7 +124,6 @@ bash update.sh --force      # 远端无新提交也重新编译（修本地 dist
 | `memoryOllamaUrl` | 本地 Ollama 地址（provider 为 `ollama` 时生效） |
 | `memoryEmbedBaseUrl` / `memoryEmbedApiKey` | OpenAI 兼容接口地址与密钥（provider 为 `openai` 时生效；如百炼 `https://dashscope.aliyuncs.com/compatible-mode/v1`） |
 | `mcpServers` | MCP Server 配置列表（`config.js` 默认自带 `websearch`；按 `name` 增量合并，只写要加/要改的项） |
-| `readFileDirs` / `runJsDirs` / `editFileDirs` | 文件工具白名单目录（默认 `skills/`、`workspace/`） |
 | `shellGate` | run_shell 门禁模式：`guard`（默认，所有 run_shell 都经小模型审查）/ `open`（仅非管理员审查，管理员直通） |
 | `guardApiUrl` / `guardApiKey` / `guardModel` | guard 模型端点与密钥（缺省回落 `llmApiUrl` / `aiApiKey`）；`guardModel` 未配置时需审查的调用逐条挂起等确认 |
 | `web` | 面板 API 服务：`port` / `path` / `token` / `logBufferSize` |
@@ -168,23 +167,20 @@ Agent 本身不持有任何聊天通道，所有输出以事件广播；同一�
 
 ### 工具调用（Function Calling）
 
-AI 可自主判断并调用以下工具，所有文件操作都受**路径白名单**和**目录穿越防护**约束：
+AI 可自主判断并调用以下工具：
 
 | 工具 | 功能 |
 |------|------|
 | `get_memory` | 语义检索长期记忆：可传 `queries` 数组按多条语句分别召回（合并去重取前 topK），不传则取最近 5 条消息逐条检索；每条结果带 `[绝对日期，距今]` 的入库时间 |
-| `read_file` / `list_files` | 读取白名单目录下的文件 / 列出目录内容 |
-| `run_JS` | 在隔离子进程中执行 JS 脚本 |
-| `run_shell` | 执行系统 shell 命令并返回输出与退出码（Windows 走 PowerShell、其余 bash）；非管理员触发经小模型安全审查 |
+| `run_shell` | 执行系统 shell 命令并返回输出与退出码（Windows 走 PowerShell、其余 bash），文件与脚本操作统一走这里；命令经小模型安全审查（`open` 模式下管理员豁免） |
 | `recognize_image` | 按需识别消息中的图片：传入图片段 `media.localPath` 返回内容描述（魔数校验，仅 jpg/png/webp） |
-| `create_file` / `edit_file` / `delete_file` | 创建（禁止覆盖）/ 搜索替换编辑 / 删除文件 |
 | `manage_mcp` | 维护 MCP 激活列表：`activate` 让该服务器工具进入工具列表，`deactivate` 用完移出 |
 | `manage_plan` | 创建/更新当前会话的任务计划 |
 | `report_progress` | 长任务中向用户简短播报当前在做什么，避免长时间静默 |
 | `schedule` | 给自己设定时任务，到点自动苏醒 |
 | `list_stickers` | 获取完整表情包列表（文件路径 + 画面描述），AI 挑选后以 image 段发送 |
 
-**文件操作安全门禁**按执行对象所在目录判定而非按工具名一刀切：白名单目录内直接放行不打扰管理员；白名单外挂起待确认（生成编号 `#xxxx`，管理员 `#do-yes` / `#do-no` 处置，10 分钟超时作废）；`../` 目录穿越无论如何被硬拦截。`run_shell` 不走路径门禁：非管理员任何模式都经小模型审查；管理员仅 `guard` 模式（默认）审查、`open` 模式直通。审查为无状态三分类（`allow` 放行，`deny` / `unsure` / 未配置 `guardModel` / 调用失败一律挂起等 `#do-yes`）。
+**命令安全门禁**：`run_shell` 非管理员任何模式都经小模型审查；管理员仅 `guard` 模式（默认）审查、`open` 模式直通。审查为无状态三分类（`allow` 放行，`deny` / `unsure` / 未配置 `guardModel` / 调用失败一律挂起，生成编号 `#xxxx`，管理员 `#do-yes` / `#do-no` 处置，10 分钟超时作废）。
 
 ### Skill 技能系统
 
@@ -423,7 +419,7 @@ CMD_MAP.set("关键词", async (ctx) => {
 
 ### 添加新工具
 
-在 `agent/tools/` 下新建一个工具模块（导出 `definition` 供模型、`execute` 为实现），再到 `agent/tools.js` 的 `toolRegistry` 中登记，新工具会自动出现在 AI 的可用工具列表中。带文件路径参数的工具还须在 `pathToolWhitelist` 中登记 `{ dirKey, pathKey }`，门禁才会按执行对象目录自动放行或挂起。
+在 `agent/tools/` 下新建一个工具模块（导出 `definition` 供模型、`execute` 为实现），再到 `agent/tools.js` 的 `toolRegistry` 中登记，新工具会自动出现在 AI 的可用工具列表中。需要门禁的工具在 `callTool()` 里按工具名加审查分支。
 
 ### 添加 MCP Server
 
@@ -462,10 +458,8 @@ CMD_MAP.set("关键词", async (ctx) => {
 
 ### 安全设计
 
-- **目录穿越防护**：`..` 等越出 `core/` 的路径被 `file-security.js` 硬拦截，是不可绕过的安全底线
-- **白名单门禁**：文件类工具按执行对象目录判定——白名单内直接放行，目录外挂起待管理员确认
-- **子进程隔离**：JS 脚本在独立子进程中执行，带超时限制
-- **写入保护**：`create_file` 禁止覆盖已有文件，`edit_file` 要求文本唯一匹配
+- **命令审查门禁**：`run_shell` 经小模型三分类审查（`guard` 模式），`deny` / `unsure` / 未配置 guard 模型一律挂起等管理员确认
+- **目录穿越防护**：`..` 等越出 `core/`（跑 dist 时为 `dist/`）的路径被 `file-security.js` 硬拦截
 - **面板 API**：仅绑定 `127.0.0.1`、独立 token 鉴权、action 白名单分发、配置输出脱敏、全量 try/catch 故障隔离
 - **OneBot 接入鉴权**：反向 WebSocket 在握手阶段校验 `Authorization: Bearer` / `?access_token=`（与 NapCat 复用同一 token，sha256 + 恒定时间比较），失败回 401 不进入连接回调，并按来源 IP 记告警
 

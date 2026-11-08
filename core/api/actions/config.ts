@@ -36,10 +36,6 @@ const WRITABLE_KEYS = new Set<string>([
     "chatSummaryThresholdTokens",
     "toolOutput",
 
-    "readFileDirs",
-    "runJsDirs",
-    "editFileDirs",
-
     "githubToken",
 ]);
 

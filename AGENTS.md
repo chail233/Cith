@@ -70,12 +70,11 @@ NapCat(反向WS) / 微信(长轮询)
 
 一个工具一个模块，导出 `definition`（给模型）与 `execute`（实现），在 `agent/tools.js` 的 `toolRegistry` 登记；`callTool()` 是唯一入口。MCP 工具经 `mcp-manager.js`（stdio / old_sse / sse 三种传输）路由，模型通过唯一工具 `manage_mcp` 维护**激活列表**控制可见性（未激活的 server 其工具仍可调用，只是模型看不见）。`report_progress` 让模型在长任务中播报进度，走与正常回复相同的 `reply` 事件链。
 
-### 审批门禁与文件安全（不可绕过）
+### 审批门禁（不可绕过）
 
-- `utils/file-security.js` 的 `resolveSrcPath` 把所有文件工具路径钉死在 `core/` 内，`..` 穿越**硬拒绝**——永不挂起、永不放行，是安全底线。
-- 门禁集中在 `callTool()`，**按路径判定而非按工具名**：非管理员对 `pathToolWhitelist` 内文件工具的调用，解析出的目标目录若在其白名单（`readFileDirs` / `runJsDirs` / `editFileDirs`，默认 `skills/`、`workspace/`）内→直接放行；白名单外→挂起（10 分钟超时），等管理员 `#do-yes <id>` / `#do-no` / `#do-pending`，确认执行链在 `agent/approval-runner.ts`。管理员调用与已确认调用直接放行。
-- `run_shell` 不走路径门禁（Issue #42，与文件工具并存而非替代）：已确认调用直通；**非管理员任何模式都审查**，管理员仅 `shellGate: "guard"`（默认）审查、`"open"` 直通——审查经小模型三分类（`agent/shell-guard.ts`，无状态、无会话上下文，guard 端点/密钥缺省回落 `llmApiUrl`/`aiApiKey`），`allow` 放行，`deny` / `unsure` / 未配置 `guardModel` / 调用失败一律挂起等 `#do-yes`。
-- `run_JS` 在子进程中执行（30 秒超时）。`create_file` 禁止覆盖已有文件；`edit_file` 要求文本唯一匹配。
+- `utils/file-security.js` 的 `resolveSrcPath` 把相对路径解析钉死在 `core/`（跑 dist 时为 `dist/`）内，`..` 穿越**硬拒绝**，供内部服务与 `run_shell` 的 cwd 解析使用。
+- `run_shell` 门禁集中在 `callTool()`：已确认调用直通；**非管理员任何模式都审查**，管理员仅 `shellGate: "guard"`（默认）审查、`"open"` 直通——审查经小模型三分类（`agent/shell-guard.ts`，无状态、无会话上下文，guard 端点/密钥缺省回落 `llmApiUrl`/`aiApiKey`），`allow` 放行，`deny` / `unsure` / 未配置 `guardModel` / 调用失败一律挂起（10 分钟超时），等管理员 `#do-yes <id>` / `#do-no` / `#do-pending`，确认执行链在 `agent/approval-runner.ts`。
+- 文件操作类工具（read_file / list_files / create_file / edit_file / delete_file / run_JS）已按 Issue #42 退役，文件与脚本操作统一走 `run_shell`。
 
 ### 记忆系统（`agent/recorder.js` + `agent/long-term-memory.js` + `services/memory-store.ts`）
 
@@ -107,10 +106,10 @@ NapCat(反向WS) / 微信(长轮询)
 
 - **加用户命令**：`pipeline/handlers/user-commands.js` 的 `cmds` 数组加一项（`name` / `description` / `needsAdmin` / `params` / `handler`）。
 - **加关键词命令**：`keyword-commands.js` 的 `CMD_MAP`（当前为空骨架）。
-- **加工具**：`agent/tools/` 下新建模块 → 在 `toolRegistry` 登记；带文件路径参数的工具还须在 `pathToolWhitelist` 登记 `{ dirKey, pathKey }`，门禁才会识别它。
+- **加工具**：`agent/tools/` 下新建模块 → 在 `toolRegistry` 登记；需要门禁的工具在 `callTool()` 里按工具名加分支。
 - **加聊天平台**：`bot/servers/` 加一个 `BaseServer` 子类（实现 `toSegments` 把平台消息归一化为统一段、`toEventMeta` 出元信息，媒体在 `toSegments` 内就地落地）+ `bot/adapters/` 加一个 `BaseAdapter` 子类（实现 `sendMsg()` 对外发送），并在 `services/adapter-registry.js` 注册；管道与处理器零改动。
 - **加 MCP Server**：写进 `core/config.json` 的 `mcpServers`（按 `name` 增量合并规则，见上）。默认自带 `websearch`（open-websearch，无需凭据）。
-- **加技能**：`core/skills/<名称>/SKILL.md`（frontmatter `name`、`description`，可选 `force: true` 使正文固定注入上下文）+ `scripts/` 下 JS 脚本（`process.argv[2]` 收 JSON 参数、`console.log` 出结果、30 秒超时）。社区技能经内置 `skills/skill-manager/` 从 GitHub 安装。
+- **加技能**：`core/skills/<名称>/SKILL.md`（frontmatter `name`、`description`，可选 `force: true` 使正文固定注入上下文）+ `scripts/` 下 JS 脚本（`process.argv[2]` 收 JSON 参数、`console.log` 出结果，经 `run_shell` 执行）。社区技能经内置 `skills/skill-manager/` 从 GitHub 安装。
 
 ## 仓库注意
 

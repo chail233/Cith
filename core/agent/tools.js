@@ -1,17 +1,10 @@
 import config from "../config.js";
-import { resolveSrcPath, checkPathWhitelist } from "../utils/file-security.js";
 import logger from "../utils/logger.js";
 import { mcpClient } from "./mcp-manager.js";
 import { hold } from "./tool-approval.js";
 import { checkShellCommand } from "./shell-guard.ts";
 
 import getMemoryTool from "./tools/get-memory.ts";
-import readFileTool from "./tools/read-file.ts";
-import runJsTool from "./tools/run-js.ts";
-import createFileTool from "./tools/create-file.ts";
-import deleteFileTool from "./tools/delete-file.ts";
-import listFilesTool from "./tools/list-files.ts";
-import editFileTool from "./tools/edit-file.ts";
 import manageMcpTool from "./tools/manage-mcp.ts";
 import listStickersTool from "./tools/list-stickers.ts";
 import managePlanTool from "./tools/manage-plan.ts";
@@ -25,12 +18,6 @@ import runShellTool from "./tools/run-shell.ts";
  */
 const toolRegistry = [
     getMemoryTool,
-    readFileTool,
-    runJsTool,
-    createFileTool,
-    deleteFileTool,
-    listFilesTool,
-    editFileTool,
     manageMcpTool,
     listStickersTool,
     managePlanTool,
@@ -59,20 +46,6 @@ export function getAllTools() {
 }
 
 /**
- * 细粒度文件工具 → 执行对象所属白名单目录的配置键
- * 门禁统一在 callTool：对象在白名单内直接放行，否则挂起待管理员确认
- */
-const pathToolWhitelist = {
-    read_file: { dirKey: "readFileDirs", pathKey: "filepath" },
-    list_files: { dirKey: "readFileDirs", pathKey: "dirpath" },
-    run_JS: { dirKey: "runJsDirs", pathKey: "filepath" },
-    create_file: { dirKey: "editFileDirs", pathKey: "filepath" },
-    delete_file: { dirKey: "editFileDirs", pathKey: "filepath" },
-    edit_file: { dirKey: "editFileDirs", pathKey: "filepath" },
-};
-
-
-/**
  * 调用工具
  * @param {import("./types.ts").ToolCall} tool_call 完整的工具调用对象 { id, function: { name, arguments } }
  * @param {import("../types/index.ts").Context & {agent?: import("./Agent.ts").default}} [ctx] 请求上下文
@@ -82,26 +55,7 @@ export async function callTool(tool_call, ctx, confirmed = false){
     const name = tool_call.function.name;
     const parameter = JSON.parse(tool_call.function.arguments);
 
-    // 安全门禁：非管理员且未确认时，文件类工具按"执行对象是否在对应白名单内"决定放行或挂起
-    if (!confirmed && !ctx?.isAdmin) {
-        const rule = pathToolWhitelist[name];
-        if (rule) {
-            // 细粒度文件工具：对象在白名单目录内 → 放行；否则挂起待确认
-            const pathArg = parameter[rule.pathKey];
-            const resolved = pathArg ? resolveSrcPath(pathArg) : null;
-            if (resolved && !resolved.error) {
-                const whitelist = config[rule.dirKey] ?? [];
-                const allowed = !checkPathWhitelist(resolved.fullPath, whitelist).error;
-                if (!allowed) {
-                    const id = hold(tool_call, ctx);
-                    if (!id) return `${name} 被拒绝：待确认队列已满，请稍后再试`;
-                    return `操作对象不在白名单目录内，需要管理员确认。已登记为待确认操作 #${id}。`;
-                }
-            }
-        }
-    }
-
-    // run_shell 门禁：不走路径白名单。已确认重执行直通；非管理员任何模式都审查，
+    // run_shell 门禁：已确认重执行直通；非管理员任何模式都审查，
     // 管理员仅 guard 模式审查、open 模式直通。allow 放行，deny/unsure/未配置 guardModel/调用失败一律挂起
     if (!confirmed && name === "run_shell" && !(config.shellGate === "open" && ctx?.isAdmin)) {
         const verdict = await checkShellCommand(String(parameter?.command ?? ""));

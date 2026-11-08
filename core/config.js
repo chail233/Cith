@@ -201,19 +201,10 @@ const baseConfig = {
     /** 长期记忆命名空间前缀（后接会话 ID） */
     memoryUserIdPrefix: "SunBot",
 
-    // ========== 工具与安全白名单（相对 core/） ==========
+    // ========== 工具安全 ==========
 
     /** run_shell 门禁模式："guard"=所有人经小模型审查，"open"=仅非管理员审查（管理员直通）；未配置 guardModel 时需审查的调用逐条挂起 */
     shellGate: "guard",
-
-    /** 文件读取白名单目录 */
-    readFileDirs: ["skills", "workspace"],
-
-    /** JS 脚本执行白名单目录 */
-    runJsDirs: ["skills", "workspace"],
-
-    /** 文件编辑白名单目录 */
-    editFileDirs: ["skills", "workspace"],
 
     // ========== 外部服务 ==========
 
