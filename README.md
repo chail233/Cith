@@ -21,7 +21,7 @@
 - **越用越懂你** —— 四层记忆 + 本地语义检索，记得你的一切，越用越成为独一无二的"你的"AI；上下文超长自动摘要归档，聊得再久也不失忆
 - **自己扩展自己** —— `SKILL.md` 驱动的技能系统，支持从 GitHub 安装社区技能，它甚至可以自己给自己装技能
 - **会主动干活** —— 会给自己设闹钟，到点自动苏醒执行任务；群里冷场时也会判断要不要搭句话
-- **默认自持** —— 部署在自己的机器上，OpenAI 兼容协议接入任意模型端点；文件操作有白名单门禁、目录穿越硬拦截与待确认队列，能干活但不越权
+- **默认自持** —— 部署在自己的机器上，OpenAI 兼容协议接入任意模型端点；文件操作有白名单门禁、目录穿越硬拦截与待确认队列，shell 命令有 guard 审查兜底，能干活但不越权
 - **自带驾驶舱** —— 开箱即用的 Web 管理面板：运行状态、Token 用量与花销、实时事件日志、配置热改、提示词在线编辑
 
 ## 快速开始
@@ -125,6 +125,8 @@ bash update.sh --force      # 远端无新提交也重新编译（修本地 dist
 | `memoryEmbedBaseUrl` / `memoryEmbedApiKey` | OpenAI 兼容接口地址与密钥（provider 为 `openai` 时生效；如百炼 `https://dashscope.aliyuncs.com/compatible-mode/v1`） |
 | `mcpServers` | MCP Server 配置列表（`config.js` 默认自带 `websearch`；按 `name` 增量合并，只写要加/要改的项） |
 | `readFileDirs` / `runJsDirs` / `editFileDirs` | 文件工具白名单目录（默认 `skills/`、`workspace/`） |
+| `shellGate` | run_shell 门禁模式：`guard`（默认，小模型审查）/ `open`（完全放行） |
+| `guardApiUrl` / `guardApiKey` / `guardModel` | guard 模型端点与密钥（缺省回落 `llmApiUrl` / `aiApiKey`）；`guardModel` 未配置时非管理员的 run_shell 调用逐条挂起等确认 |
 | `web` | 面板 API 服务：`port` / `path` / `token` / `logBufferSize` |
 | `githubToken` | GitHub API Token（skill-manager 安装技能、GitHub MCP 使用） |
 | `enableProactiveChat` / `proactiveChatLimit` | 主动聊天开关与触发阈值（默认 15 条） |
@@ -173,6 +175,8 @@ AI 可自主判断并调用以下工具，所有文件操作都受**路径白名
 | `get_memory` | 语义检索长期记忆：可传 `queries` 数组按多条语句分别召回（合并去重取前 topK），不传则取最近 5 条消息逐条检索；每条结果带 `[绝对日期，距今]` 的入库时间 |
 | `read_file` / `list_files` | 读取白名单目录下的文件 / 列出目录内容 |
 | `run_JS` | 在隔离子进程中执行 JS 脚本 |
+| `run_shell` | 执行系统 shell 命令并返回输出与退出码（Windows 走 PowerShell、其余 bash）；非管理员触发经小模型安全审查 |
+| `recognize_image` | 按需识别消息中的图片：传入图片段 `media.localPath` 返回内容描述（魔数校验，仅 jpg/png/webp） |
 | `create_file` / `edit_file` / `delete_file` | 创建（禁止覆盖）/ 搜索替换编辑 / 删除文件 |
 | `manage_mcp` | 维护 MCP 激活列表：`activate` 让该服务器工具进入工具列表，`deactivate` 用完移出 |
 | `manage_plan` | 创建/更新当前会话的任务计划 |
@@ -180,7 +184,7 @@ AI 可自主判断并调用以下工具，所有文件操作都受**路径白名
 | `schedule` | 给自己设定时任务，到点自动苏醒 |
 | `list_stickers` | 获取完整表情包列表（文件路径 + 画面描述），AI 挑选后以 image 段发送 |
 
-**文件操作安全门禁**按执行对象所在目录判定而非按工具名一刀切：白名单目录内直接放行不打扰管理员；白名单外挂起待确认（生成编号 `#xxxx`，管理员 `#do-yes` / `#do-no` 处置，10 分钟超时作废）；`../` 目录穿越无论如何被硬拦截。
+**文件操作安全门禁**按执行对象所在目录判定而非按工具名一刀切：白名单目录内直接放行不打扰管理员；白名单外挂起待确认（生成编号 `#xxxx`，管理员 `#do-yes` / `#do-no` 处置，10 分钟超时作废）；`../` 目录穿越无论如何被硬拦截。`run_shell` 不走路径门禁：管理员直通；非管理员按 `shellGate`——`guard` 模式经无状态小模型三分类（`allow` 放行，`deny` / `unsure` / 未配置 `guardModel` / 调用失败一律挂起等 `#do-yes`），`open` 模式完全放行。
 
 ### Skill 技能系统
 
