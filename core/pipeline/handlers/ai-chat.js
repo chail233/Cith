@@ -2,7 +2,7 @@ import { runAgent } from "../agent-runner.ts";
 import logger from "../../utils/logger.js";
 import { getAgent } from "../../agent/AgentManager.ts";
 import {nowTime} from "../../utils/time.js";
-import { extractText, compactSegments } from "../../utils/extractText.ts";
+import {compactSegments} from "../../utils/extractText.ts";
 
 /**
  * AI 对话处理器
@@ -31,7 +31,7 @@ export default async function aiChat(ctx) {
         },
     };
     getAgent(ctx.space).memory.add(msg);
-    logger.info("AI 对话请求:", extractText(message));
+    logger.info("AI 对话请求:", compact);
 
     await runAgent(ctx);
 
