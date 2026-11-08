@@ -19,10 +19,11 @@ export function isPlaceholder(value: unknown): boolean {
     return text === "" || /^your_/i.test(text);
 }
 
-/** 判断白名单是否为空 */
-function isEmptyList(value: unknown): boolean {
-    if (!Array.isArray(value) || value.length === 0) return true;
-    return value.every((item) => isPlaceholder(item));
+/** 判断白名单是否会放行消息：空数组全放行；含任一真实 ID 按白名单放行；全是占位符则拒绝一切 */
+function allowsAnything(value: unknown): boolean {
+    if (!Array.isArray(value)) return false;
+    if (value.length === 0) return true;
+    return value.some((item) => !isPlaceholder(item));
 }
 
 /** 收集配置问题清单，纯函数便于后续复用到自检命令 */
@@ -43,12 +44,12 @@ export function collectConfigWarnings(): ConfigWarning[] {
         );
     }
 
-    if (isEmptyList(cfg.targetGroupId) && isEmptyList(cfg.targetUserId)) {
+    if (!allowsAnything(cfg.targetGroupId) && !allowsAnything(cfg.targetUserId)) {
         add(
             "error",
             "targetGroupId",
-            "会话白名单为空，机器人不会处理任何群 / 私聊消息",
-            "管理员在目标会话里发送 #bind 绑定当前会话，或直接填写 targetGroupId / targetUserId",
+            "会话白名单未配置任何有效会话，机器人不会处理任何群 / 私聊消息",
+            "管理员在目标会话里发送 #bind 绑定当前会话，或填写 targetGroupId / targetUserId；两者置为 [] 表示全放行",
         );
     }
 
