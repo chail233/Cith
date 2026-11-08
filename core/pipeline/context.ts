@@ -10,9 +10,10 @@ export function buildContext(event: CtxEvent): Context {
     }
 
     const isAdmin = event.userId === config.owner;
+    // 白名单为空数组时全放行
     const isTarget = event.space.from === "user"
-        ? config.targetUserId.includes(event.space.id)
-        : config.targetGroupId.includes(event.space.id);
+        ? config.targetUserId.length === 0 || config.targetUserId.includes(event.space.id)
+        : config.targetGroupId.length === 0 || config.targetGroupId.includes(event.space.id);
 
     return {
         adapter: event.adapter,

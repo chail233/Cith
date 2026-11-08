@@ -54,7 +54,7 @@ NapCat(反向WS) / 微信(长轮询)
 ```
 
 - `ctx` 字段：`{ adapter, messageId, message(统一消息段数组), space{from,id,channel}, senderName, userId, isAdmin, isTarget, imageDescription, handled }`。@、图片、链接等一律从 `ctx.message` 消息段取。
-- 目标过滤：`targetGroupId` / `targetUserId` 均为**数组白名单**；未授权会话中管理员发 `#bind` 可放行（bootstrap）。
+- 目标过滤：`targetGroupId` / `targetUserId` 均为**数组白名单**，空数组视为全放行；未授权会话中管理员发 `#bind` 可放行（bootstrap）。
 - 中间件（全部执行、错误不致命）：目前只有 `image-recognizer`（写 `ctx.imageDescription`）。
 - 处理器（**首个返回 true 即停止**）：`keyword-commands`（框架保留，`CMD_MAP` 当前为空）→ `user-commands`（`#` 命令真表）→ `ai-chat` → `proactive-chat`。加新行为 = 插入处理器，不改管道循环。
 
