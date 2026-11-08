@@ -73,7 +73,6 @@ async function doWake(task, adapter) {
         userId: String(config.selfId ?? "bot"),
         isAdmin: true,
         isTarget: true,
-        imageDescription: null,
         handled: false,
         trigger: { type: "schedule", id: task.id, title: task.title },
     };

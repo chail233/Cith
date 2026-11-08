@@ -24,7 +24,6 @@ export function buildContext(event: CtxEvent): Context {
         userId: event.userId,
         isAdmin: isAdmin,
         isTarget: isTarget,
-        imageDescription: null,
         handled: false,
     };
 }

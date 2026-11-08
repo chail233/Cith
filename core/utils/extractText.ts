@@ -13,7 +13,6 @@ export function extractText(segments: { type: string; data: { text?: string } }[
 
 export function compactSegments(
     segments: MessageSegment[],
-    imageDescription?: string | null,
 ): MessageSegment[] {
     const out: MessageSegment[] = [];
     for (const seg of segments ?? []) {
@@ -24,10 +23,13 @@ export function compactSegments(
                 break;
 
             case "image": {
-                const media = d.media as { uri?: string } | undefined;
-                if (!media?.uri && !d.alt) break;
+                const media = d.media as { uri?: string; localPath?: string } | undefined;
+                if (!media?.uri && !media?.localPath && !d.alt) break;
                 const data: Record<string, unknown> = {};
-                if (media?.uri) data.media = { uri: media.uri };
+                const kept: Record<string, string> = {};
+                if (media?.uri) kept.uri = media.uri;
+                if (media?.localPath) kept.localPath = media.localPath;
+                if (kept.uri || kept.localPath) data.media = kept;
                 if (d.alt) data.alt = d.alt;
                 out.push({ type: "image", data });
                 break;
@@ -75,10 +77,5 @@ export function compactSegments(
         }
     }
 
-    if (imageDescription) {
-        const img = out.find((s) => s.type === "image");
-        if (img) img.data.description = imageDescription;
-        else out.push({ type: "text", data: { text: imageDescription } });
-    }
     return out;
 }

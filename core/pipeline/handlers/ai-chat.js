@@ -19,7 +19,7 @@ export default async function aiChat(ctx) {
     const selfMention = message.find((seg) => seg.type === "mention" && seg.data?.isSelf);
     if (ctx.space.from === "group" && !selfMention) return false;
 
-    const compact = compactSegments(message, ctx.imageDescription);
+    const compact = compactSegments(message);
     const msg = {
         role: "user",
         content: {

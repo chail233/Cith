@@ -19,7 +19,7 @@ export default async function proactiveChat(ctx) {
     if (!Number.isFinite(limit) || limit <= 0) return false;
 
     const recorder = getAgent(ctx.space).memory;
-    const compact = compactSegments(ctx.message || [], ctx.imageDescription);
+    const compact = compactSegments(ctx.message || []);
     recorder.add({
         role: "user",
         content: {

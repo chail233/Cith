@@ -49,14 +49,14 @@
 NapCat(反向WS) / 微信(长轮询)
   → bot/servers/*（BaseServer 子类）                    连接生命周期；toSegments 收到消息时归一化为统一段（图片就地落地写 media.localPath），toEventMeta 出会话/发送者元信息，dispatch 统一装配 CtxEvent
   → pipeline/context.ts buildContext                   构建 ctx + 目标过滤
-  → pipeline/index.js                                  中间件 → 处理器
+  → pipeline/index.js                                  处理器
   ← bot/adapters/*（BaseAdapter 子类）                 对外动作：仅 sendMsg() 发送
 ```
 
-- `ctx` 字段：`{ adapter, messageId, message(统一消息段数组), space{from,id,channel}, senderName, userId, isAdmin, isTarget, imageDescription, handled }`。@、图片、链接等一律从 `ctx.message` 消息段取。
+- `ctx` 字段：`{ adapter, messageId, message(统一消息段数组), space{from,id,channel}, senderName, userId, isAdmin, isTarget, handled }`。@、图片、链接等一律从 `ctx.message` 消息段取。
 - 目标过滤：`targetGroupId` / `targetUserId` 均为**数组白名单**，空数组视为全放行；未授权会话中管理员发 `#bind` 可放行（bootstrap）。
-- 中间件（全部执行、错误不致命）：目前只有 `image-recognizer`（写 `ctx.imageDescription`）。
 - 处理器（**首个返回 true 即停止**）：`keyword-commands`（框架保留，`CMD_MAP` 当前为空）→ `user-commands`（`#` 命令真表）→ `ai-chat` → `proactive-chat`。加新行为 = 插入处理器，不改管道循环。
+- 图片是**懒识别**：消息里的图片段只带 `media.localPath` 进上下文，不自动调视觉模型；模型需要看图时用 `recognize_image` 工具按需识别（工具内做魔数校验，仅 jpg/png/webp）。
 
 ### Agent 循环（`agent/Agent.ts`）
 

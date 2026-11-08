@@ -34,8 +34,6 @@ export interface Context {
     userId: string;
     isAdmin: boolean;
     isTarget: boolean;
-    /** 图片识别描述（中间件产出，不来自原始消息段） */
-    imageDescription: string | null;
     /** 是否已被某个 handler 处理 */
     handled: boolean;
 }

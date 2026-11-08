@@ -15,6 +15,7 @@ import listStickersTool from "./tools/list-stickers.ts";
 import managePlanTool from "./tools/manage-plan.ts";
 import scheduleTool from "./tools/schedule.ts";
 import reportProgressTool from "./tools/report-progress.ts";
+import recognizeImageTool from "./tools/recognize-image.ts";
 
 /**
  * 工具注册表：每个条目包含 definition（工具上下文/参数定义）和 execute（实现）
@@ -32,6 +33,7 @@ const toolRegistry = [
     managePlanTool,
     scheduleTool,
     reportProgressTool,
+    recognizeImageTool,
 ];
 
 /**
