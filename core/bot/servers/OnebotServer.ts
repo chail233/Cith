@@ -154,6 +154,10 @@ class OnebotServer extends BaseServer<OneBotEvent> {
                     const data: MsgSegment["image"] = {
                         media: { uri: d.url ?? "" },
                     };
+                    // NapCat 的 summary 通常是表情/图片名（如 "[动画表情]"），模型无需识图也能得体回应
+                    if (typeof d.summary === "string" && d.summary !== "") {
+                        data.alt = d.summary;
+                    }
                     // 收到图片时就地换出本地路径
                     const fileId = d.file;
                     if (typeof fileId === "string" && fileId !== "") {
