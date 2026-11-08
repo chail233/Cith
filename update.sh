@@ -62,13 +62,28 @@ if [ -z "$BRANCH" ]; then
 fi
 
 # ---------- 本地改动保护 ----------
+# 索引里有未解决的冲突时 stash push 会报 "could not write index"，先拦截并给出修复指引
+UNMERGED=$(git diff --name-only --diff-filter=U)
+if [ -n "$UNMERGED" ]; then
+    echo "$UNMERGED" >&2
+    die "索引中存在上次遗留的未解决冲突（常见于 stash pop 冲突后未处理）；\
+放弃改动: git checkout HEAD -- <文件>，或解决后 git add <文件>"
+fi
+
 STASHED=0
 restore_stash() {
     if [ "$STASHED" = "1" ]; then
         if git stash pop --quiet; then
             info "已恢复本地改动"
         else
-            warn "本地改动恢复失败，请手动处理: git stash list && git stash pop"
+            CONFLICTED=$(git diff --name-only --diff-filter=U)
+            if [ -n "$CONFLICTED" ]; then
+                warn "本地改动与更新后的代码冲突，stash 条目已保留，下条消息的文件需要处理："
+                echo "$CONFLICTED" >&2
+                warn "解决后 git add <文件> && git stash drop；或放弃本地改动: git checkout HEAD -- <文件> && git stash drop"
+            else
+                warn "本地改动恢复失败，请手动处理: git stash list && git stash pop"
+            fi
         fi
     fi
 }
