@@ -16,7 +16,7 @@ export interface ScheduleParams {
         times?: unknown;
         expr?: unknown;
     };
-    space?: { from?: unknown; id?: unknown; channel?: unknown };
+    space?: { from?: unknown; id?: unknown };
 }
 
 export const definition: ToolDefinition = {
@@ -24,41 +24,35 @@ export const definition: ToolDefinition = {
     function: {
         name: "schedule",
         description:
-            "管理定时唤醒：给自己设闹钟、轮询或主动发起行为，用法由你决定，不向用户显式说明。" +
+            "管理定时苏醒：给自己设闹钟、轮询或主动发起行为，用法由你决定，不向用户显式说明。" +
             "action=create 新建 / list 查看 / delete 删除，不用的条目及时清除。",
         parameters: {
             type: "object",
             properties: {
-                action: {
-                    type: "string",
-                    enum: ["create", "list", "delete"],
-                },
-                id: { type: "string", description: "delete 时必填，任务 id" },
+                action: { type: "string", enum: ["create", "list", "delete"] },
+                id: { type: "string", description: "delete 时必填：任务 id（从 list 获取）" },
                 title: { type: "string", description: "create 时填，简短标题" },
                 prompt: { type: "string", description: "create 时填，给自己的备忘：醒来做什么/说什么" },
                 schedule: {
                     type: "object",
-                    description: "时间规则（create 时填）",
+                    description:
+                        "create 时填。once→at（'YYYY-MM-DD HH:mm'）；every→everyMinutes（≥1）；" +
+                        "daily→times（['08:30','22:00']）；cron→expr（5 段，如 '0 9 * * 1-5'）",
                     properties: {
-                        kind: {
-                            type: "string",
-                            enum: ["once", "every", "daily", "cron"],
-                            description: "时间类型",
-                        },
-                        at: { type: "string", description: "once：本地时间 'YYYY-MM-DD HH:mm' 或 'YYYY-MM-DD'" },
-                        everyMinutes: { type: "integer", description: "every：间隔分钟，最小 1" },
-                        times: { type: "array", items: { type: "string" }, description: "daily：时刻列表，如 ['08:30','22:00']" },
-                        expr: { type: "string", description: "cron：5 段表达式，如 '0 9 * * 1-5'" },
+                        kind: { type: "string", enum: ["once", "every", "daily", "cron"] },
+                        at: { type: "string" },
+                        everyMinutes: { type: "integer" },
+                        times: { type: "array", items: { type: "string" } },
+                        expr: { type: "string" },
                     },
                     required: ["kind"],
                 },
                 space: {
                     type: "object",
-                    description: "苏醒到哪个会话，默认当前",
+                    description: "create 可选：苏醒到哪个会话（from: group/user，id: 群号/用户号），缺省当前会话",
                     properties: {
                         from: { type: "string", enum: ["group", "user"] },
-                        id: { type: "string", description: "群号或用户号" },
-                        channel: { type: "string", enum: ["onebot", "wechat"], description: "消息渠道，缺省跟随当前会话" },
+                        id: { type: "string" },
                     },
                 },
             },
@@ -67,14 +61,15 @@ export const definition: ToolDefinition = {
     },
 };
 
-/** 归一化目标会话：优先用模型指定的 space，否则回落当前会话；渠道缺省继承当前会话 */
+/** 归一化目标会话：优先用模型指定的 space，否则回落当前会话；渠道始终继承当前会话 */
 function pickSpace(param: ScheduleParams, ctx?: ToolContext): Space | null {
     const raw = param?.space;
     if (raw && raw.from && raw.id) {
-        const channel = raw.channel === "wechat" || raw.channel === "onebot"
-            ? raw.channel
-            : ctx?.space.channel ?? "onebot";
-        return { from: raw.from === "user" ? "user" : "group", id: String(raw.id), channel };
+        return {
+            from: raw.from === "user" ? "user" : "group",
+            id: String(raw.id),
+            channel: ctx?.space.channel ?? "onebot",
+        };
     }
     return ctx?.space ?? null;
 }
