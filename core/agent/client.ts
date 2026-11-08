@@ -23,8 +23,8 @@ export interface CallLlmOptions {
     responseFormat?: { type: "json_object" | "text" };
     /** 工具列表（OpenAI function calling 格式） */
     tools?: ToolDefinition[];
-    /** 请求模式："chat"（默认）或 "vision" */
-    mode?: "chat" | "vision";
+    /** 请求模式："chat"（默认）、"vision" 或 "guard"（run_shell 安全审查） */
+    mode?: "chat" | "vision" | "guard";
 }
 
 /** 按 (baseURL, apiKey) 缓存客户端实例；配置热更新后首次调用会按新配置重建 */
@@ -33,9 +33,13 @@ const clients = new Map<string, OpenAI>();
 /**
  * 获取指定模式的 SDK 客户端
  */
-function getClient(mode: "chat" | "vision"): OpenAI {
-    const url = mode === "chat" ? config.llmApiUrl : config.llmVisionApiUrl;
-    const apiKey = mode === "chat" ? config.aiApiKey : config.visionApiKey;
+function getClient(mode: "chat" | "vision" | "guard"): OpenAI {
+    const url = mode === "chat" ? config.llmApiUrl
+        : mode === "vision" ? config.llmVisionApiUrl
+        : (config.guardApiUrl || config.llmApiUrl);
+    const apiKey = mode === "chat" ? config.aiApiKey
+        : mode === "vision" ? config.visionApiKey
+        : (config.guardApiKey || config.aiApiKey);
     const baseURL = normalizeBaseURL(url);
     const key = `${baseURL}|${apiKey}`;
     let client = clients.get(key);

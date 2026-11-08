@@ -1,7 +1,9 @@
 import config from "../config.js";
 import { resolveSrcPath, checkPathWhitelist } from "../utils/file-security.js";
+import logger from "../utils/logger.js";
 import { mcpClient } from "./mcp-manager.js";
 import { hold } from "./tool-approval.js";
+import { checkShellCommand } from "./shell-guard.ts";
 
 import getMemoryTool from "./tools/get-memory.ts";
 import readFileTool from "./tools/read-file.ts";
@@ -16,6 +18,7 @@ import managePlanTool from "./tools/manage-plan.ts";
 import scheduleTool from "./tools/schedule.ts";
 import reportProgressTool from "./tools/report-progress.ts";
 import recognizeImageTool from "./tools/recognize-image.ts";
+import runShellTool from "./tools/run-shell.ts";
 
 /**
  * 工具注册表：每个条目包含 definition（工具上下文/参数定义）和 execute（实现）
@@ -34,6 +37,7 @@ const toolRegistry = [
     scheduleTool,
     reportProgressTool,
     recognizeImageTool,
+    runShellTool,
 ];
 
 /**
@@ -95,6 +99,21 @@ export async function callTool(tool_call, ctx, confirmed = false){
                 }
             }
         }
+    }
+
+    // run_shell 门禁：不走路径白名单。管理员/已确认直通；否则按 shellGate：
+    // guard 模式经小模型三分类，allow 放行，deny/unsure/未配置 guardModel/调用失败一律挂起；open 模式直通
+    if (!confirmed && !ctx?.isAdmin && name === "run_shell" && config.shellGate !== "open") {
+        const verdict = await checkShellCommand(String(parameter?.command ?? ""));
+        if (!verdict || verdict.verdict !== "allow") {
+            const id = hold(tool_call, ctx);
+            if (!id) return `${name} 被拒绝：待确认队列已满，请稍后再试`;
+            const why = verdict
+                ? `guard 判定 ${verdict.verdict}：${verdict.reason || "无"}`
+                : "未配置 guard 模型（shellGate=guard）";
+            return `run_shell 命令需要管理员确认（${why}）。已登记为待确认操作 #${id}。`;
+        }
+        logger.info(`guard 放行 run_shell: ${verdict.reason}`);
     }
 
     if (name.startsWith("mcp_")) {

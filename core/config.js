@@ -22,7 +22,7 @@ const NO_PERSIST_KEYS = new Set(["members", "mcpServers"]);
 
 /** 密钥类：可持久化但需重启才生效，落盘时提示 */
 const RESTART_KEYS = new Set([
-    "aiApiKey", "visionApiKey", "githubToken", "token", "memoryEmbedApiKey",
+    "aiApiKey", "visionApiKey", "githubToken", "token", "memoryEmbedApiKey", "guardApiKey",
 ]);
 
 /**
@@ -124,6 +124,15 @@ const baseConfig = {
     /** 模型接口超时（毫秒） */
     llmTimeout: 60000,
 
+    /** guard 模型 API 地址（run_shell 安全审查用，留空则用 llmApiUrl） */
+    guardApiUrl: "",
+
+    /** guard 模型 API Key（留空则用 aiApiKey） */
+    guardApiKey: null,
+
+    /** guard 模型名称：留空表示未启用 guard，非管理员的 run_shell 调用逐条挂起等确认 */
+    guardModel: "",
+
     // ========== 对话行为 ==========
 
     /** 主动聊天触发阈值：无 @ 的消息累计多少条后唤醒 */
@@ -193,6 +202,9 @@ const baseConfig = {
     memoryUserIdPrefix: "SunBot",
 
     // ========== 工具与安全白名单（相对 core/） ==========
+
+    /** run_shell 门禁模式："guard"=小模型审查（未配置 guardModel 时逐条挂起），"open"=完全放行 */
+    shellGate: "guard",
 
     /** 文件读取白名单目录 */
     readFileDirs: ["skills", "workspace"],
