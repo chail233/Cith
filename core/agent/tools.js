@@ -102,7 +102,6 @@ export async function callTool(tool_call, ctx, confirmed = false){
     }
 
     // run_shell 门禁：不走路径白名单。管理员/已确认直通；否则按 shellGate：
-    // guard 模式经小模型三分类，allow 放行，deny/unsure/未配置 guardModel/调用失败一律挂起；open 模式直通
     if (!confirmed && !ctx?.isAdmin && name === "run_shell" && config.shellGate !== "open") {
         const verdict = await checkShellCommand(String(parameter?.command ?? ""));
         if (!verdict || verdict.verdict !== "allow") {

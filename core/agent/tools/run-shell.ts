@@ -9,7 +9,6 @@ export interface RunShellParams {
 }
 
 const IS_WIN = process.platform === "win32";
-const TIMEOUT_MS = 30_000;
 const OUTPUT_KEEP = 4 * 1024; // 展示给模型时头尾各保留的字符数
 const OUTPUT_CAP = 1_000_000; // 采集阶段的内存保护上限（字符数）
 
@@ -26,14 +25,13 @@ export const definition: ToolDefinition = {
             type: "object",
             properties: {
                 command: { type: "string", description: "要执行的命令" },
-                cwd: { type: "string", description: "工作目录，相对 core/，默认 workspace" },
+                cwd: { type: "string", description: "工作目录，相对 dist/，默认 workspace" },
             },
             required: ["command"],
         },
     },
 };
 
-/** 头尾保留、中间截断，控制发给模型的体积 */
 function truncate(text: string): string {
     if (text.length <= OUTPUT_KEEP * 2) return text;
     return `${text.slice(0, OUTPUT_KEEP)}\n[...输出过长，中间已截断...]\n${text.slice(-OUTPUT_KEEP)}`;
@@ -54,8 +52,6 @@ function cleanPsStderr(text: string): string {
 
 /**
  * 执行 shell 命令
- * Windows 走 powershell -EncodedCommand（base64 传命令，绕开引号转义；抑制进度流避免 CLIXML 噪声），
- * 其余走 bash -c
  */
 export async function execute(param: RunShellParams): Promise<string> {
     const command = typeof param?.command === "string" ? param.command.trim() : "";
@@ -86,24 +82,16 @@ export async function execute(param: RunShellParams): Promise<string> {
         };
         child.stdout.on("data", collect(outBuf));
         child.stderr.on("data", collect(errBuf));
-
-        let timedOut = false;
-        const timer = setTimeout(() => {
-            timedOut = true;
-            child.kill();
-        }, TIMEOUT_MS);
+        child.stdin?.end(); // 立即关闭 stdin，避免 read 类命令等待输入挂死
 
         child.on("error", (spawnErr) => {
-            clearTimeout(timer);
             resolve(`启动 shell 失败: ${spawnErr.message}`);
         });
         child.on("close", (code) => {
-            clearTimeout(timer);
             if (dropped) outBuf.v += "\n[...输出过大，后续已丢弃...]";
             const errText = IS_WIN ? cleanPsStderr(errBuf.v) : errBuf.v;
             const output = [outBuf.v.trimEnd(), errText.trim()].filter(Boolean).join("\n");
-            const timeoutNote = timedOut ? "\n[命令超时（30 秒），已强制终止]" : "";
-            resolve(`退出码 ${code ?? "—"}${timeoutNote}\n${truncate(output) || "（无输出）"}`);
+            resolve(`退出码 ${code ?? "—"}\n${truncate(output) || "（无输出）"}`);
         });
     });
 }
