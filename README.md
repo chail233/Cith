@@ -100,9 +100,9 @@ bash update.sh --force      # 远端无新提交也重新编译（修本地 dist
 - **写说明文字**：标准 JSON 不支持注释，以 `$` 或 `_` 开头的键只作说明，加载时忽略。
 - **坏配置不会静默降级**：`config.json` 解析失败会中止启动并报出具体错误（避免带着占位符密钥运行）；文件带 UTF-8 BOM 也能正确读取。
 - **配置脱离代码目录**：生产可把配置文件放到仓库外，用环境变量 `CITH_CONFIG=/etc/cith/config.json` 指向它。
-- **运行期持久化**：`config` 由 Proxy 包裹，运行期的顶层键赋值（`#ms` 切模型、面板 `set_config` 等）会读-改-写回 `config.json`，保留你手写的其他键（`members` / `mcpServers` 不落盘）。
+- **运行期持久化**：`config` 由 Proxy 包裹，运行期的顶层键赋值（面板 `set_config` 等）会读-改-写回 `config.json`，保留你手写的其他键（`members` / `mcpServers` 不落盘）。
 
-> 跑 `dist/` 构建产物时配置文件位于 `dist/config.json`：`npm run build` 会用 `core/config.json` **覆盖**它，唯一真源始终是 `core/config.json`。直接用 `start:dist` 跑且在上面热改（`#ms` / 面板保存）时，热改值会在下次构建时被覆盖，需要保留就同步回 `core/config.json`；或用 `CITH_CONFIG` 指向仓库外的固定文件（构建不会碰它）。
+> 跑 `dist/` 构建产物时配置文件位于 `dist/config.json`：`npm run build` 会用 `core/config.json` **覆盖**它，唯一真源始终是 `core/config.json`。直接用 `start:dist` 跑且在上面热改（面板保存）时，热改值会在下次构建时被覆盖，需要保留就同步回 `core/config.json`；或用 `CITH_CONFIG` 指向仓库外的固定文件（构建不会碰它）。
 
 **启动自检**：进程启动时会检查关键配置是否仍是模板占位符（`owner`、会话白名单、`aiApiKey`、`llmApiUrl`/`chatModel` 等），把「致命 / 提示」两级问题汇总成中文清单打印到控制台，并存入运行状态供面板「运行状态」页顶部常驻展示——避免配置没填对却看着一切正常、实际收不到任何回复。
 
@@ -119,7 +119,7 @@ bash update.sh --force      # 远端无新提交也重新编译（修本地 dist
 | `aiApiKey` / `visionApiKey` | 文本模型与视觉模型 API Key |
 | `chatModel` / `visionModel` | 聊天 / 识图模型名称 |
 | `llmApiUrl` | LLM API 地址（OpenAI 兼容协议） |
-| `enableLongTermMemory` / `memoryStorePath` | 是否启用本地长期记忆与记忆文件路径（默认 false） |
+| `enableLongTermMemory` / `memoryStorePath` | 是否启用本地长期记忆与记忆文件路径（默认开启，文件在 `data/rememori/memory.mem`） |
 | `memoryEmbedProvider` / `memoryEmbedModel` | embedding 提供方（`ollama` 本地 / `openai` API 兼容接口）与模型名（本地默认 `bge-m3`；API 如百炼 `text-embedding-v4`） |
 | `memoryOllamaUrl` | 本地 Ollama 地址（provider 为 `ollama` 时生效） |
 | `memoryEmbedBaseUrl` / `memoryEmbedApiKey` | OpenAI 兼容接口地址与密钥（provider 为 `openai` 时生效；如百炼 `https://dashscope.aliyuncs.com/compatible-mode/v1`） |
@@ -128,7 +128,7 @@ bash update.sh --force      # 远端无新提交也重新编译（修本地 dist
 | `guardApiUrl` / `guardApiKey` / `guardModel` | guard 模型端点与密钥（缺省回落 `llmApiUrl` / `aiApiKey`）；`guardModel` 未配置时需审查的调用逐条挂起等确认 |
 | `web` | 面板 API 服务：`port` / `path` / `token` / `logBufferSize` |
 | `githubToken` | GitHub API Token（skill-manager 安装技能、GitHub MCP 使用） |
-| `enableProactiveChat` / `proactiveChatLimit` | 主动聊天开关与触发阈值（默认 15 条） |
+| `enableProactiveChat` / `proactiveChatLimit` | 主动聊天开关与触发阈值（默认 25 条） |
 | `toolOutput` | 是否在群里播报工具调用（默认 false） |
 | `members` | QQ 号 → 群昵称映射表 |
 
@@ -160,8 +160,8 @@ Agent 本身不持有任何聊天通道，所有输出以事件广播；同一�
 
 **上下文两级阈值**：
 
-- **工作阈值**（`contextBudgetTokens`，默认 60000 token）：Agent 循环内每轮请求前检查上下文体积，超阈值就从最旧的开始把工具调用痕迹（`system` 消息）折叠成「首 200 字 + 尾 100 字」的截断形态，折到预算一半以下即停（减少改写次数，保住服务商前缀缓存）。折叠是纯内存操作、不调模型，靠 `[已折叠]` 前缀保证幂等；原文短于 800 字的消息不折——折了反而更占地方。被折掉的内容模型需要时重新调用工具即可取回。
-- **聊天阈值**（`chatSummaryThresholdTokens`，默认 40000 token）：整个 Agent 跑完后检查记录器维护的预估上下文大小（按约 2.5 字符/token 增量累计，不按条数裁剪），超阈值就**后台静默摘要**——把较旧的对话提取成事实清单逐条写入长期记忆、追加进中期概括，并只保留尾部约 30% 体积的原文，避免下一轮丢掉即时语境。摘要是纯后台任务，不阻塞监听器摘除与下一轮对话；模型调用失败时原文原样保留，不会静默丢历史。
+- **工作阈值**（`contextBudgetTokens`，默认 24000 token）：Agent 循环内每轮请求前检查上下文体积，超阈值就从最旧的开始把工具调用痕迹（`system` 消息）折叠成「首 200 字 + 尾 100 字」的截断形态，折到预算一半以下即停（减少改写次数，保住服务商前缀缓存）。折叠是纯内存操作、不调模型，靠 `[已折叠]` 前缀保证幂等；原文短于 800 字的消息不折——折了反而更占地方。被折掉的内容模型需要时重新调用工具即可取回。
+- **聊天阈值**（`chatSummaryThresholdTokens`，默认 12000 token）：整个 Agent 跑完后检查记录器维护的预估上下文大小（按约 2.5 字符/token 增量累计，不按条数裁剪），超阈值就**后台静默摘要**——把较旧的对话提取成事实清单逐条写入长期记忆、追加进中期概括，并只保留尾部约 30% 体积的原文，避免下一轮丢掉即时语境。摘要是纯后台任务，不阻塞监听器摘除与下一轮对话；模型调用失败时原文原样保留，不会静默丢历史。
 
 **前缀缓存友好的消息顺序**：稳定内容靠前、易变内容靠后。系统提示、技能/MCP/标签清单、记忆概要属于低频变化项；活跃计划与唤醒说明这类每条消息都可能变的项被压到**历史之后**。这样计划状态一更新、闹钟一响，只有尾部新增内容需要重算，而不会出现“计划变一个字，整段历史全部失效”的塌缩。实测易变场景下的理论命中率从 ~25% 提升到 ~94%。
 
@@ -197,10 +197,10 @@ Skill 是包含 `SKILL.md` 描述文件的目录，可附带脚本供 AI 执行�
 
 ### 特色行为
 
-- **视觉能力**：群内图片自动调用视觉模型识别内容并注入上下文，让 AI 能"看到"图片（独立 `visionModel` / `visionApiKey` 配置）。
+- **视觉能力**：消息里的图片只带本地路径进上下文，AI 需要看图时调用 `recognize_image` 按需识别（独立 `visionModel` / `visionApiKey` 配置），没被用上的图零调用成本。
 - **主动聊天**：群内累计 `proactiveChatLimit` 条无人 @ 的消息后，AI 带完整上下文被唤醒，自主判断是否参与对话；计数在第 N 条消息上触发，AI 接话（或被 @ 对话）后归零，`#pchat` 可整体开关，阈值设为 `<= 0` 等同于关闭。上一轮模型请求尚未结束时不会插队，计数保留到下一条消息再试。
 - **定时任务**：AI 可通过 `schedule` 工具"给自己设闹钟"（一次性 / 固定间隔 / 每日定点 / cron），到点触发完整 Agent 苏醒流程。任务持久化到 `data/schedule.json`，重启不丢失，停机期间错过的触发按追赶策略处理。
-- **表情包**：内置表情包库（`manifest.json` 描述每张图的画面），AI 调用 `list_stickers` 拿到全量列表（文件路径 + 画面描述）后按语境选图，以 image 消息段直接发送，让回复更生动。
+- **表情包**：内置表情包库（`manifest.json` 描述每张图的画面，仓库提供 `manifest.example.json` 模板，由 `npm run add-stickers` 生成），AI 调用 `list_stickers` 拿到全量列表（文件路径 + 画面描述）后按语境选图，以 image 消息段直接发送，让回复更生动。
 
 ### 多平台接入
 
@@ -233,6 +233,7 @@ Bot 侧 API 内嵌于 Bot 主进程：独立 token 鉴权（5s 握手超时）�
 |------|------|
 | 运行状态 | 运行时长 / OneBot 在线 / MCP 连接数 / 内存 / Node 版本 + Token 用量与花销（今日 / 近 7 天 / 累计，含缓存命中率与金额）+ 最近事件速览 |
 | 模型价格 | 按模型填「元 / 百万 tokens」单价（输入 / 缓存命中 / 输出），保存即时生效，用量金额按当前价目重算 |
+| 系统提示词 | 在线编辑 `core/prompts/system.md`，保存带 `.bak` 备份，下一轮对话即生效 |
 | 配置管理 | 脱敏快照查看；白名单字段可热改，拒绝原因原样展示 |
 | 事件日志 | SSE 实时事件流 + 断线按 Last-Event-ID 自动续传，级别/类型筛选与搜索 |
 | 能力清单 | 动态展示 Bot 支持的 action 及说明 |
@@ -276,10 +277,8 @@ bot/servers/*（BaseServer 子类）—— Server 接收并格式化信息
         pipeline/context.ts 构建 Context（ctx.message 统一消息段 + ctx.messageId）→ pipeline/index.js 管道编排
     │  （仅 targetGroupId / targetUserId 命中的消息继续；管理员可在未授权会话发 #bind 完成首次绑定）
     │
-    ├─ 中间件（全部执行，丰富上下文）
-    │   └─ image-recognizer  → 读 media.localPath 识别图片 → ctx.imageDescription
-    │
-    │  @、图片、链接卡片等一律从统一消息段 ctx.message 取，不再有独立中间件
+    │  @、图片、链接卡片等一律从统一消息段 ctx.message 取；图片只带 media.localPath 进上下文，
+    │  模型需要看图时调用 recognize_image 按需识别（管道内没有独立中间件）
     │
     └─ 处理器（首个返回 true 即停止）
         ├─ user-commands     → # 前缀命令（#help、#plan 等）
@@ -310,7 +309,7 @@ Agent.run()（core/agent/Agent.ts，每会话一实例，AgentManager 池管理�
     ├─ 工具被门禁挂起 → 中断本轮（挂起信息不给模型）→ 广播 "approval" 事件
     │   └─ agent-runner 把 tool_approval 段交给适配器发出确认询问
     └─ 有工具调用 → 并行执行 → 结果回填记忆 → 再次请求（最多 30 轮）
-        ├─ 本地工具 → 路径穿越防护 + 白名单门禁
+        ├─ 本地工具 → 路径解析钉死在 core/ 内；run_shell 经命令审查，必要时挂起等确认
         └─ MCP 工具 → 路由到对应 MCP Server
     ▼
 事件消费方（agent-runner）通过适配器发送消息（分段、拟人化节流）
@@ -330,11 +329,11 @@ Agent 不持有任何聊天通道，所有输出以事件广播——换协议�
 | `#plan` / `#mcp` / `#tools` | 所有人 | 任务计划 / MCP 连接 / 可用工具 |
 | `#sm` | 管理员 | 中期概括 |
 | `#clear` / `#compress` | 管理员 | 清除短期记忆 / 立即摘要压缩 |
-| `#sessions` | 管理员 | 列出活跃会话（记忆条数/体积/概要/空闲时长） |
-| `#tokens [天数]` | 管理员 | Token 用量与花销（默认近 7 天，含未计价模型提示） |
-| `#ms <模型>` | 管理员 | 切换聊天模型 |
+| `#sessions` | 所有人 | 列出活跃会话（记忆条数/体积/概要/空闲时长） |
+| `#tokens [天数]` | 所有人 | Token 用量与花销（默认近 7 天，含未计价模型提示） |
 | `#pchat <bool>` / `#toolout <bool>` | 管理员 | 开关主动聊天 / 工具调用播报 |
-| `#do-yes <id...>` / `#do-no <id...>` / `#do-pending` | 管理员 | 确认 / 拒绝（可一次多个编号）/ 列出待确认操作；拒绝会写回对话上下文 |
+| `#do-yes <id...>` / `#do-no <id...>` | 管理员 | 确认 / 拒绝（可一次多个编号）；确认结果与拒绝的「未执行」都会写回对话上下文 |
+| `#do-pending` | 所有人 | 列出待确认操作 |
 | `#bind` / `#unbind` / `#bindlist` | 管理员 | 把当前会话加入 / 移出白名单、查看白名单（`#bind` 在未授权会话中同样可用） |
 
 ---
@@ -343,7 +342,7 @@ Agent 不持有任何聊天通道，所有输出以事件广播——换协议�
 
 ```
 core/
-├── index.js                    # 入口：初始化 MCP → 启动 WS 服务（QQ/微信）→ 启动面板 API
+├── index.js                    # 入口：启动自检 / 长期记忆 / MCP → WS 服务（QQ/微信）→ 面板 API → 定时调度
 ├── config.js                   # 默认值层（随仓库分发）+ Proxy 热改落盘
 ├── config.json                 # 用户配置层（gitignore，覆盖 config.js 的默认值）
 │
@@ -352,10 +351,9 @@ core/
 │   └── adapters/               # BaseAdapter 抽象基类（sendMsg 对外发送）+ Onebot / WechatBot 实现
 │
 ├── pipeline/                   # 事件处理管道
-│   ├── index.js                # 管道编排：中间件 → 处理器
+│   ├── index.js                # 管道编排：处理器链（首个返回 true 即停止）
 │   ├── context.ts              # 上下文构建与目标过滤
 │   ├── agent-runner.ts         # Agent 事件 → 适配器分发（节流发送）
-│   ├── middleware/             # image-recognizer（图片识别）
 │   └── handlers/               # user-commands / ai-chat / proactive-chat
 │
 ├── agent/                      # Agent 核心（AI 相关代码全部内聚于此）
@@ -364,8 +362,8 @@ core/
 │   ├── AgentManager.ts         # 会话池：空闲回收 / 数量上限
 │   ├── contextBuilder.ts       # LLM 请求上下文组装
 │   ├── replyParser.ts          # 模型回复解析：{action:[...]} → 统一消息段
-│   ├── client.js               # LLM API 客户端（文本 / 视觉）
-│   ├── tools.js                # 工具定义、调度与路径门禁
+│   ├── client.ts               # LLM API 客户端（文本 / 视觉 / guard）
+│   ├── tools.js                # 工具注册表与唯一入口 callTool（含 run_shell 门禁）
 │   ├── tools/                  # 细粒度工具模块（一个工具一个文件）
 │   ├── tool-approval.js        # 危险操作确认队列
 │   ├── approval-runner.ts      # 危险操作确认执行链
@@ -373,17 +371,18 @@ core/
 │   ├── skill.js                # Skill 加载器
 │   ├── image.js                # 视觉 API
 │   ├── long-term-memory.js     # 长期记忆封装（rememori 语义读写）
-│   └── recorder.js             # 分层记忆记录器（短期消息 / 中期概括 + 体积阈值守护）
+│   ├── recorder.js             # 分层记忆记录器（短期消息 / 中期概括 + 体积阈值守护）
+│   └── types.ts                # Agent 专属类型（ToolCall / LlmResult / ToolHold 等）
 │
 ├── api/                        # Web 面板 API（独立 WS 服务端：鉴权/心跳/白名单/事件总线）
 ├── services/                   # 适配器注册表 / NapCat HTTP / 定时调度 / 苏醒触发 / 启动自检 / 记忆存储
-├── stickers/                   # 表情包库（index.js 提供全量列表：画面描述 + 文件路径 + manifest.json + images/）
+├── stickers/                   # 表情包库（index.js 提供全量列表：画面描述 + 文件路径；manifest.example.json 模板 + images/）
 ├── types/                      # 跨模块共用类型（Context / CtxEvent / MessageSegment / Space 等）
 ├── skills/                     # Skill 技能目录（AI 可读写，内置 skill-manager）
 ├── workspace/                  # 工作区（AI 可读写）
 └── utils/                      # logger / file-security（路径防护）/ extractText 等
 
-scripts/copy-assets.js          # 构建后将 skills/workspace 的非代码资源拷贝到 dist
+scripts/copy-assets.js          # 构建后把 skills / workspace / stickers / prompts 与 config.json 同步到 dist
 web/                            # Web 管理面板（独立 npm 工程，详见 web/README.md）
 mcp/                            # 本地 MCP Server（gitignore；mcp/github-server 为示例）
 ```
@@ -393,16 +392,6 @@ mcp/                            # 本地 MCP Server（gitignore；mcp/github-ser
 ---
 
 ## 开发指南
-
-### 添加关键词命令
-
-在 `pipeline/handlers/keyword-commands.js` 的 `CMD_MAP` 中添加（框架保留，当前为空）：
-
-```js
-CMD_MAP.set("关键词", async (ctx) => {
-    ctx.adapter.sendMsg(ctx.space, "回复内容");
-});
-```
 
 ### 添加用户命令
 
@@ -448,16 +437,16 @@ CMD_MAP.set("关键词", async (ctx) => {
 ### Skill 开发
 
 1. 在 `core/skills/` 下创建目录与 `SKILL.md`（frontmatter：`name`、`description`，可选 `force: true` 使正文固定注入上下文）
-2. 在 `scripts/` 子目录中编写 JS 脚本：通过 `process.argv[2]` 接收 JSON 参数，`console.log()` 输出结果；脚本在子进程中执行，30 秒超时
+2. 在 `scripts/` 子目录中编写 JS 脚本：通过 `process.argv[2]` 接收 JSON 参数，`console.log()` 输出结果；脚本经 `run_shell` 在子进程中执行（`run_shell` 没有内置超时，长任务需脚本自行控制时长）
 
 ### TypeScript 开发约定
 
-项目为 JS 为主、逐步引入 TS 的混合结构，依赖 Node 24 原生 type stripping 直接运行 `.ts`：
+项目为 JS/TS 混合结构（`core/` 中 TS 略多于 JS），依赖 Node 24 原生 type stripping 直接运行 `.ts`：
 
 - JS 文件引用 TS 模块时，import 路径**显式写 `.ts` 后缀**；构建时 tsc 自动重写为 `.js`（`rewriteRelativeImportExtensions`）
 - 导入 interface **必须用 `import type`**；JS 文件中引用类型用 JSDoc：`/** @typedef {import("./xxx.ts").Type} Type */`
 - `.ts` 中只允许"可擦除语法"（禁用 `enum` 等，由 `erasableSyntaxOnly` 约束）
-- 类型检查由 IDE 实时提供（strict 模式）；构建走 `noCheck` 只转译，不提供 CLI 检查
+- 类型检查由 IDE 实时提供（strict 模式）；构建走 `noCheck` 只转译，需要 CLI 检查时手动跑 `node node_modules/typescript/lib/tsc.js -p tsconfig.json`
 
 ### 安全设计
 

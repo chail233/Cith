@@ -39,7 +39,7 @@ export function collectConfigWarnings(): ConfigWarning[] {
         add(
             "error",
             "owner",
-            "管理员（owner）未配置，所有管理指令（#bind、#do-yes、#ms 等）都会返回「无权限」",
+            "管理员（owner）未配置，所有管理指令（#bind、#do-yes、#plan 等）都会返回「无权限」",
             'core/config.json 中填写 owner: "你的QQ号"（或改 core/config.js 的默认值）',
         );
     }
@@ -85,7 +85,7 @@ export function collectConfigWarnings(): ConfigWarning[] {
         add(
             "warn",
             "visionApiKey",
-            "视觉 API Key 未配置，群内图片不会被识别（其余功能不受影响）",
+            "视觉 API Key 未配置，AI 无法识别图片（recognize_image 不可用，其余功能不受影响）",
             "需要识图能力时填写 visionApiKey 与 visionModel",
         );
     }

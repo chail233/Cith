@@ -385,7 +385,7 @@ else {
 }
 
 /**
- * 运行期热改落盘（#ms 切模型、面板 set_config 等）：
+ * 运行期热改落盘（面板 set_config 等）：
  * 读-改-写整个文件，保留用户手写的其他键
  */
 function persistKey(key, value) {

@@ -4,7 +4,7 @@
  * 构建辅助脚本：将 tsc 不会输出的非代码资源拷贝到 dist
  *
  * 背景：tsc 只编译 .js/.ts，SKILL.md 等资源文件不会进入 dist，
- * 而运行时 skill 加载器（core/llm/skill.js）按目录扫描 SKILL.md，
+ * 而运行时 skill 加载器（core/agent/skill.js）按目录扫描 SKILL.md，
  * 且 dist 与 core 目录层级一致（rootDir: core → outDir: dist），
  * 因此只需把这些文件按相同结构拷贝过去。
  *
