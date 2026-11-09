@@ -264,7 +264,6 @@ const cmds = [
     },
     {
         name: "do-pending",
-        needsAdmin: true,
         description: "列出待确认的危险操作",
         params: [],
         handler: async (args, ctx) => {

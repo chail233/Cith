@@ -35,12 +35,7 @@ export async function confirmPending(id: string, ctx: Context): Promise<{ ok: bo
     }
 }
 
-/**
- * 拒绝并作废一个挂起的写工具调用
- * 把「被拒绝、未运行」写回发起会话的上下文，让模型知道这次调用已有结论、不要重复发起
- * @param id 待确认操作编号
- * @param ctx 当前命令上下文（拒绝发起人）
- */
+
 export function rejectPending(id: string, ctx: Context): { ok: boolean; text: string } {
     const { entry, error } = take(id);
     if (!entry) return { ok: false, text: error };
