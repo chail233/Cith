@@ -1,6 +1,6 @@
 import type { ToolContext, ToolDefinition, ToolModule, RawTodo } from "../types.ts";
 
-/** manage_plan 工具入参（模型生成的 JSON，字段由 setPlan 归一化） */
+/** manage_plan 工具入参（模型生成的 JSON，字段由 planBoard.set 归一化） */
 export interface ManagePlanParams {
     goal?: string;
     todos?: RawTodo[];
@@ -51,8 +51,8 @@ export async function execute(param: ManagePlanParams, ctx?: ToolContext): Promi
     if (!agent) return "无法确定当前会话，计划未保存";
     const todos = param?.todos;
     if (!Array.isArray(todos)) return "缺少参数 todos（完整任务清单数组）";
-    agent.setPlan(param?.goal, todos);
-    const text = agent.renderPlan();
+    agent.planBoard.set(param?.goal, todos);
+    const text = agent.planBoard.render();
     if (!text) return "计划已清空";
     return `当前计划：\n${text}`;
 }

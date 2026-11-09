@@ -359,7 +359,8 @@ core/
 │   └── handlers/               # user-commands / ai-chat / proactive-chat
 │
 ├── agent/                      # Agent 核心（AI 相关代码全部内聚于此）
-│   ├── Agent.ts                # 循环主体 + 会话任务计划，只产出事件不碰通道
+│   ├── Agent.ts                # 循环主体，只产出事件不碰通道
+│   ├── plan.ts                 # 任务计划存储与渲染（PlanBoard）
 │   ├── AgentManager.ts         # 会话池：空闲回收 / 数量上限
 │   ├── contextBuilder.ts       # LLM 请求上下文组装
 │   ├── replyParser.ts          # 模型回复解析：{action:[...]} → 统一消息段

@@ -206,7 +206,7 @@ const cmds = [
         description: "查看当前任务计划",
         params: [],
         handler: async (args, ctx) => {
-            const text = getAgent(ctx.space).renderPlan();
+            const text = getAgent(ctx.space).planBoard.render();
             if (!text) return "当前没有任务计划";
             return `任务计划：\n${text}`;
         }

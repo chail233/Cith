@@ -29,7 +29,7 @@ mock.module("../core/agent/skill.js", {
     namedExports: { reloadSkills: async () => {}, skills: [], forceSkills: [] },
 });
 mock.module("../core/agent/contextBuilder.ts", {
-    namedExports: { buildMessages: () => [], renderPlan: () => null },
+    namedExports: { buildMessages: () => [] },
 });
 
 const { default: Agent } = await import("../core/agent/Agent.ts");

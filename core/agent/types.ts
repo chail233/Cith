@@ -126,6 +126,11 @@ export interface ToolContext extends Context {
     agent?: Agent | null;
 }
 
+/** 传给工具层的上下文：请求上下文 + 发起本次调用的 Agent（保证 agent 存在） */
+export interface AgentToolContext extends Context {
+    agent: Agent;
+}
+
 /** 单个 Agent 工具模块：definition 提供给模型，execute 为实现 */
 export interface ToolModule<P = unknown> {
     definition: ToolDefinition;

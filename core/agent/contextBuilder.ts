@@ -4,22 +4,8 @@
 import { skills, forceSkills } from "./skill.js";
 import { mcpClient } from "./mcp-manager.js";
 import { readSystemPrompt } from "../services/prompt-store.ts";
+import { renderPlan } from "./plan.ts";
 import type Agent from "./Agent.ts";
-import type { Plan, PlanStatus } from "./types.ts";
-
-/** 合法状态 → 渲染图标 */
-const STATUS_ICONS: Record<PlanStatus, string> = {
-    pending: "○",
-    in_progress: "→",
-    done: "✓",
-    cancelled: "✗",
-};
-
-/** 渲染计划为文本（目标行 + 步骤清单）；无目标时仅渲染步骤 */
-export function renderPlan(plan: Plan): string {
-    const steps = plan.items.map((t) => `${STATUS_ICONS[t.status]} ${t.content}`).join("\n");
-    return plan.goal ? `目标：${plan.goal}\n${steps}` : steps;
-}
 
 type WakeTrigger = { type: string; id?: string; title?: string; prompt?: string };
 
@@ -52,7 +38,7 @@ function renderTrigger(trigger: WakeTrigger | null | undefined): string | null {
  */
 export function buildMessages(agent: Agent) {
     const recorder = agent.memory;
-    const activePlan = agent.getActivePlan();
+    const activePlan = agent.planBoard.getActive();
     const messages: Array<{ role: string; content: string }> = [];
     const systemPrompt = readSystemPrompt();
     if (systemPrompt !== "") messages.push({ role: "system", content: systemPrompt });
