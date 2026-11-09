@@ -44,6 +44,17 @@ export interface ReplyPayload {
     tokens: number;
 }
 
+/** 一轮 Agent 主循环的产出：最终要发送的消息段 + 本轮累计 tokens */
+export type AgentRunOutcome = ReplyPayload;
+
+/** 单次工具调用的执行记录；args 为 null 表示参数解析失败 */
+export interface ToolExecution {
+    toolCall: ToolCall;
+    name: string;
+    args: Record<string, unknown> | null;
+    output: string;
+}
+
 /** 挂起等待管理员确认的危险工具操作 */
 export interface PendingToolCall {
     toolCall: ToolCall;

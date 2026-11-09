@@ -1,34 +1,42 @@
 import logger from "../utils/logger.js";
 import type { MessageSegment } from "../types/index.ts";
 
+/** 解析结果：segments 为可发送的消息段，ok 表示模型输出是否符合约定格式 */
+export interface ParseResult {
+    segments: MessageSegment[];
+    /** 输出符合 {action:[...]} / 裸数组约定时为 true；false 时 segments 是降级后的原文文本 */
+    ok: boolean;
+}
+
 /**
- * 处理 AI 回复内容，支持三种格式：
+ * 解析 AI 回复内容，支持三种格式：
  *   1. {action: [...]}  — 预期的标准格式（type/data 消息段）
  *   2. [...]            — AI 直接返回段数组
  *   3. 纯文本           — 降级为单个 text 段
+ * 空内容、非 JSON、无 action 字段都算不合规（ok=false），由调用方决定是否让模型重试一次
  */
-export function parseReply(content: string | null | undefined): MessageSegment[] {
-    if (!content || content.trim() === "") return [];
+export function parseReplyResult(content: string | null | undefined): ParseResult {
+    if (!content || content.trim() === "") return { segments: [], ok: false };
     let parsed: unknown;
     try {
         parsed = JSON.parse(content);
     }
     catch {
         logger.error("AI 返回非 JSON 格式:", content);
-        return textSegment(content);
+        return { segments: textSegment(content), ok: false };
     }
 
     // 标准格式：{action: [...]}
     if (isJsonObject(parsed) && Array.isArray(parsed.action)) {
-        return parsed.action.flatMap<MessageSegment>(toSegment);
+        return { segments: parsed.action.flatMap<MessageSegment>(toSegment), ok: true };
     }
     // AI 直接返回数组
     if (Array.isArray(parsed)) {
-        return parsed.flatMap<MessageSegment>(toSegment);
+        return { segments: parsed.flatMap<MessageSegment>(toSegment), ok: true };
     }
     // JSON 对象但没有合法 action 字段，降级为文本
     logger.warn("AI 返回 JSON 但格式不匹配:", content);
-    return textSegment(content);
+    return { segments: textSegment(content), ok: false };
 }
 
 /** 守卫：任意 JSON 对象（非数组） */
