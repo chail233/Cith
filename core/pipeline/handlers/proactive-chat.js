@@ -26,7 +26,7 @@ export default async function proactiveChat(ctx) {
             name: ctx.senderName,
             id: ctx.userId,
             time: nowTime(),
-            // 空字段不写入，省 token
+            // 空字段不写入
             ...(ctx.messageId ? { messageId: ctx.messageId } : {}),
             ...(compact.length ? { message: compact } : {}),
         },

@@ -1,6 +1,5 @@
 import logger from "../utils/logger.js";
 import { buildContext } from "./context.ts";
-import keywordCommands from "./handlers/keyword-commands.js";
 import userCommands, { isBootstrapCommand } from "./handlers/user-commands.js";
 import aiChat from "./handlers/ai-chat.js";
 import proactiveChat from "./handlers/proactive-chat.js";
@@ -8,7 +7,6 @@ import {extractText} from "../utils/extractText.ts";
 
 /** 处理器列表 */
 const handlers = [
-    keywordCommands,
     userCommands,
     aiChat,
     proactiveChat,
