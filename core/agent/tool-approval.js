@@ -53,15 +53,6 @@ export function take(id) {
     return { entry, error: "" };
 }
 
-/**
- * 取消一个挂起项
- * @param {string} id
- */
-export function cancel(id) {
-    if (pending.delete(id)) return `已取消待确认操作 #${id}`;
-    return `没有找到待确认操作 #${id}`;
-}
-
 /** 列出当前所有挂起项 */
 export function list() {
     sweepExpired();

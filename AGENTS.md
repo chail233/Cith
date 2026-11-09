@@ -73,7 +73,7 @@ NapCat(反向WS) / 微信(长轮询)
 ### 审批门禁（不可绕过）
 
 - `utils/file-security.js` 的 `resolveSrcPath` 把相对路径解析钉死在 `core/`（跑 dist 时为 `dist/`）内，`..` 穿越**硬拒绝**，供内部服务与 `run_shell` 的 cwd 解析使用。
-- `run_shell` 门禁集中在 `callTool()`：已确认调用直通；**非管理员任何模式都审查**，管理员仅 `shellGate: "guard"`（默认）审查、`"open"` 直通——审查经小模型三分类（`agent/shell-guard.ts`，无状态、无会话上下文，guard 端点/密钥缺省回落 `llmApiUrl`/`aiApiKey`），`allow` 放行，`deny` / `unsure` / 未配置 `guardModel` / 调用失败一律挂起（10 分钟超时），等管理员 `#do-yes <id>` / `#do-no` / `#do-pending`，确认执行链在 `agent/approval-runner.ts`。
+- `run_shell` 门禁集中在 `callTool()`：已确认调用直通；**非管理员任何模式都审查**，管理员仅 `shellGate: "guard"`（默认）审查、`"open"` 直通——审查经小模型三分类（`agent/shell-guard.ts`，无状态、无会话上下文，guard 端点/密钥缺省回落 `llmApiUrl`/`aiApiKey`），`allow` 放行，`deny` / `unsure` / 未配置 `guardModel` / 调用失败一律挂起（10 分钟超时），等管理员 `#do-yes <id>` / `#do-no` / `#do-pending`，确认执行链在 `agent/approval-runner.ts`。挂起时 `callTool()` 返回 `ToolHold` 而非文本：Agent 主循环当场中断、挂起信息不写进对话记忆也不回给模型，`agent-runner` 收到 Agent 的 `approval` 事件后构造只对适配器可见的 `tool_approval` 消息段（文本渲染在 `utils/approval-notice.ts`），由 Adapter 发消息请求确认。`#do-yes` / `#do-no` 均可带多个编号；确认执行的结果用 `recordToolCall` 写回，拒绝用 `recordToolDenial` 写回（模型知道该操作未运行、不要重试）。
 - 文件操作类工具（read_file / list_files / create_file / edit_file / delete_file / run_JS）已按 Issue #42 退役，文件与脚本操作统一走 `run_shell`。
 
 ### 记忆系统（`agent/recorder.js` + `agent/long-term-memory.js` + `services/memory-store.ts`）

@@ -2,6 +2,7 @@ import BaseAdapter from "./BaseAdapter.ts";
 import type { CtxEvent, MessageSegment, Space } from "../../types/index.ts";
 import logger from "../../utils/logger.js";
 import { mediaBasename, resolveSendablePath } from "../../utils/segment-media.ts";
+import { renderApprovalNotice, toApprovalData } from "../../utils/approval-notice.ts";
 import { pathToFileURL } from "node:url";
 
 export default class OnebotAdapter extends BaseAdapter{
@@ -18,9 +19,13 @@ export default class OnebotAdapter extends BaseAdapter{
     }
 
     async sendMsg(space:Space, message: string | MessageSegment | MessageSegment[]) {
+        const isGroup = space.from === "group";
         const segments = (Array.isArray(message) ? message : [message])
-            .map((seg) => this.toOnebotSegment(seg))
-            .filter((seg): seg is object => seg !== null);
+            .flatMap((seg) => {
+                const onebotSegment = this.toOnebotSegment(seg, isGroup);
+                if (onebotSegment === null) return [];
+                return Array.isArray(onebotSegment) ? onebotSegment : [onebotSegment];
+            });
         if (segments.length === 0) return;
         this.sendAction({
             action: "send_msg",
@@ -33,8 +38,12 @@ export default class OnebotAdapter extends BaseAdapter{
         });
     }
 
-    /** 统一消息段 → OneBot v11 发送段；不支持/缺资源的类型返回 null 跳过 */
-    private toOnebotSegment(message: string | MessageSegment): object | null {
+    /**
+     * 统一消息段 → OneBot v11 发送段；不支持/缺资源的类型返回 null 跳过
+     * @param isGroup 群聊为 true，用于 tool_approval 段是否附带 @ 发起人
+     * @returns 单个发送段，或需拆分发送的段数组（如 @ + 文本）
+     */
+    private toOnebotSegment(message: string | MessageSegment, isGroup: boolean): object | object[] | null {
         // 字符串是 text 段的书写糖
         if (typeof message === "string") {
             return { type: "text", data: { text: message } };
@@ -75,6 +84,16 @@ export default class OnebotAdapter extends BaseAdapter{
                 const id = (message.data as { id?: string }).id ?? "";
                 if (id === "") return null;
                 return { type: "reply", data: { id } };
+            }
+
+            case "tool_approval": {
+                // 门禁询问：群聊里先 @ 发起人，方便管理员对上号；私聊与非法 QQ 号只发文本
+                const data = toApprovalData(message.data);
+                const text = { type: "text", data: { text: renderApprovalNotice(data) } };
+                if (isGroup && /^\d+$/.test(data.requestedBy)) {
+                    return [{ type: "at", data: { qq: data.requestedBy } }, text];
+                }
+                return text;
             }
 
             default:

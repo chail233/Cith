@@ -2,6 +2,7 @@ import BaseAdapter from "./BaseAdapter.ts";
 import type { CtxEvent, MessageSegment, Space } from "../../types/index.ts";
 import logger from "../../utils/logger.js";
 import { mediaBasename, resolveSendablePath } from "../../utils/segment-media.ts";
+import { renderApprovalNotice, toApprovalData } from "../../utils/approval-notice.ts";
 import { readFile } from "node:fs/promises";
 import {WeChatBot} from "@wechatbot/wechatbot";
 
@@ -84,6 +85,13 @@ export default class WechatBotAdapter extends BaseAdapter{
             case "reply":
                 // 微信协议不支持引用回复消息段
                 return;
+
+            case "tool_approval": {
+                const text = renderApprovalNotice(toApprovalData(message.data));
+                await this.bot.send(userId, text);
+                logger.info("WechatBot 发送工具确认询问:", text);
+                return;
+            }
 
             default:
                 logger.warn("WechatBotAdapter 暂不支持发送该消息段类型:", message.type);

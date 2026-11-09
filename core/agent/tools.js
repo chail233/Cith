@@ -50,6 +50,7 @@ export function getAllTools() {
  * @param {import("./types.ts").ToolCall} tool_call 完整的工具调用对象 { id, function: { name, arguments } }
  * @param {import("../types/index.ts").Context & {agent?: import("./Agent.ts").default}} [ctx] 请求上下文
  * @param {boolean} [confirmed=false] 是否已确认
+ * @returns {Promise<import("./types.ts").ToolCallResult>} 正常为文本结果；门禁挂起时返回 ToolHold（不回给模型）
  */
 export async function callTool(tool_call, ctx, confirmed = false){
     const name = tool_call.function.name;
@@ -65,7 +66,16 @@ export async function callTool(tool_call, ctx, confirmed = false){
             const why = verdict
                 ? `guard 判定 ${verdict.verdict}：${verdict.reason || "无"}`
                 : "未配置 guard 模型";
-            return `run_shell 命令需要管理员确认（${why}）。已登记为待确认操作 #${id}。`;
+            // 挂起信息不回给模型：Agent 主循环就此中断，由分发方经适配器发出确认询问
+            return {
+                held: true,
+                id,
+                toolName: name,
+                reason: why,
+                summary: String(parameter?.command ?? "").slice(0, 200),
+                requestedBy: ctx?.userId ?? "",
+                requestedByName: ctx?.senderName ?? "未知用户",
+            };
         }
         logger.info(`guard 放行 run_shell: ${verdict.reason}`);
     }

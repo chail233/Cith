@@ -8,7 +8,14 @@ import sleep from "../utils/sleep.js";
 import { getAgent } from "../agent/AgentManager.ts";
 import type Agent from "../agent/Agent.ts";
 import type { Context, MessageSegment } from "../types/index.ts";
-import type { ReplyPayload } from "../agent/types.ts";
+import type { ReplyPayload, ToolHold } from "../agent/types.ts";
+
+/** Agent 事件监听器集合：reply 发回复，tool-call 发工具踩点，approval 发门禁询问 */
+type AgentListeners = {
+    reply: (payload: ReplyPayload) => void;
+    "tool-call": (e: { name: string; args: unknown }) => void;
+    approval: (holds: ToolHold[]) => void;
+};
 
 /**
  * 运行一次 Agent 对话，并把产生的回复经当前上下文适配器发送
@@ -29,32 +36,54 @@ export async function runAgent(ctx: Context): Promise<void> {
             ctx.adapter.sendMsg(ctx.space, `尝试调用${name}，参数为${JSON.stringify(args)}`);
         }
     };
+    // 门禁挂起：Agent 循环已停，由这里经适配器发出确认询问，挂起信息不进模型上下文
+    const onApproval = (holds: ToolHold[]) => {
+        tail = tail
+            .then(() => deliverApproval(ctx, holds))
+            .catch((err) => logger.error("工具确认询问分发失败:", err));
+    };
 
-    attachAgentListeners(agent, { reply: onReply, "tool-call": onToolCall });
+    const listeners: AgentListeners = { reply: onReply, "tool-call": onToolCall, approval: onApproval };
+    attachAgentListeners(agent, listeners);
     try {
         await agent.run(ctx);
     }
     finally {
-        detachAgentListeners(agent, { reply: onReply, "tool-call": onToolCall });
+        detachAgentListeners(agent, listeners);
     }
     await tail;
 }
 
 /** 监听器统一挂载 */
-function attachAgentListeners(
-    agent: Agent,
-    listeners: { reply: (payload: ReplyPayload) => void; "tool-call": (e: { name: string; args: unknown }) => void },
-): void {
+function attachAgentListeners(agent: Agent, listeners: AgentListeners): void {
     agent.on("reply", listeners.reply);
     agent.on("tool-call", listeners["tool-call"]);
+    agent.on("approval", listeners.approval);
 }
 
-function detachAgentListeners(
-    agent: Agent,
-    listeners: { reply: (payload: ReplyPayload) => void; "tool-call": (e: { name: string; args: unknown }) => void },
-): void {
+function detachAgentListeners(agent: Agent, listeners: AgentListeners): void {
     agent.off("reply", listeners.reply);
     agent.off("tool-call", listeners["tool-call"]);
+    agent.off("approval", listeners.approval);
+}
+
+/**
+ * 把挂起项逐个转成 tool_approval 段交给适配器；适配器自行决定如何渲染（@ 发起人、纯文本等）
+ */
+async function deliverApproval(ctx: Context, holds: ToolHold[]): Promise<void> {
+    for (const hold of holds) {
+        await ctx.adapter.sendMsg(ctx.space, {
+            type: "tool_approval",
+            data: {
+                id: hold.id,
+                toolName: hold.toolName,
+                requestedBy: hold.requestedBy,
+                requestedByName: hold.requestedByName,
+                reason: hold.reason,
+                summary: hold.summary,
+            },
+        });
+    }
 }
 
 /**

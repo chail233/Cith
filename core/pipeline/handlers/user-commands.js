@@ -3,8 +3,8 @@ import config from "../../config.js";
 import {skills, forceSkills} from "../../agent/skill.js";
 import {mcpClient} from "../../agent/mcp-manager.js";
 import {getAllTools} from "../../agent/tools.js";
-import {cancel as doCancel, list as doList} from "../../agent/tool-approval.js";
-import {confirmPending} from "../../agent/approval-runner.ts";
+import {list as doList} from "../../agent/tool-approval.js";
+import {confirmPending, rejectPending} from "../../agent/approval-runner.ts";
 import { runAgent } from "../agent-runner.ts";
 import { isPlaceholder } from "../../services/preflight.ts";
 import { getUsageSummary } from "../../services/token-usage.ts";
@@ -233,26 +233,33 @@ const cmds = [
     {
         name: "do-yes",
         needsAdmin: true,
-        description: "确认执行待确认的危险操作（管理员）",
-        params: [{ name: "id", desc: "待确认操作编号" }],
+        description: "确认执行待确认的危险操作（管理员，可带多个编号）",
+        params: [{ name: "id", desc: "待确认操作编号，多个用空格分隔" }],
         handler: async (args, ctx) => {
-            if (!args[0]) return "用法：#do-yes <id>";
-            const result = await confirmPending(args[0], ctx);
-            if (!result.ok) return result.text;
-            runAgent(ctx).catch(err => {
-                logger.error("AI 回复失败:", err);
-            });
-            return null;
+            if (args.length === 0) return "用法：#do-yes <id> [id...]";
+            // 逐个串行执行：命令可能耗时，并发容易互相干扰
+            const outcomes = [];
+            for (const id of args) {
+                outcomes.push(await confirmPending(id, ctx));
+            }
+            if (outcomes.some(o => o.ok)) {
+                runAgent(ctx).catch(err => {
+                    logger.error("AI 回复失败:", err);
+                });
+            }
+            // 全部成功不回执：结果已注入上下文，交给模型回应；有失败才把清单报给管理员
+            return outcomes.every(o => o.ok) ? null : outcomes.map(o => o.text).join("\n");
         }
     },
     {
         name: "do-no",
         needsAdmin: true,
-        description: "取消待确认的危险操作（管理员）",
-        params: [{ name: "id", desc: "待确认操作编号" }],
+        description: "拒绝待确认的危险操作（管理员，可带多个编号）",
+        params: [{ name: "id", desc: "待确认操作编号，多个用空格分隔" }],
         handler: async (args, ctx) => {
-            if (!args[0]) return "用法：#do-no <id>";
-            return doCancel(args[0]);
+            if (args.length === 0) return "用法：#do-no <id> [id...]";
+            // 拒绝会写回发起会话的上下文，让模型知道这次调用已有结论、不要重复发起
+            return args.map(id => rejectPending(id, ctx).text).join("\n");
         }
     },
     {

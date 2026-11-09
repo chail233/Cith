@@ -9,7 +9,7 @@ import config from "../config.js";
 import logger from "../utils/logger.js";
 import type { ChatRecorder } from "./recorder.js";
 import type { Context, MessageSegment } from "../types/index.ts";
-import type { AgentRunOutcome, LlmResult, Plan, PlanStatus, RawTodo, ReplyPayload, ToolCall, ToolExecution } from "./types.ts";
+import type { AgentRunOutcome, HeldOutcome, LlmResult, Plan, PlanStatus, RawTodo, ReplyPayload, ToolCall, ToolExecution, ToolHold } from "./types.ts";
 
 /** 传给工具层的上下文：管道上下文 + 发起本次调用的 Agent（工具据此访问记忆与会话 ID） */
 export type AgentToolContext = Context & { agent: Agent };
@@ -94,6 +94,10 @@ export default class Agent extends EventEmitter {
                 this.deliver([{ type: "text", data: { text: `ERROR:${outcome}` } }], 0);
                 return;
             }
+            if (isHeldOutcome(outcome)) {
+                this.broadcast("approval", outcome.held);
+                return;
+            }
             this.deliver(outcome.acts, outcome.tokens);
         }
         finally {
@@ -107,7 +111,7 @@ export default class Agent extends EventEmitter {
      * Agent 主循环：请求 → 执行工具 → 回填痕迹 → 再请求，直到拿到可直接发送的回复
      * @returns 成功时为本轮产出；请求失败时为错误文本
      */
-    private async runLoop(ctx: Context): Promise<AgentRunOutcome | string> {
+    private async runLoop(ctx: Context): Promise<AgentRunOutcome | HeldOutcome | string> {
         const toolCtx: AgentToolContext = { ...ctx, agent: this };
         /** 本轮累计消耗 */
         let tokens = 0;
@@ -141,9 +145,10 @@ export default class Agent extends EventEmitter {
                 return this.converge(result, tokens);
             }
 
-            // 3. 执行工具：并行调用，按原顺序回填痕迹
+            // 3. 执行工具：并行调用，按原顺序回填痕迹；有挂起则立即停住循环
             toolDepth++;
-            await this.runTools(result.message.tool_calls, toolCtx);
+            const holds = await this.runTools(result.message.tool_calls, toolCtx);
+            if (holds.length > 0) return { held: holds };
         }
     }
 
@@ -178,13 +183,21 @@ export default class Agent extends EventEmitter {
 
     /**
      * 执行同一轮的多个工具调用：并行执行，并按 tool_calls 原顺序回填痕迹、广播结果
+     * @returns 被门禁挂起的调用；非空时调用方必须中断本轮
      */
-    private async runTools(toolCalls: ToolCall[], toolCtx: AgentToolContext): Promise<void> {
+    private async runTools(toolCalls: ToolCall[], toolCtx: AgentToolContext): Promise<ToolHold[]> {
         const executions = await Promise.all(toolCalls.map((toolCall) => this.runTool(toolCall, toolCtx)));
+        const holds: ToolHold[] = [];
         for (const { toolCall, name, args, output } of executions) {
+            // 挂起调用既不记录也不广播：模型不该知道它悬而未决，确认后的结果由确认链注入上下文
+            if (isToolHold(output)) {
+                holds.push(output);
+                continue;
+            }
             this.recordToolCall(name, JSON.stringify(args ?? toolCall.function.arguments), output);
             this.broadcast("tool-result", { name, args, result: output });
         }
+        return holds;
     }
 
     /**
@@ -213,6 +226,17 @@ export default class Agent extends EventEmitter {
         logger.info("调用工具:", toolName, " 参数：", argsText, " 结果：", result);
     }
 
+    /**
+     * 记录一次被拒绝的工具调用
+     * 让模型知道该操作已有结论且未运行，避免反复发起同一操作
+     */
+    recordToolDenial(toolName: string, argsText: string, byName: string): void {
+        const who = byName.trim() || "管理员";
+        const text = `工具 ${toolName} 的调用被${who}拒绝执行，参数：${argsText}，操作未运行。不要重复发起同一操作，除非用户明确要求。`;
+        this.memory.add({ role: "system", content: { text } });
+        logger.info("工具调用被拒绝:", toolName, " 参数：", argsText);
+    }
+
     /** 安全广播：监听器异常不得反噬 Agent 主循环 */
     private broadcast(event: string, payload: unknown): void {
         try {
@@ -237,6 +261,16 @@ export default class Agent extends EventEmitter {
 /** 统一提取异常信息文本 */
 function errorMessage(err: unknown): string {
     return err instanceof Error ? err.message : String(err);
+}
+
+/** 守卫：工具调用结果是否为门禁挂起 */
+function isToolHold(value: unknown): value is ToolHold {
+    return typeof value === "object" && value !== null && (value as { held?: unknown }).held === true;
+}
+
+/** 守卫：主循环是否因门禁挂起而中止 */
+function isHeldOutcome(value: AgentRunOutcome | HeldOutcome): value is HeldOutcome {
+    return Array.isArray((value as HeldOutcome).held);
 }
 
 /** 判断任意值是否为合法状态（类型守卫，替代断言） */

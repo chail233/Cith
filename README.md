@@ -180,7 +180,7 @@ AI 可自主判断并调用以下工具：
 | `schedule` | 给自己设定时任务，到点自动苏醒 |
 | `list_stickers` | 获取完整表情包列表（文件路径 + 画面描述），AI 挑选后以 image 段发送 |
 
-**命令安全门禁**：`run_shell` 非管理员任何模式都经小模型审查；管理员仅 `guard` 模式（默认）审查、`open` 模式直通。审查为无状态三分类（`allow` 放行，`deny` / `unsure` / 未配置 `guardModel` / 调用失败一律挂起，生成编号 `#xxxx`，管理员 `#do-yes` / `#do-no` 处置，10 分钟超时作废）。
+**命令安全门禁**：`run_shell` 非管理员任何模式都经小模型审查；管理员仅 `guard` 模式（默认）审查、`open` 模式直通。审查为无状态三分类（`allow` 放行，`deny` / `unsure` / 未配置 `guardModel` / 调用失败一律挂起，生成编号 `#xxxx`，管理员 `#do-yes` / `#do-no` 处置，10 分钟超时作废）。挂起时 Agent 循环当场中止、挂起信息不回给模型，由代码通过只对 Adapter 可见的 `tool_approval` 消息段直接发消息请求确认（QQ 群里会 @ 发起人），确认后的执行结果再注入对话上下文；拒绝则把「未执行」写回上下文，让模型停止重试。
 
 ### Skill 技能系统
 
@@ -297,7 +297,7 @@ bot/adapters/*（BaseAdapter 子类）—— Adapter 处理对外的动作
 
 ```
 用户消息触发对话（pipeline/agent-runner.ts：runAgent）
-    │  临时挂上 reply / tool-call 事件监听 → run → 分发链落定后摘监听
+    │  临时挂上 reply / tool-call / approval 事件监听 → run → 分发链落定后摘监听
     ▼
 Agent.run()（core/agent/Agent.ts，每会话一实例，AgentManager 池管理）
     │  开工前：重新扫描 skills 目录
@@ -307,6 +307,8 @@ Agent.run()（core/agent/Agent.ts，每会话一实例，AgentManager 池管理�
     ▼
 调用 LLM（携带全部工具定义）
     ├─ 无工具调用 → 解析 JSON 回复 → 广播 "reply" 事件 → 写入会话记忆
+    ├─ 工具被门禁挂起 → 中断本轮（挂起信息不给模型）→ 广播 "approval" 事件
+    │   └─ agent-runner 把 tool_approval 段交给适配器发出确认询问
     └─ 有工具调用 → 并行执行 → 结果回填记忆 → 再次请求（最多 30 轮）
         ├─ 本地工具 → 路径穿越防护 + 白名单门禁
         └─ MCP 工具 → 路由到对应 MCP Server
@@ -332,7 +334,7 @@ Agent 不持有任何聊天通道，所有输出以事件广播——换协议�
 | `#tokens [天数]` | 管理员 | Token 用量与花销（默认近 7 天，含未计价模型提示） |
 | `#ms <模型>` | 管理员 | 切换聊天模型 |
 | `#pchat <bool>` / `#toolout <bool>` | 管理员 | 开关主动聊天 / 工具调用播报 |
-| `#do-yes <id>` / `#do-no <id>` / `#do-pending` | 管理员 | 确认 / 取消 / 列出待确认操作 |
+| `#do-yes <id...>` / `#do-no <id...>` / `#do-pending` | 管理员 | 确认 / 拒绝（可一次多个编号）/ 列出待确认操作；拒绝会写回对话上下文 |
 | `#bind` / `#unbind` / `#bindlist` | 管理员 | 把当前会话加入 / 移出白名单、查看白名单（`#bind` 在未授权会话中同样可用） |
 
 ---

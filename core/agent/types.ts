@@ -47,12 +47,40 @@ export interface ReplyPayload {
 /** 一轮 Agent 主循环的产出：最终要发送的消息段 + 本轮累计 tokens */
 export type AgentRunOutcome = ReplyPayload;
 
+/**
+ * 门禁挂起的工具调用
+ */
+export interface ToolHold {
+    /** 标记位，用于与正常文本输出区分 */
+    held: true;
+    /** 待确认操作编号 */
+    id: string;
+    /** 被挂起的工具名 */
+    toolName: string;
+    /** 挂起原因（guard 判定 / 未配置 guard 模型等） */
+    reason: string;
+    /** 被挂起的调用参数摘要（已截断） */
+    summary: string;
+    /** 发起人 ID */
+    requestedBy: string;
+    /** 发起人昵称 */
+    requestedByName: string;
+}
+
+/** 单个工具的调用结果：正常为文本输出，被门禁拦截时为挂起信息 */
+export type ToolCallResult = string | ToolHold;
+
+/** 本轮主循环因门禁挂起而中止，等待管理员确认 */
+export interface HeldOutcome {
+    held: ToolHold[];
+}
+
 /** 单次工具调用的执行记录；args 为 null 表示参数解析失败 */
 export interface ToolExecution {
     toolCall: ToolCall;
     name: string;
     args: Record<string, unknown> | null;
-    output: string;
+    output: ToolCallResult;
 }
 
 /** 挂起等待管理员确认的危险工具操作 */
