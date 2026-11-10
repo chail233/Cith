@@ -177,13 +177,14 @@ class OnebotServer extends BaseServer<OneBotEvent> {
 
                 case "at": {
                     const id = String(d.qq ?? "");
-                    // NapCat 只部分场景给昵称，@全体成员时用固定文案
-                    const name = d.name ? String(d.name) : (id === "all" ? "全体成员" : "");
+                    const isSelf = id === String(config.selfId ?? "");
+                    // NapCat 只部分场景给昵称；@自己固定叫"我"，@全体成员用固定文案
+                    const name = isSelf ? "我" : d.name ? String(d.name) : (id === "all" ? "全体成员" : "");
                     return {
                         type: "mention",
                         data: {
                             id,
-                            isSelf: id === String(config.selfId ?? ""),
+                            isSelf,
                             ...(name === "" ? {} : { name }),
                         },
                     };
