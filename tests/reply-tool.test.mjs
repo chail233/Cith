@@ -32,7 +32,7 @@ test("OneBot 与微信的能力集各自独立", () => {
     const onebot = new OnebotAdapter(noop, { send() {} });
     const wechat = new WechatBotAdapter(noop, {});
 
-    assert.deepEqual(segmentTypes(onebot.replyTool()), ["text", "image", "file", "mention", "reply"]);
+    assert.deepEqual(segmentTypes(onebot.replyTool()), ["text", "image", "file", "voice", "mention", "reply"]);
     // 微信协议发不了 @ 和引用，模型侧根本看不到这两个段
     assert.deepEqual(segmentTypes(wechat.replyTool()), ["text", "image", "file"]);
     assert.equal(onebot.replyTool().definition.function.name, REPLY_TOOL_NAME);

@@ -40,6 +40,21 @@ export function fileCap(): ReplySegmentCap {
     };
 }
 
+export function voiceCap(): ReplySegmentCap {
+    return {
+        type: "voice",
+        description: "发送一条语音：media 指向本地音频文件或网络链接，建议 mp3",
+        data: {
+            type: "object",
+            properties: {
+                media: mediaProperties(),
+            },
+            required: ["media"],
+            additionalProperties: false,
+        },
+    };
+}
+
 /** media 字段的 JSON Schema */
 function mediaProperties(): Record<string, unknown> {
     return {

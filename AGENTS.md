@@ -23,7 +23,7 @@
 | `bash update.sh` | 拉取更新 + 按需装依赖 + 编译（`--web` / `--stash` / `--force`；不会重启服务） |
 
 - **没有 linter**，没有根级 `typecheck` 脚本。`tsconfig.json` 是 IDE 类型检查基准（strict + noEmit）；如需 CLI 检查手动跑 `node node_modules/typescript/lib/tsc.js -p tsconfig.json`。
-- **测试现状（写作时）**：6 个测试文件、36 个用例，33 过 3 失败 —— `config-store.test.mjs` 整体失败（import 的 `core/config/store.ts`/`schema.ts` 尚不存在，是先行于配置重构的测试）；`thresholds.test.mjs` 有 2 个断言失败。修复前先弄清失败是"测试先行"还是"真实回归"，不要盲目改代码凑绿。
+- **测试现状（写作时）**：7 个测试文件、42 个用例，39 过 3 失败 —— `config-store.test.mjs` 整体失败（import 的 `core/config/store.ts`/`schema.ts` 尚不存在，是先行于配置重构的测试）；`thresholds.test.mjs` 有 2 个断言失败。修复前先弄清失败是“测试先行”还是“真实回归”，不要盲目改代码凑绿。
 - 需要连接 NapCat（反向 WS，默认 `ws://127.0.0.1:8080/onebot/v11/ws`）才能真正收发消息；无 NapCat 时可只验证启动自检与面板 API。
 
 ## 配置系统
@@ -47,7 +47,7 @@
 
 ```
 NapCat(反向WS) / 微信(长轮询)
-  → bot/servers/*（BaseServer 子类）                    连接生命周期；toSegments 收到消息时归一化为统一段（图片就地落地写 media.localPath），toEventMeta 出会话/发送者元信息，dispatch 统一装配 CtxEvent
+  → bot/servers/*（BaseServer 子类）                    连接生命周期；toSegments 收到消息时归一化为统一段（图片就地落地写 media.localPath，语音转码落 mp3 + 附 QQ 原生转写），toEventMeta 出会话/发送者元信息，dispatch 统一装配 CtxEvent
   → pipeline/context.ts buildContext                   构建 ctx + 目标过滤
   → pipeline/index.js                                  处理器
   ← bot/adapters/*（BaseAdapter 子类）                 对外动作：仅 sendMsg() 发送
@@ -57,12 +57,13 @@ NapCat(反向WS) / 微信(长轮询)
 - 目标过滤：`targetGroupId` / `targetUserId` 均为**数组白名单**，空数组视为全放行；未授权会话中管理员发 `#bind` 可放行（bootstrap）。
 - 处理器（**首个返回 true 即停止**）：`user-commands`（`#` 命令真表）→ `ai-chat` → `proactive-chat`。加新行为 = 插入处理器，不改管道循环。
 - 图片是**懒识别**：消息里的图片段只带 `media.localPath` 进上下文，不自动调视觉模型；模型需要看图时用 `recognize_image` 工具按需识别（工具内做魔数校验，仅 jpg/png/webp）。
+- 语音是**收到即处理**：`record` 段并行调 NapCat 的两个 action 后归一化为 `voice` 段——`get_record`（`out_format` 必填，默认 `mp3`）取音频、优先用返回的 `base64` 写进 `core/data/voices/`（NapCat 跑在容器/另一台机时它的本机路径读不到），`fetch_ptt_text` 取 QQ 客户端自带的转写文本放在 `data.text`。两者任一失败只降级，段本身照进上下文；转写会拖慢 `toSegments` 1~3 秒。
 
 ### Agent 循环（`agent/Agent.ts`）
 
 `Agent` 是 EventEmitter，每会话一实例，由 `AgentManager` 池管理（空闲 30 分钟回收、上限 50）。**Agent 只"想"不"说"**：只广播 `reply` / `tool-call` / `tool-result` / `approval` 等事件，`pipeline/agent-runner.ts` 订阅后经适配器按拟人节奏发送。同一会话同时只允许一个模型请求。
 
-每轮流程：`contextBuilder.ts` 组装上下文（系统提示 + 强加载技能正文 + 技能/MCP 列表 + 记忆概要 + 历史 + 尾部易变项：活跃计划/唤醒说明）→ 带全量工具定义调 LLM → 同轮多个工具调用**并行执行** → 结果以 `role:"system"` 消息回填 → 再请求。最多 `toolChainMaxLength`（30）轮；达到上限后补发一次**只带发言工具**的请求强制收敛。**发言是工具调用，不是文本格式**：每轮工具表首位是由适配器能力集生成的 `send_message`（`bot/adapters/reply-tool.ts`），词表由适配器声明（OneBot 为 text / image / file / mention / reply，微信没有后两个；表情包不设独立段：`list_stickers` 工具返回画面描述+文件路径，模型挑好直接走 image 段），与接收方向统一段同构。发言调用成功即交付消息（若本轮还有其它工具，则当场发出后继续循环，直到只剩发言或没有工具）；传空数组表示**本轮不发言**；模型不调用任何工具也算不发言（没有纯文本兜底通道，旧 `replyParser.ts` 已删除）。agent-runner 按段顺序逐个发送，reply/mention 攒到下一个内容段合并为一条（OneBot 语义）；平台不支持的段类型由 Adapter 自行跳过（微信不支持 mention/reply），字段翻译与纠错（如本地路径被填进 `uri`）也在适配器侧由 `utils/segment-media.ts` 完成。
+每轮流程：`contextBuilder.ts` 组装上下文（系统提示 + 强加载技能正文 + 技能/MCP 列表 + 记忆概要 + 历史 + 尾部易变项：活跃计划/唤醒说明）→ 带全量工具定义调 LLM → 同轮多个工具调用**并行执行** → 结果以 `role:"system"` 消息回填 → 再请求。最多 `toolChainMaxLength`（30）轮；达到上限后补发一次**只带发言工具**的请求强制收敛。**发言是工具调用，不是文本格式**：每轮工具表首位是由适配器能力集生成的 `send_message`（`bot/adapters/reply-tool.ts`），词表由适配器声明（OneBot 为 text / image / file / voice / mention / reply，微信没有 voice / mention / reply；表情包不设独立段：`list_stickers` 工具返回画面描述+文件路径，模型挑好直接走 image 段），与接收方向统一段同构。发言调用成功即交付消息（若本轮还有其它工具，则当场发出后继续循环，直到只剩发言或没有工具）；传空数组表示**本轮不发言**；模型不调用任何工具也算不发言（没有纯文本兜底通道，旧 `replyParser.ts` 已删除）。agent-runner 按段顺序逐个发送，reply/mention 攒到下一个内容段合并为一条（OneBot 语义）；平台不支持的段类型由 Adapter 自行跳过（微信不支持 mention/reply），字段翻译与纠错（如本地路径被填进 `uri`）也在适配器侧由 `utils/segment-media.ts` 完成。
 
 技能目录在**每次 `Agent.run()` 开头重扫**，没有 `#reloadskls` 命令。计划状态在 `agent/plan.ts` 的 `PlanBoard`（Agent 只持有引用，`#plan` 命令与 `contextBuilder` 共用同一份存储与渲染逻辑）。
 
@@ -114,6 +115,6 @@ NapCat(反向WS) / 微信(长轮询)
 
 ## 仓库注意
 
-- gitignored 的本地路径：`core/config.json`、`core/app.pem`、`mcp/`（本地 MCP server，如 `mcp/github-server`）、`core/data/rememori/`（长期记忆）、`core/data/images/`（微信图片落地缓存）、`core/data/wechatbot*/`（微信登录凭证）、`core/stickers/manifest.dev.json`、`core/prompts/*.bak`、`web/.env`、`dist/`。sticker manifest 有 `manifest.example.json` 模板。
+- gitignored 的本地路径：`core/config.json`、`core/app.pem`、`mcp/`（本地 MCP server，如 `mcp/github-server`）、`core/data/rememori/`（长期记忆）、`core/data/images/`（微信图片落地缓存）、`core/data/voices/`（QQ 语音转码落地）、`core/data/wechatbot*/`（微信登录凭证）、`core/stickers/manifest.dev.json`、`core/prompts/*.bak`、`web/.env`、`dist/`。sticker manifest 有 `manifest.example.json` 模板。
 - 表情包素材：`core/stickers/`（manifest + images/），根目录 `homura/`、`imgs/` 是未跟踪的原始素材，等待 `npm run add-stickers` 处理。
 - `docs/` 只收录了 rememori 库的中文文档（原理与用法）。

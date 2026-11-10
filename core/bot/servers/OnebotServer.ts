@@ -1,17 +1,22 @@
 import { WebSocketServer } from "ws";
 import type { IncomingMessage } from "node:http";
 import crypto from "node:crypto";
+import { existsSync } from "node:fs";
 import config from "../../config.js";
 import logger from "../../utils/logger.js";
 import BaseServer from "./BaseServer.ts";
 import type { PlatformEventMeta } from "./BaseServer.ts";
 import OnebotAdapter from "../adapters/OnebotAdapter.ts";
-import { getImage } from "../../services/napcat.js";
+import { fetchPttText, getImage, getRecord } from "../../services/napcat.js";
+import { saveMediaFile } from "../../utils/media-store.ts";
 import { runtimeState } from "../../api/runtime-state.ts";
 import { registerAdapter, unregisterAdapter } from "../../services/adapter-registry.js";
 import { isPlaceholder } from "../../services/preflight.ts";
 import type { CtxEvent, MessageSegment } from "../../types/index.ts";
 import type { MediaRef } from "../../types/segment.ts";
+
+/** 入站语音落地目录（相对于 core/） */
+const VOICE_DIR = "data/voices";
 
 interface OneBotSegment {
     type?: string;
@@ -49,6 +54,36 @@ function tokenMatches(candidate: string): boolean {
     const given = crypto.createHash("sha256").update(candidate).digest();
     const expect = crypto.createHash("sha256").update(expectedToken).digest();
     return crypto.timingSafeEqual(given, expect);
+}
+
+/**
+ * 语音落地：get_record 会给出转码后的 base64 与本机路径
+ * 优先用 base64 写进 core/data/voices/（NapCat 与本进程不同机或跑在容器里时，它的本机路径读不到）；
+ * 拿不到 base64 才退回直接引用那个本机路径
+ * @returns 落地/可读的绝对路径；两者都不可用时为 undefined
+ */
+async function saveVoiceFile(base64: unknown, napcatPath: unknown): Promise<string | undefined> {
+    if (typeof base64 === "string" && base64 !== "") {
+        try {
+            const buf = Buffer.from(base64, "base64");
+            const localPath = await saveMediaFile(VOICE_DIR, buf, "voice", "mp3");
+            logger.info(`语音已落地: ${localPath} (${buf.length} 字节)`);
+            return localPath;
+        }
+        catch (err) {
+            logger.error("语音落地失败:", err);
+        }
+    }
+    if (typeof napcatPath === "string" && napcatPath !== "" && existsSync(napcatPath)) {
+        return napcatPath;
+    }
+    return undefined;
+}
+
+/** OneBot 发来的语音段时长（秒）；字段缺失或非正数时返回 undefined */
+function voiceDuration(raw: unknown): number | undefined {
+    const seconds = Number(raw);
+    return Number.isFinite(seconds) && seconds > 0 ? seconds : undefined;
 }
 
 /** OneBot 接入服务器：持有反向 WS 服务，连接建立时绑定发送适配器 */
@@ -173,6 +208,27 @@ class OnebotServer extends BaseServer<OneBotEvent> {
                     return { type: "image", data: alt === "" ? { media } : { media, alt } };
                 }
 
+                case "record": {
+                    // 语音：取转码后的音频文件 + QQ 原生转写文本，两者并行，任一路失败都只降级
+                    const media: MediaRef = { uri: d.url ?? "" };
+                    const fileId = typeof d.file === "string" ? d.file : "";
+                    const [record, text] = await Promise.all([
+                        fileId === "" ? Promise.resolve(null) : getRecord(fileId, "mp3"),
+                        fetchPttText(String(event.message_id ?? "")),
+                    ]);
+                    const localPath = await saveVoiceFile(record?.data?.base64, record?.data?.file);
+                    if (localPath) media.localPath = localPath;
+                    const duration = voiceDuration(d.duration);
+                    return {
+                        type: "voice",
+                        data: {
+                            media,
+                            ...(duration === undefined ? {} : { duration }),
+                            ...(text === "" ? {} : { text }),
+                        },
+                    };
+                }
+
                 case "reply":
                     return { type: "reply", data: { id: String(d.id ?? "") } };
 
@@ -214,6 +270,8 @@ class OnebotServer extends BaseServer<OneBotEvent> {
         };
     }
 }
+
+export { OnebotServer };
 
 export function startOneBotServer(pipeline: (ctxEvent: CtxEvent) => Promise<void>): WebSocketServer {
     return new OnebotServer(pipeline).start();

@@ -1,13 +1,11 @@
 import {WeChatBot} from "@wechatbot/wechatbot";
 import type { IncomingMessage, Logger } from "@wechatbot/wechatbot";
-import { randomBytes } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import config from "../../config.js";
 import logger from "../../utils/logger.js";
-import { resolveSrcPath } from "../../utils/file-security.js";
+import { saveMediaFile } from "../../utils/media-store.ts";
 import type { CtxEvent, MessageSegment } from "../../types/index.ts";
 import BaseServer from "./BaseServer.ts";
 import type { PlatformEventMeta } from "./BaseServer.ts";
@@ -20,16 +18,8 @@ const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../.."
 /** 微信图片落地目录（相对于 core/，与 rememori 同级） */
 const WECHAT_IMAGE_DIR = "data/images";
 
-async function saveImageFile(buf: Buffer): Promise<string> {
-    const resolved = resolveSrcPath(WECHAT_IMAGE_DIR);
-    if (resolved.error || !resolved.fullPath) {
-        throw new Error(`图片目录路径非法: ${resolved.error ?? WECHAT_IMAGE_DIR}`);
-    }
-    await mkdir(resolved.fullPath, { recursive: true });
-    const fileName = `wechat-${Date.now()}-${randomBytes(4).toString("hex")}.img`;
-    const fullPath = join(resolved.fullPath, fileName);
-    await writeFile(fullPath, buf);
-    return fullPath;
+function saveImageFile(buf: Buffer): Promise<string> {
+    return saveMediaFile(WECHAT_IMAGE_DIR, buf, "wechat", "img");
 }
 
 export function resolveWechatStorageDir(raw: unknown): string | undefined {

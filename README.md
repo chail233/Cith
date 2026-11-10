@@ -200,6 +200,7 @@ Skill 是包含 `SKILL.md` 描述文件的目录，可附带脚本供 AI 执行�
 ### 特色行为
 
 - **视觉能力**：消息里的图片只带本地路径进上下文，AI 需要看图时调用 `recognize_image` 按需识别（独立 `visionModel` / `visionApiKey` 配置），没被用上的图零调用成本。
+- **语音能力**：QQ 语音消息在收进来时就被处理——NapCat 的 `get_record` 转成 mp3 落进 `data/voices/`，`fetch_ptt_text` 拿到 QQ 客户端自带的转写文本，两部分合成一个 voice 段进上下文，AI 直接读到“谁说了什么”；转码或转写失败只降级，语音消息本身照样送到 AI 面前。发语音则是 voice 段（`media` + 可选 `magic` 变声），只有 QQ 侧支持。
 - **主动聊天**：群内累计 `proactiveChatLimit` 条无人 @ 的消息后，AI 带完整上下文被唤醒，自主判断是否参与对话；计数在第 N 条消息上触发，AI 接话（或被 @ 对话）后归零，`#pchat` 可整体开关，阈值设为 `<= 0` 等同于关闭。上一轮模型请求尚未结束时不会插队，计数保留到下一条消息再试。
 - **定时任务**：AI 可通过 `schedule` 工具"给自己设闹钟"（一次性 / 固定间隔 / 每日定点 / cron），到点触发完整 Agent 苏醒流程。任务持久化到 `data/schedule.json`，重启不丢失，停机期间错过的触发按追赶策略处理。
 - **表情包**：内置表情包库（`manifest.json` 描述每张图的画面，仓库提供 `manifest.example.json` 模板，由 `npm run add-stickers` 生成），AI 调用 `list_stickers` 拿到全量列表（文件路径 + 画面描述）后按语境选图，以 image 消息段直接发送，让回复更生动。
@@ -211,7 +212,7 @@ Skill 是包含 `SKILL.md` 描述文件的目录，可附带脚本供 AI 执行�
 | QQ | `OnebotServer`（NapCat + OneBot v11，反向 WebSocket 接入，握手 token 鉴权） | `OnebotAdapter` |
 | 微信 | `WechatBotServer`（官方 iLink Bot 协议，扫码登录，凭证持久化重启复用） | `WechatBotAdapter` |
 
-**设计模式：Server 接收并格式化信息，Adapter 处理对外的动作。** Server 继承 `BaseServer` 抽象基类：`toSegments` 把平台消息一次性转成统一消息段（图片就地下载/解析落地，写好 `media.localPath`），`toEventMeta` 产出会话与发送者元信息，基类 `dispatch` 统一装配 `CtxEvent` 推入管道。Adapter 继承 `BaseAdapter` 抽象基类，实现 `sendMsg()` 按统一消息段类型执行平台动作，并用 `replyCapabilities()` 声明本通道能发哪些段。收发两个方向都走统一消息段：每轮工具表首位是由能力集生成的 `send_message`（`bot/adapters/reply-tool.ts`），模型的发言就是一次工具调用，参数即统一消息段数组（词表 text / image / file / mention / reply，表情包即 image 段）；`agent-runner` 按段顺序逐个发送，平台不支持的段类型由 Adapter 自动跳过（如微信不支持 @ 与引用回复）。接入新平台 = 写这两个子类，管道与处理器零改动。
+**设计模式：Server 接收并格式化信息，Adapter 处理对外的动作。** Server 继承 `BaseServer` 抽象基类：`toSegments` 把平台消息一次性转成统一消息段（图片就地下载/解析落地，写好 `media.localPath`；QQ 语音就地转码落 mp3 并附上 QQ 原生转写文本），`toEventMeta` 产出会话与发送者元信息，基类 `dispatch` 统一装配 `CtxEvent` 推入管道。Adapter 继承 `BaseAdapter` 抽象基类，实现 `sendMsg()` 按统一消息段类型执行平台动作，并用 `replyCapabilities()` 声明本通道能发哪些段。收发两个方向都走统一消息段：每轮工具表首位是由能力集生成的 `send_message`（`bot/adapters/reply-tool.ts`），模型的发言就是一次工具调用，参数即统一消息段数组（词表 text / image / file / voice / mention / reply，表情包即 image 段）；`agent-runner` 按段顺序逐个发送，平台不支持的段类型由 Adapter 自动跳过（如微信不支持 @ 与引用回复）。接入新平台 = 写这两个子类，管道与处理器零改动。
 
 微信侧为协议层约束的已知限制：好友首次发消息后需把其加密 `userId` 加入 `targetUserId` 白名单（管理员直接在该私聊中发送 `#bind` 即可，无需手抄日志）；拿不到昵称/头像；文本与图片消息、仅私聊；只能回复主动发过消息的用户。
 
@@ -271,7 +272,7 @@ QQ：NapCat 发送事件                     WeChat：iLink 长轮询收到消�
     │                                       │
     ▼                                       ▼
 bot/servers/*（BaseServer 子类）—— Server 接收并格式化信息
-    │  OnebotServer：反向 WS 服务 + 鉴权；toSegments 把 OneBot 段转统一段（图片就地解析本地路径）
+    │  OnebotServer：反向 WS 服务 + 鉴权；toSegments 把 OneBot 段转统一段（图片就地解析本地路径，语音转码落 mp3 + QQ 原生转写）
     │  WechatBotServer：扫码登录 / 会话管理；toSegments 下载解密图片并落地（media.localPath）
     │  基类 dispatch：toSegments + toEventMeta → 统一装配 CtxEvent 推入管道
     └──────────────────┬────────────────────┘
@@ -280,7 +281,8 @@ bot/servers/*（BaseServer 子类）—— Server 接收并格式化信息
     │  （仅 targetGroupId / targetUserId 命中的消息继续；管理员可在未授权会话发 #bind 完成首次绑定）
     │
     │  @、图片、链接卡片等一律从统一消息段 ctx.message 取；图片只带 media.localPath 进上下文，
-    │  模型需要看图时调用 recognize_image 按需识别（管道内没有独立中间件）
+    │  模型需要看图时调用 recognize_image 按需识别（管道内没有独立中间件）；
+    │  语音则已带文字稿进上下文，模型不用额外调工具就能“听懂”
     │
     └─ 处理器（首个返回 true 即停止）
         ├─ user-commands     → # 前缀命令（#help、#plan 等）
@@ -383,7 +385,7 @@ core/
 ├── types/                      # 跨模块共用类型（Context / CtxEvent / MessageSegment / Space 等）
 ├── skills/                     # Skill 技能目录（AI 可读写，内置 skill-manager）
 ├── workspace/                  # 工作区（AI 可读写）
-└── utils/                      # logger / file-security（路径防护）/ extractText 等
+└── utils/                      # logger / file-security（路径防护）/ media-store（媒体落地）/ extractText 等
 
 scripts/copy-assets.js          # 构建后把 skills / workspace / stickers / prompts 与 config.json 同步到 dist
 web/                            # Web 管理面板（独立 npm 工程，详见 web/README.md）

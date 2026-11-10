@@ -4,7 +4,7 @@ import logger from "../../utils/logger.js";
 import { mediaBasename, normalizeMedia, resolveSendablePath } from "../../utils/segment-media.ts";
 import { renderApprovalNotice, toApprovalData } from "../../utils/approval-notice.ts";
 import { pathToFileURL } from "node:url";
-import { fileCap, imageCap, textCap } from "./reply-segment-caps.ts";
+import { fileCap, imageCap, textCap, voiceCap } from "./reply-segment-caps.ts";
 import type { ReplySegmentCap } from "./reply-tool.ts";
 
 /**
@@ -15,6 +15,7 @@ const ONEBOT_CAPS: ReplySegmentCap[] = [
     textCap(),
     imageCap(),
     fileCap(),
+    voiceCap(),
     {
         type: "mention",
         description: "@ 某人：id 取历史消息里可见的发送者 ID，填 all 表示全体成员",
@@ -109,6 +110,17 @@ export default class OnebotAdapter extends BaseAdapter{
                 }
                 const name = (message.data as { name?: string }).name;
                 return { type: "file", data: { file, name: name ?? mediaBasename(media) } };
+            }
+
+            case "voice": {
+                // OneBot record 段：file 可填 file:// 绝对路径或 http 链接
+                const media = (message.data as { media?: MediaLike }).media;
+                const file = toOnebotFile(media);
+                if (!file) {
+                    logger.warn("OnebotAdapter 发送语音缺少 uri/localPath，跳过");
+                    return null;
+                }
+                return { type: "record", data: { file } };
             }
 
             case "mention": {
