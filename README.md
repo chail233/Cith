@@ -199,8 +199,8 @@ Skill 是包含 `SKILL.md` 描述文件的目录，可附带脚本供 AI 执行�
 
 ### 特色行为
 
-- **视觉能力**：消息里的图片只带本地路径进上下文，AI 需要看图时调用 `recognize_image` 按需识别（独立 `visionModel` / `visionApiKey` 配置），没被用上的图零调用成本。
-- **语音能力**：QQ 语音消息在收进来时就被处理——NapCat 的 `get_record` 转成 mp3 落进 `data/voices/`，`fetch_ptt_text` 拿到 QQ 客户端自带的转写文本，两部分合成一个 voice 段进上下文，AI 直接读到“谁说了什么”；转码或转写失败只降级，语音消息本身照样送到 AI 面前。发语音则是 voice 段（`media` + 可选 `magic` 变声），只有 QQ 侧支持。
+- **视觉能力**：消息里的图片只带本地路径进上下文，AI 需要看图时调用 `recognize_image` 按需识别（独立 `visionModel` / `visionApiKey` 配置），没被用上的图零调用成本。送模型前会先压缩：最长边超 1568px 或体积超 1.5MB 才等比缩小、重编码（png 保透明、jpg 质量 85），小图与 webp 原样发送——手机原图不再按原尺寸计费。
+- **语音能力**：QQ 语音消息在收进来时就被处理——NapCat 的 `get_record` 转成 mp3 落进 `data/voices/`，`fetch_ptt_text` 拿到 QQ 客户端自带的转写文本，两部分合成一个 voice 段进上下文，AI 直接读到“谁说了什么”；转码或转写失败只降级，语音消息本身照样送到 AI 面前。发语音则是 voice 段（`media` 指向本地音频文件或链接），只有 QQ 侧支持。
 - **主动聊天**：群内累计 `proactiveChatLimit` 条无人 @ 的消息后，AI 带完整上下文被唤醒，自主判断是否参与对话；计数在第 N 条消息上触发，AI 接话（或被 @ 对话）后归零，`#pchat` 可整体开关，阈值设为 `<= 0` 等同于关闭。上一轮模型请求尚未结束时不会插队，计数保留到下一条消息再试。
 - **定时任务**：AI 可通过 `schedule` 工具"给自己设闹钟"（一次性 / 固定间隔 / 每日定点 / cron），到点触发完整 Agent 苏醒流程。任务持久化到 `data/schedule.json`，重启不丢失，停机期间错过的触发按追赶策略处理。
 - **表情包**：内置表情包库（`manifest.json` 描述每张图的画面，仓库提供 `manifest.example.json` 模板，由 `npm run add-stickers` 生成），AI 调用 `list_stickers` 拿到全量列表（文件路径 + 画面描述）后按语境选图，以 image 消息段直接发送，让回复更生动。
@@ -385,7 +385,7 @@ core/
 ├── types/                      # 跨模块共用类型（Context / CtxEvent / MessageSegment / Space 等）
 ├── skills/                     # Skill 技能目录（AI 可读写，内置 skill-manager）
 ├── workspace/                  # 工作区（AI 可读写）
-└── utils/                      # logger / file-security（路径防护）/ media-store（媒体落地）/ extractText 等
+└── utils/                      # logger / file-security（路径防护）/ media-store（媒体落地）/ image-compress（识图压缩）/ extractText 等
 
 scripts/copy-assets.js          # 构建后把 skills / workspace / stickers / prompts 与 config.json 同步到 dist
 web/                            # Web 管理面板（独立 npm 工程，详见 web/README.md）

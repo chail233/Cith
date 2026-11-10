@@ -1,5 +1,7 @@
 import { readFile as fsReadFile } from "node:fs/promises";
 import getImageType from "../../utils/image-type.js";
+import { compressForVision } from "../../utils/image-compress.ts";
+import logger from "../../utils/logger.js";
 import recognizeImage from "../image.js";
 import type { ToolDefinition, ToolModule } from "../types.ts";
 
@@ -29,6 +31,7 @@ export const definition: ToolDefinition = {
 /**
  * 识别图片内容
  * 安全策略：魔数校验兜底——只允许真正的 jpg/png/webp 图片进入视觉模型（gif 不支持）
+ * 成本策略：送模型前先缩图，大图不再按原尺寸计费
  */
 export async function execute(param: RecognizeImageParams): Promise<string> {
     const path = param?.path;
@@ -45,7 +48,9 @@ export async function execute(param: RecognizeImageParams): Promise<string> {
 
     try {
         const buf = await fsReadFile(path);
-        const description = await recognizeImage(buf.toString("base64"), type);
+        const image = await compressForVision(buf, type);
+        if (image.detail) logger.info(`识图前已压缩: ${image.detail}`);
+        const description = await recognizeImage(image.buf.toString("base64"), image.type);
         if (!description) return "图片识别失败";
         return description;
     }

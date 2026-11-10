@@ -23,7 +23,7 @@
 | `bash update.sh` | 拉取更新 + 按需装依赖 + 编译（`--web` / `--stash` / `--force`；不会重启服务） |
 
 - **没有 linter**，没有根级 `typecheck` 脚本。`tsconfig.json` 是 IDE 类型检查基准（strict + noEmit）；如需 CLI 检查手动跑 `node node_modules/typescript/lib/tsc.js -p tsconfig.json`。
-- **测试现状（写作时）**：7 个测试文件、42 个用例，39 过 3 失败 —— `config-store.test.mjs` 整体失败（import 的 `core/config/store.ts`/`schema.ts` 尚不存在，是先行于配置重构的测试）；`thresholds.test.mjs` 有 2 个断言失败。修复前先弄清失败是“测试先行”还是“真实回归”，不要盲目改代码凑绿。
+- **测试现状（写作时）**：8 个测试文件、46 个用例，43 过 3 失败 —— `config-store.test.mjs` 整体失败（import 的 `core/config/store.ts`/`schema.ts` 尚不存在，是先行于配置重构的测试）；`thresholds.test.mjs` 有 2 个断言失败。修复前先弄清失败是“测试先行”还是“真实回归”，不要盲目改代码凑绿。
 - 需要连接 NapCat（反向 WS，默认 `ws://127.0.0.1:8080/onebot/v11/ws`）才能真正收发消息；无 NapCat 时可只验证启动自检与面板 API。
 
 ## 配置系统
@@ -56,7 +56,7 @@ NapCat(反向WS) / 微信(长轮询)
 - `ctx` 字段：`{ adapter, messageId, message(统一消息段数组), space{from,id,channel}, senderName, userId, isAdmin, isTarget, handled }`。@、图片、链接等一律从 `ctx.message` 消息段取。
 - 目标过滤：`targetGroupId` / `targetUserId` 均为**数组白名单**，空数组视为全放行；未授权会话中管理员发 `#bind` 可放行（bootstrap）。
 - 处理器（**首个返回 true 即停止**）：`user-commands`（`#` 命令真表）→ `ai-chat` → `proactive-chat`。加新行为 = 插入处理器，不改管道循环。
-- 图片是**懒识别**：消息里的图片段只带 `media.localPath` 进上下文，不自动调视觉模型；模型需要看图时用 `recognize_image` 工具按需识别（工具内做魔数校验，仅 jpg/png/webp）。
+- 图片是**懒识别**：消息里的图片段只带 `media.localPath` 进上下文，不自动调视觉模型；模型需要看图时用 `recognize_image` 工具按需识别（工具内做魔数校验，仅 jpg/png/webp）。送模型前会先过 `utils/image-compress.ts`：最长边超 1568px 或体积超 1.5MB 才等比缩小/重编码（png 保透明、jpg quality 85），小图与 webp（jimp 不解码）原样发送，解码失败也回退原图。
 - 语音是**收到即处理**：`record` 段并行调 NapCat 的两个 action 后归一化为 `voice` 段——`get_record`（`out_format` 必填，默认 `mp3`）取音频、优先用返回的 `base64` 写进 `core/data/voices/`（NapCat 跑在容器/另一台机时它的本机路径读不到），`fetch_ptt_text` 取 QQ 客户端自带的转写文本放在 `data.text`。两者任一失败只降级，段本身照进上下文；转写会拖慢 `toSegments` 1~3 秒。
 
 ### Agent 循环（`agent/Agent.ts`）

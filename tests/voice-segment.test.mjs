@@ -120,7 +120,7 @@ test("语音：转写失败时只留段本身，duration 非法字段被丢弃",
 
 // ---------------------------------------------------------------- 发：voice → record
 
-test("发送语音：本地文件转 record 段，magic 变声", async () => {
+test("发送语音：本地文件转 record 段", async () => {
     const realFile = join(tmpdir(), `cith-voice-${Date.now()}.mp3`);
     await writeFile(realFile, "x");
     created.push(realFile);
@@ -128,14 +128,13 @@ test("发送语音：本地文件转 record 段，magic 变声", async () => {
     const sent = [];
     const adapter = new OnebotAdapter(noop, { send: (payload) => sent.push(JSON.parse(payload)) });
     await adapter.sendMsg({ from: "group", id: "10001", channel: "onebot" }, [
-        { type: "voice", data: { media: { localPath: realFile }, magic: true } },
+        { type: "voice", data: { media: { localPath: realFile } } },
     ]);
 
     assert.equal(sent.length, 1);
     const [seg] = sent[0].params.message;
     assert.equal(seg.type, "record");
     assert.match(seg.data.file, /^file:\/\//, "本地文件要转成 file:// URL");
-    assert.equal(seg.data.magic, "1");
 });
 
 test("发送语音：缺少可用媒体时整条消息跳过，不发残缺段", async () => {
