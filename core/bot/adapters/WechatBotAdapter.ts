@@ -5,12 +5,25 @@ import { mediaBasename, resolveSendablePath } from "../../utils/segment-media.ts
 import { renderApprovalNotice, toApprovalData } from "../../utils/approval-notice.ts";
 import { readFile } from "node:fs/promises";
 import {WeChatBot} from "@wechatbot/wechatbot";
+import { fileCap, imageCap, textCap } from "./reply-segment-caps.ts";
+import type { ReplySegmentCap } from "./reply-tool.ts";
+
+/**
+ * 本适配器支持的消息段能力
+ * 微信协议发不了 @ 和引用回复，所以这两个段在这里根本不存在——模型看不到就填不出来，
+ * 不靠发送时静默跳过兜底。
+ */
+const WECHAT_CAPS: ReplySegmentCap[] = [textCap(), imageCap(), fileCap()];
 
 export default class WechatBotAdapter extends BaseAdapter{
     private bot: WeChatBot;
     constructor(pipeline: (ctxEvent: CtxEvent) => Promise<void>, bot: WeChatBot) {
         super(pipeline);
         this.bot = bot;
+    }
+
+    protected replyCapabilities(): ReplySegmentCap[] {
+        return WECHAT_CAPS;
     }
 
     async sendMsg(space:Space, message: string | MessageSegment | MessageSegment[]) {

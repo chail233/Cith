@@ -4,12 +4,58 @@ import logger from "../../utils/logger.js";
 import { mediaBasename, resolveSendablePath } from "../../utils/segment-media.ts";
 import { renderApprovalNotice, toApprovalData } from "../../utils/approval-notice.ts";
 import { pathToFileURL } from "node:url";
+import { fileCap, imageCap, textCap } from "./reply-segment-caps.ts";
+import type { ReplySegmentCap } from "./reply-tool.ts";
+
+/**
+ * 本适配器支持的消息段能力
+ * 只声明 OneBot 发得出去的段
+ */
+const ONEBOT_CAPS: ReplySegmentCap[] = [
+    textCap(),
+    imageCap(),
+    fileCap(),
+    {
+        type: "mention",
+        description: "@ 某人：id 取历史消息里可见的发送者 ID，填 all 表示全体成员",
+        data: {
+            type: "object",
+            properties: { id: { type: "string", description: "被 @ 的用户 ID，或 all" } },
+            required: ["id"],
+            additionalProperties: false,
+        },
+        parse(data) {
+            const id = typeof data.id === "string" ? data.id.trim() : "";
+            if (id === "") return { error: "data.id 为空" };
+            return { segment: { type: "mention", data: { id } } };
+        },
+    },
+    {
+        type: "reply",
+        description: "引用回复一条消息；其后必须紧跟要发送的内容段",
+        data: {
+            type: "object",
+            properties: { id: { type: "string", description: "被回复消息的 messageId" } },
+            required: ["id"],
+            additionalProperties: false,
+        },
+        parse(data) {
+            const id = typeof data.id === "string" ? data.id.trim() : "";
+            if (id === "") return { error: "data.id 为空" };
+            return { segment: { type: "reply", data: { id } } };
+        },
+    },
+];
 
 export default class OnebotAdapter extends BaseAdapter{
     private ws: any;
     constructor(pipeline: (ctxEvent: CtxEvent) => Promise<void>, ws: any) {
         super(pipeline);
         this.ws = ws;
+    }
+
+    protected replyCapabilities(): ReplySegmentCap[] {
+        return ONEBOT_CAPS;
     }
 
     sendAction(actionObj: Action) {

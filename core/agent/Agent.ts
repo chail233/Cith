@@ -10,7 +10,8 @@ import config from "../config.js";
 import logger from "../utils/logger.js";
 import type { ChatRecorder } from "./recorder.js";
 import type { Context, MessageSegment } from "../types/index.ts";
-import type { AgentRunOutcome, AgentToolContext, HeldOutcome, LlmResult, ReplyPayload, ToolCall, ToolExecution, ToolHold } from "./types.ts";
+import type { AgentRunOutcome, AgentToolContext, HeldOutcome, LlmResult, ReplyPayload, ToolCall, ToolContext, ToolDefinition, ToolExecution, ToolHold } from "./types.ts";
+import type { ReplyTool, ReplyToolResult } from "../bot/adapters/reply-tool.ts";
 
 /**
  * 输出无法解析时追加给模型的格式纠正提示
@@ -91,6 +92,8 @@ export default class Agent extends EventEmitter {
      */
     private async runLoop(ctx: Context): Promise<AgentRunOutcome | HeldOutcome | string> {
         const toolCtx: AgentToolContext = { ...ctx, agent: this };
+        /** 当前通道的发言工具：每轮向适配器现取，Agent 不缓存也不解析它的参数结构 */
+        const replyTool = resolveReplyTool(ctx.adapter);
         /** 本轮累计消耗 */
         let tokens = 0;
         /** 已执行的工具轮数 */
@@ -103,13 +106,15 @@ export default class Agent extends EventEmitter {
         while (true) {
             // 工作阈值守护：请求前守体积，工具痕迹累积超预算时折叠最旧的部分，避免长工具链把上下文撑爆
             this.memory.compactIfNeeded(config.contextBudgetTokens);
-            const result = await this.ask(hint);
+            const result = await this.ask(hint, this.availableTools(replyTool));
             hint = [];
             if (typeof result === "string") return result;
             tokens += result.totalTokens;
 
-            // 1. 无工具调用 → 最终回复；解析失败时追加一句格式提示重试一次
-            if (!result.message.tool_calls) {
+            const calls = result.message.tool_calls ?? [];
+
+            // 1. 没有任何工具调用 → 旧文本通道（裸 JSON）；解析失败时追加一句格式提示重试一次
+            if (calls.length === 0) {
                 const parsed = parseReplyResult(result.message.content);
                 if (parsed.ok || formatRetried) return { acts: parsed.segments, tokens };
                 formatRetried = true;
@@ -118,48 +123,92 @@ export default class Agent extends EventEmitter {
                 continue;
             }
 
-            // 2. 工具链达到上限 → 强制收敛：不带工具再问一次，逼模型直接作答，避免空回复把整轮吞掉
+            // 2. 工具链达到上限 → 强制收敛：只留发言工具再问一次，逼模型直接作答
             if (toolDepth >= config.toolChainMaxLength) {
-                return this.converge(result, tokens);
+                return this.converge(result, tokens, replyTool, toolCtx);
             }
 
-            // 3. 执行工具：并行调用，按原顺序回填痕迹；有挂起则立即停住循环
             toolDepth++;
-            const holds = await this.runTools(result.message.tool_calls, toolCtx);
-            if (holds.length > 0) return { held: holds };
+
+            // 3. 先把普通工具跑完（并行执行），有门禁挂起则立即中断本轮
+            const replyCalls = pickReplyCalls(calls, replyTool);
+            const otherCalls = replyCalls.length > 0 ? calls.filter((call) => !replyCalls.includes(call)) : calls;
+            if (otherCalls.length > 0) {
+                const holds = await this.runTools(otherCalls, toolCtx);
+                if (holds.length > 0) return { held: holds };
+            }
+
+            // 4. 发言：参数合法就本轮结束（不回填工具结果）；全部不合法则把错误回填给模型自修
+            if (replyTool && replyCalls.length > 0) {
+                const acts = await this.speak(replyCalls, replyTool, toolCtx);
+                if (acts.length > 0) return { acts, tokens };
+            }
         }
     }
 
     /**
      * 请求一次模型
      * @param hint 尾部临时追加的消息（如格式纠错提示），不写入会话历史
-     * @param withTools 是否携带工具定义；收敛请求传 false
+     * @param tools 本轮可用的工具定义；空数组表示不带工具请求
      * @returns 成功返回模型结果，失败返回错误文本（调用方只需判断 string）
      */
-    private async ask(hint: LlmMessage[], withTools = true): Promise<LlmResult | string> {
+    private async ask(hint: LlmMessage[], tools: ToolDefinition[]): Promise<LlmResult | string> {
         const result = await callLLM({
             model: config.chatModel,
             messages: [...buildMessages(this), ...hint],
             temperature: 0.2,
-            ...(withTools ? { tools: getAllTools() } : {}),
+            ...(tools.length > 0 && { tools }),
         });
         return result || "AI 服务无响应";
     }
 
     /**
-     * 工具链达到上限后的收敛请求：不带工具再问一次，逼模型直接作答
+     * 本轮工具表：发言工具排首位（随通道固定，利于前缀缓存），其后是本地工具与已激活 MCP 工具
+     */
+    private availableTools(replyTool: ReplyTool | null): ToolDefinition[] {
+        const tools = getAllTools();
+        return replyTool ? [replyTool.definition, ...tools] : tools;
+    }
+
+    /**
+     * 工具链达到上限后的收敛请求：只留发言工具再问一次，逼模型直接作答
      * 收敛请求本身失败时，退回用最后一次带工具的回复内容
      */
-    private async converge(fallback: LlmResult, tokens: number): Promise<AgentRunOutcome> {
-        const final = await this.ask([], false);
+    private async converge(fallback: LlmResult, tokens: number, replyTool: ReplyTool | null, toolCtx: AgentToolContext): Promise<AgentRunOutcome> {
+        const final = await this.ask([], replyTool ? [replyTool.definition] : []);
         if (typeof final === "string") {
             logger.warn("收敛请求失败，退回最后一次回复:", final);
             return { acts: parseReplyResult(fallback.message.content).segments, tokens };
         }
-        return { acts: parseReplyResult(final.message.content).segments, tokens: tokens + final.totalTokens };
+        const totalTokens = tokens + final.totalTokens;
+        const replyCalls = pickReplyCalls(final.message.tool_calls ?? [], replyTool);
+        if (replyTool && replyCalls.length > 0) {
+            const acts = await this.speak(replyCalls, replyTool, toolCtx);
+            if (acts.length > 0) return { acts, tokens: totalTokens };
+        }
+        return { acts: parseReplyResult(final.message.content).segments, tokens: totalTokens };
     }
 
     // ---------------------------------------------------------------- 工具执行
+
+    /**
+     * 执行发言工具调用：按调用顺序规范化消息段
+     * 成功的发言不写工具痕迹，否则模型下一轮会看到自己说过的话再重复一遍；
+     * 规范化失败则把原因回填给模型自修
+     * @returns 待发送消息段；空数组表示本轮没有可发内容（错误已回填）
+     */
+    private async speak(calls: ToolCall[], replyTool: ReplyTool, toolCtx: AgentToolContext): Promise<MessageSegment[]> {
+        const acts: MessageSegment[] = [];
+        for (const call of calls) {
+            const output = await runReplyCall(replyTool, call, toolCtx);
+            if (typeof output === "string") {
+                this.recordToolCall(call.function.name, call.function.arguments, output);
+                continue;
+            }
+            acts.push(...output.acts);
+        }
+        return acts;
+    }
 
     /**
      * 执行同一轮的多个工具调用：并行执行，并按 tool_calls 原顺序回填痕迹、广播结果
@@ -255,4 +304,40 @@ function isToolHold(value: unknown): value is ToolHold {
 /** 守卫：主循环是否因门禁挂起而中止 */
 function isHeldOutcome(value: AgentRunOutcome | HeldOutcome): value is HeldOutcome {
     return Array.isArray((value as HeldOutcome).held);
+}
+
+/** 从适配器取发言工具；没有适配器（如测试替身）时返回 null，退回旧文本通道 */
+function resolveReplyTool(adapter: Context["adapter"] | undefined): ReplyTool | null {
+    if (!adapter) return null;
+    try {
+        return adapter.replyTool();
+    }
+    catch (err) {
+        logger.error("适配器生成发言工具失败，本轮退回文本通道:", err);
+        return null;
+    }
+}
+
+/** 挑出本轮工具调用里哪些是发言调用 */
+function pickReplyCalls(calls: ToolCall[], replyTool: ReplyTool | null): ToolCall[] {
+    if (!replyTool) return [];
+    const name = replyTool.definition.function.name;
+    return calls.filter((call) => call.function.name === name);
+}
+
+/** 单次发言调用：参数解析与执行异常统一转成错误文本，不抛断整轮 */
+async function runReplyCall(replyTool: ReplyTool, call: ToolCall, ctx: ToolContext): Promise<ReplyToolResult> {
+    let param: unknown;
+    try {
+        param = JSON.parse(call.function.arguments);
+    }
+    catch {
+        return "参数不是合法 JSON，请按工具定义重新填写 segments";
+    }
+    try {
+        return await replyTool.execute(param, ctx);
+    }
+    catch (err) {
+        return `发言工具执行失败：${errorMessage(err)}`;
+    }
 }
