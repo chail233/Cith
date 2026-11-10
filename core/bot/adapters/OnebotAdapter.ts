@@ -1,7 +1,7 @@
 import BaseAdapter from "./BaseAdapter.ts";
 import type { CtxEvent, MessageSegment, Space } from "../../types/index.ts";
 import logger from "../../utils/logger.js";
-import { mediaBasename, resolveSendablePath } from "../../utils/segment-media.ts";
+import { mediaBasename, normalizeMedia, resolveSendablePath } from "../../utils/segment-media.ts";
 import { renderApprovalNotice, toApprovalData } from "../../utils/approval-notice.ts";
 import { pathToFileURL } from "node:url";
 import { fileCap, imageCap, textCap } from "./reply-segment-caps.ts";
@@ -24,11 +24,6 @@ const ONEBOT_CAPS: ReplySegmentCap[] = [
             required: ["id"],
             additionalProperties: false,
         },
-        parse(data) {
-            const id = typeof data.id === "string" ? data.id.trim() : "";
-            if (id === "") return { error: "data.id 为空" };
-            return { segment: { type: "mention", data: { id } } };
-        },
     },
     {
         type: "reply",
@@ -38,11 +33,6 @@ const ONEBOT_CAPS: ReplySegmentCap[] = [
             properties: { id: { type: "string", description: "被回复消息的 messageId" } },
             required: ["id"],
             additionalProperties: false,
-        },
-        parse(data) {
-            const id = typeof data.id === "string" ? data.id.trim() : "";
-            if (id === "") return { error: "data.id 为空" };
-            return { segment: { type: "reply", data: { id } } };
         },
     },
 ];
@@ -162,10 +152,11 @@ interface MediaLike {
 
 /** 媒体引用 → OneBot file 字段值：本地路径转绝对路径后转 file:// URL，http(s) 链接直传 */
 function toOnebotFile(media: MediaLike | undefined | null): string | null {
-    if (media?.localPath) {
-        const localPath = resolveSendablePath(media.localPath);
-        return localPath ? pathToFileURL(localPath).href : null;
+    const { localPath, uri } = normalizeMedia(media);
+    if (localPath) {
+        const resolved = resolveSendablePath(localPath);
+        return resolved ? pathToFileURL(resolved).href : null;
     }
-    if (media?.uri && /^https?:\/\//.test(media.uri)) return media.uri;
+    if (uri) return uri;
     return null;
 }

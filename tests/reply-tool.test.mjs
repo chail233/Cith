@@ -50,7 +50,26 @@ test("发言工具部分段不合法时照发合法段", async () => {
     assert.deepEqual(mixed, {
         acts: [
             { type: "text", data: { text: "你好" } },
-            { type: "image", data: { media: { uri: "", localPath: "core/stickers/images/S1/001.jpg" } } },
+            // 字段原样透传，不再在这一层补 uri/改名，怎么发由适配器决定
+            { type: "image", data: { media: { localPath: "core/stickers/images/S1/001.jpg" } } },
+        ],
+    });
+});
+
+test("只按通道过滤段类型，字段原样透传", async () => {
+    const tool = buildReplyTool([textCap(), imageCap()]);
+
+    // 模型填了额外字段、空了 text、把本地路径填进 uri：一概不改不拦，留给适配器兑现或跳过
+    const out = await tool.execute({
+        segments: [
+            { type: "text", data: { text: "", extra: 1 } },
+            { type: "image", data: { media: { uri: "core/a.jpg" } } },
+        ],
+    });
+    assert.deepEqual(out, {
+        acts: [
+            { type: "text", data: { text: "", extra: 1 } },
+            { type: "image", data: { media: { uri: "core/a.jpg" } } },
         ],
     });
 });

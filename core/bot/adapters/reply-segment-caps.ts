@@ -1,7 +1,4 @@
-import { isJsonObject } from "./reply-tool.ts";
 import type { ReplySegmentCap } from "./reply-tool.ts";
-import type { MediaRef } from "../../types/segment.ts";
-import type { MessageSegment } from "../../types/index.ts";
 
 /** 纯文本段 */
 export function textCap(): ReplySegmentCap {
@@ -14,11 +11,6 @@ export function textCap(): ReplySegmentCap {
             required: ["text"],
             additionalProperties: false,
         },
-        parse(data) {
-            const text = typeof data.text === "string" ? data.text : "";
-            if (text.trim() === "") return { error: "data.text 为空" };
-            return { segment: { type: "text", data: { text } } };
-        },
     };
 }
 
@@ -28,11 +20,6 @@ export function imageCap(): ReplySegmentCap {
         type: "image",
         description: "一张图片或表情包：media.uri 是网络链接，media.localPath 是本地路径，二选一",
         data: mediaSchema(),
-        parse(data) {
-            const media = parseMedia(data.media);
-            if (typeof media === "string") return { error: media };
-            return { segment: { type: "image", data: { media } } };
-        },
     };
 }
 
@@ -49,14 +36,6 @@ export function fileCap(): ReplySegmentCap {
             },
             required: ["media"],
             additionalProperties: false,
-        },
-        parse(data) {
-            const media = parseMedia(data.media);
-            if (typeof media === "string") return { error: media };
-            const segment: MessageSegment = { type: "file", data: { media } };
-            const name = typeof data.name === "string" ? data.name.trim() : "";
-            if (name !== "") segment.data.name = name;
-            return { segment };
         },
     };
 }
@@ -81,20 +60,4 @@ function mediaSchema(): Record<string, unknown> {
         required: ["media"],
         additionalProperties: false,
     };
-}
-
-/**
- * media 参数规范化
- * @returns 合法的媒体引用，或一句错误说明（模型把本地路径填进 uri 时自动纠正）
- */
-function parseMedia(value: unknown): MediaRef | string {
-    if (!isJsonObject(value)) return "缺少 media 对象";
-    const uri = typeof value.uri === "string" ? value.uri.trim() : "";
-    const localPath = typeof value.localPath === "string" ? value.localPath.trim() : "";
-    if (uri === "" && localPath === "") return "media.uri 与 media.localPath 至少要填一个";
-    if (uri !== "") {
-        if (!/^https?:\/\//i.test(uri)) return { uri: "", localPath: uri };
-        return { uri };
-    }
-    return { uri: "", localPath };
 }

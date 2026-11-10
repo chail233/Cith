@@ -2,12 +2,13 @@ import logger from "../../utils/logger.js";
 import type { MessageSegment } from "../../types/index.ts";
 import type { ToolContext, ToolDefinition } from "../../agent/types.ts";
 
+/** 发言工具名 */
 export const REPLY_TOOL_NAME = "send_message";
 
-/** 单段解析结果：成功给消息段，失败给一句可回填给模型的错误 */
-export type SegmentParse = { segment: MessageSegment } | { error: string };
-
-/** 一条消息段能力：模型看到的 schema + 运行时的校验/规范化 */
+/**
+ * 一条消息段能力：只描述「本通道能发这类段」与给模型看的 data 结构
+ * 不负责字段校验与转换——模型填什么就带走什么，怎么变成平台消息由适配器自己决定
+ */
 export interface ReplySegmentCap {
     /** 段类型，同时是 schema 里 type 的枚举值 */
     type: string;
@@ -15,8 +16,6 @@ export interface ReplySegmentCap {
     description: string;
     /** 该段 data 字段的 JSON Schema */
     data: Record<string, unknown>;
-    /** 校验 data 并转成统一消息段 */
-    parse: (data: Record<string, unknown>) => SegmentParse;
 }
 
 /** 发言工具产出：成功为待发送消息段（空数组表示本轮不发言），失败为回填给模型的错误说明 */
@@ -38,7 +37,7 @@ export function buildReplyTool(caps: ReplySegmentCap[]): ReplyTool {
     if (caps.length === 0) {
         logger.error("适配器未声明任何消息段能力，发言工具不可用");
     }
-    const byType = new Map(caps.map((cap) => [cap.type, cap]));
+    const supported = new Set(caps.map((cap) => cap.type));
 
     const definition: ToolDefinition = {
         type: "function",
@@ -71,29 +70,24 @@ export function buildReplyTool(caps: ReplySegmentCap[]): ReplyTool {
         // 空数组是模型明确选择「本轮不发言」，不是参数错误
         if (segments.length === 0) return { acts: [] };
         const acts: MessageSegment[] = [];
-        const problems: string[] = [];
+        const rejected: string[] = [];
         segments.forEach((raw, index) => {
             const at = `第 ${index + 1} 段`;
             if (!isJsonObject(raw)) {
-                problems.push(`${at}不是对象`);
+                rejected.push(`${at}不是对象`);
                 return;
             }
             const type = typeof raw.type === "string" ? raw.type : "";
-            const cap = byType.get(type);
-            if (!cap) {
-                problems.push(`${at}类型 ${type || "(空)"} 当前通道不支持`);
+            // 只挡「本通道根本发不出去」的段类型；字段一律原样带走，不在这一层校验或改写
+            if (!supported.has(type)) {
+                rejected.push(`${at}类型 ${type || "(空)"} 当前通道不支持`);
                 return;
             }
-            const parsed = cap.parse(isJsonObject(raw.data) ? raw.data : {});
-            if ("error" in parsed) {
-                problems.push(`${at}（${cap.type}）${parsed.error}`);
-                return;
-            }
-            acts.push(parsed.segment);
+            acts.push({ type, data: isJsonObject(raw.data) ? (raw.data as MessageSegment["data"]) : {} });
         });
-        if (problems.length > 0) logger.warn("发言工具丢弃了不合法的消息段:", problems.join("；"));
-        // 一条都没解析成功才把原因回给模型；部分成功照发，不让一处笔误吞掉整条回复
-        if (acts.length === 0) return problems.join("；") || "没有可发送的消息段";
+        if (rejected.length > 0) logger.warn("发言工具丢弃了当前通道不支持的段:", rejected.join("；"));
+        // 一条都没剩下才把原因回给模型；部分可用照发，不让一处笔误吞掉整条回复
+        if (acts.length === 0) return rejected.join("；") || "没有可发送的消息段";
         return { acts };
     }
 
