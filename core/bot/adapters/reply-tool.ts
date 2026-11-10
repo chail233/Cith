@@ -19,7 +19,7 @@ export interface ReplySegmentCap {
     parse: (data: Record<string, unknown>) => SegmentParse;
 }
 
-/** 发言工具产出：成功为待发送消息段，失败为回填给模型的错误说明 */
+/** 发言工具产出：成功为待发送消息段（空数组表示本轮不发言），失败为回填给模型的错误说明 */
 export type ReplyToolResult = { acts: MessageSegment[] } | string;
 
 /** 适配器对外暴露的发言工具 */
@@ -47,14 +47,13 @@ export function buildReplyTool(caps: ReplySegmentCap[]): ReplyTool {
             description:
                 "对外发言的唯一方式：要说话、发图、发文件、@ 人、引用回复时都调用本工具，"
                 + "不要用纯文本输出代替。一次调用可以携带多条消息段，按数组顺序依次发出，"
-                + "借分段模拟真人连发的节奏。",
+                + "借分段模拟真人连发的节奏。不需要接话时调用本工具并传空数组。",
             parameters: {
                 type: "object",
                 properties: {
                     segments: {
                         type: "array",
-                        minItems: 1,
-                        description: "按发送顺序排列的消息段",
+                        description: "按发送顺序排列的消息段；不需要开口时传空数组（本轮不发言）",
                         items: caps.length === 1 ? segmentSchema(caps[0]) : { oneOf: caps.map(segmentSchema) },
                     },
                 },
@@ -66,9 +65,11 @@ export function buildReplyTool(caps: ReplySegmentCap[]): ReplyTool {
 
     async function execute(param: unknown): Promise<ReplyToolResult> {
         const segments = isJsonObject(param) ? param.segments : undefined;
-        if (!Array.isArray(segments) || segments.length === 0) {
-            return "缺少参数 segments：要发送的消息段数组不能为空";
+        if (!Array.isArray(segments)) {
+            return "缺少参数 segments：需要传入消息段数组，不需要发言时传空数组";
         }
+        // 空数组是模型明确选择「本轮不发言」，不是参数错误
+        if (segments.length === 0) return { acts: [] };
         const acts: MessageSegment[] = [];
         const problems: string[] = [];
         segments.forEach((raw, index) => {

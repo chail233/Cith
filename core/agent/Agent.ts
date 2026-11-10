@@ -141,7 +141,8 @@ export default class Agent extends EventEmitter {
             // 4. 发言：参数合法就本轮结束（不回填工具结果）；全部不合法则把错误回填给模型自修
             if (replyTool && replyCalls.length > 0) {
                 const acts = await this.speak(replyCalls, replyTool, toolCtx);
-                if (acts.length > 0) return { acts, tokens };
+                // 空数组是模型明确选择不发言，同样视为本轮结束；null 才是「全部不合法、继续循环」
+                if (acts) return { acts, tokens };
             }
         }
     }
@@ -184,7 +185,7 @@ export default class Agent extends EventEmitter {
         const replyCalls = pickReplyCalls(final.message.tool_calls ?? [], replyTool);
         if (replyTool && replyCalls.length > 0) {
             const acts = await this.speak(replyCalls, replyTool, toolCtx);
-            if (acts.length > 0) return { acts, tokens: totalTokens };
+            if (acts) return { acts, tokens: totalTokens };
         }
         return { acts: parseReplyResult(final.message.content).segments, tokens: totalTokens };
     }
@@ -193,21 +194,22 @@ export default class Agent extends EventEmitter {
 
     /**
      * 执行发言工具调用：按调用顺序规范化消息段
-     * 成功的发言不写工具痕迹，否则模型下一轮会看到自己说过的话再重复一遍；
      * 规范化失败则把原因回填给模型自修
-     * @returns 待发送消息段；空数组表示本轮没有可发内容（错误已回填）
+     * @returns 待发送消息段（空数组 = 模型选择本轮不发言）；全部调用都失败时返回 null（错误已回填）
      */
-    private async speak(calls: ToolCall[], replyTool: ReplyTool, toolCtx: AgentToolContext): Promise<MessageSegment[]> {
+    private async speak(calls: ToolCall[], replyTool: ReplyTool, toolCtx: AgentToolContext): Promise<MessageSegment[] | null> {
         const acts: MessageSegment[] = [];
+        let accepted = false;
         for (const call of calls) {
             const output = await runReplyCall(replyTool, call, toolCtx);
             if (typeof output === "string") {
                 this.recordToolCall(call.function.name, call.function.arguments, output);
                 continue;
             }
+            accepted = true;
             acts.push(...output.acts);
         }
-        return acts;
+        return accepted ? acts : null;
     }
 
     /**
@@ -280,8 +282,14 @@ export default class Agent extends EventEmitter {
 
     /**
      * 产出一轮回复：广播 "reply" 事件供分发方消费
+     * 空消息段 = 模型选择本轮不发言：不广播（分发方无内容可发），但留一条记忆痕迹
      */
     private deliver(acts: MessageSegment[], tokens: number): void {
+        if (acts.length === 0) {
+            logger.info("本轮选择不发言:", this.sessionId);
+            this.memory.add({ role: "assistant", content: { action: [], note: "本轮选择不发言" } });
+            return;
+        }
         const payload: ReplyPayload = { acts, tokens };
         this.broadcast("reply", payload);
         this.memory.add({ role: "assistant", content: { action: acts } });

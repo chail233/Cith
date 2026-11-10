@@ -62,8 +62,18 @@ test("一条都解析不出来时返回错误文本", async () => {
     assert.equal(typeof bad, "string");
     assert.match(bad, /当前通道不支持/);
 
-    const empty = await tool.execute({ segments: [] });
-    assert.match(empty, /segments/);
+    const noParam = await tool.execute({});
+    assert.equal(typeof noParam, "string");
+    assert.match(noParam, /segments/);
+});
+
+test("空数组 = 明确不发言，不是参数错误", async () => {
+    const tool = buildReplyTool([textCap()]);
+
+    // schema 不再限制最小长度，否则模型无法表达「本轮不说话」
+    assert.equal(tool.definition.function.parameters.properties.segments.minItems, undefined);
+
+    assert.deepEqual(await tool.execute({ segments: [] }), { acts: [] });
 });
 
 // ---------------------------------------------------------------- Agent 集成
@@ -213,6 +223,20 @@ test("同一轮既有普通工具又有发言时，先跑工具再发言", async
         "普通工具的执行痕迹照旧写回",
     );
     assert.deepEqual(replies[0].acts, [{ type: "text", data: { text: "查完了" } }]);
+});
+
+test("模型传空数组时不发言：不广播 reply，但留一条记忆痕迹", async () => {
+    responses = [replyToolCall({ segments: [] })];
+    const memory = fakeMemory();
+
+    const replies = await runOnce(memory);
+
+    assert.equal(calls.length, 1, "不发言也是本轮结论，不应再请求模型");
+    assert.equal(replies.length, 0, "没有内容可发，不应广播 reply 事件");
+    const silent = memory.added.find((m) => Array.isArray(m.content?.action));
+    assert.ok(silent, "应写入一条 assistant 痕迹");
+    assert.deepEqual(silent.content.action, []);
+    assert.equal(memory.msgWithoutChat, 0, "不发言不该重置主动聊天计数");
 });
 
 test("工具链打满后的收敛请求只带发言工具", async () => {
