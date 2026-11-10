@@ -72,6 +72,8 @@ export default class Agent extends EventEmitter {
         let tokens = 0;
         /** 已执行的工具轮数 */
         let toolDepth = 0;
+        /** 是否已因纯文本输出纠偏重试过（只重试一次，防循环） */
+        let corrected = false;
 
         while (true) {
             // 工作阈值守护：请求前守体积，工具痕迹累积超预算时折叠最旧的部分，避免长工具链把上下文撑爆
@@ -82,10 +84,21 @@ export default class Agent extends EventEmitter {
 
             const calls = result.message.tool_calls ?? [];
 
-            // 1. 一个工具都没调：既没干活也没说话，那本轮就到这里（不发言）
+            // 1. 一个工具都没调：正文为空是真沉默，本轮不发言；
             if (calls.length === 0) {
-                logger.info("模型未调用任何工具，本轮不发言:", this.sessionId);
-                return { acts: [], tokens };
+                const text = (result.message.content ?? "").trim();
+                if (text === "") {
+                    logger.info("模型未调用任何工具，本轮不发言:", this.sessionId);
+                    return { acts: [], tokens };
+                }
+                if (!corrected) {
+                    corrected = true;
+                    this.memory.add({ role: "system", content: { text: `你直接输出了文本而没有调用 send_message，文本不会被发送。请用 send_message 重新发送这段内容：「${text.slice(0, 200)}」` } });
+                    logger.warn("模型以纯文本作答，已回填纠偏并重试:", this.sessionId);
+                    continue;
+                }
+                logger.warn("纠偏后模型仍以纯文本作答，桥接发送:", this.sessionId);
+                return { acts: [{ type: "text", data: { text } }], tokens };
             }
 
             // 2. 工具链达到上限 → 强制收敛：只留发言工具再问一次，逼模型直接作答
@@ -157,6 +170,12 @@ export default class Agent extends EventEmitter {
         if (replyCalls.length > 0) {
             const acts = await this.speak(replyCalls, replyTool, toolCtx);
             if (acts) return { acts, tokens: totalTokens };
+        }
+        // 收敛轮没有纠偏预算：正文若已含答复文本，直接桥接成发言
+        const text = (final.message.content ?? "").trim();
+        if (text !== "") {
+            logger.warn("收敛请求得到纯文本，桥接发送:", this.sessionId);
+            return { acts: [{ type: "text", data: { text } }], tokens: totalTokens };
         }
         logger.info("收敛后模型仍未发言:", this.sessionId);
         return { acts: [], tokens: totalTokens };

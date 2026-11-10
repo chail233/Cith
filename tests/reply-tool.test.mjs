@@ -6,7 +6,7 @@
  * - Agent 见到发言工具调用即视为「本轮回复」：当场交付消息段，不写工具痕迹
  * - 同一轮还有其它工具时，话照发、工具照跑，跑完继续循环，直到只剩发言或没有工具
  * - 工具链打满后的收敛请求只带发言工具
- * - 发言是唯一出口：模型不调工具就不发言，没有适配器直接报错
+ * - 发言是唯一出口：不调工具时的纯文本先纠偏重试一次，仍犯则桥接发送；没有适配器直接报错
  */
 import { test, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
@@ -300,16 +300,61 @@ test("模型传空数组时不发言：不广播 reply，但留一条记忆痕�
     assert.equal(memory.msgWithoutChat, 0, "不发言不该重置主动聊天计数");
 });
 
-test("模型没调任何工具时本轮不发言", async () => {
-    // 旧文本通道的兜底已删除：模型只回自由文本、不调工具，不再当成回复发出去
-    responses = [{ message: { content: "我觉得这个话题挺有意思的" }, totalTokens: 5, usage: null }];
+test("模型没调任何工具且正文为空时本轮不发言", async () => {
+    responses = [{ message: { content: null }, totalTokens: 5, usage: null }];
     const memory = fakeMemory();
 
     const replies = await runOnce(memory);
 
-    assert.equal(calls.length, 1, "不调工具就是本轮结论，不该再追问");
-    assert.equal(replies.length, 0, "自由文本不该被当成消息发出");
+    assert.equal(calls.length, 1, "真沉默就是本轮结论，不该再追问");
+    assert.equal(replies.length, 0, "没有内容不该广播 reply 事件");
     assert.ok(memory.added.some((m) => Array.isArray(m.content?.action)), "仍应留下「本轮没说话」的记忆痕迹");
+});
+
+test("纯文本作答时先纠偏重试，改用发言工具后正常发出", async () => {
+    responses = [
+        { message: { content: "我觉得这个话题挺有意思的" }, totalTokens: 5, usage: null },
+        replyToolCall({ segments: [{ type: "text", data: { text: "这个话题确实有意思" } }] }),
+    ];
+    const memory = fakeMemory();
+
+    const replies = await runOnce(memory);
+
+    assert.equal(calls.length, 2, "纯文本应回填纠偏后再请求一次");
+    assert.ok(
+        memory.added.some((m) => String(m.content?.text ?? "").includes("没有调用 send_message")),
+        "纠偏原因应写回上下文",
+    );
+    assert.deepEqual(replies[0].acts, [{ type: "text", data: { text: "这个话题确实有意思" } }]);
+});
+
+test("纠偏后仍纯文本时桥接成文本段发出", async () => {
+    responses = [
+        { message: { content: "第一版答案" }, totalTokens: 5, usage: null },
+        { message: { content: "第二版答案" }, totalTokens: 5, usage: null },
+    ];
+    const memory = fakeMemory();
+
+    const replies = await runOnce(memory);
+
+    assert.equal(calls.length, 2, "桥接前只纠偏一次，不再无限重试");
+    assert.deepEqual(replies[0].acts, [{ type: "text", data: { text: "第二版答案" } }], "把最后一次正文当发言发出");
+    assert.ok(memory.added.some((m) => Array.isArray(m.content?.action)), "桥接的发言照常写入 assistant 记忆");
+});
+
+test("收敛请求得到纯文本时直接桥接", async () => {
+    const max = config.toolChainMaxLength;
+    responses = [
+        ...Array.from({ length: max + 1 }, () => toolCall("run_shell")),
+        { message: { content: "收敛答复" }, totalTokens: 5, usage: null },
+    ];
+    const memory = fakeMemory();
+
+    const replies = await runOnce(memory);
+
+    assert.equal(calls.length, max + 2, "打满后应多一次收敛请求");
+    assert.equal(calls.at(-1).tools.length, 1, "收敛请求只保留发言工具");
+    assert.deepEqual(replies[0].acts, [{ type: "text", data: { text: "收敛答复" } }]);
 });
 
 test("当前通道没有发言工具时直接报错，不退回文本", async () => {
