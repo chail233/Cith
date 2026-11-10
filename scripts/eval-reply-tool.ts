@@ -245,8 +245,6 @@ const SCENES: Scene[] = [
 interface Attempt {
     /** 是否调用了发言工具 */
     called: boolean;
-    /** 是否同一轮还调了别的工具 */
-    mixedRound: boolean;
     /** 解析出的消息段 */
     acts: MessageSegment[];
     /** 参数不合法时回给模型的错误文本 */
@@ -291,7 +289,7 @@ async function runScene(scene: Scene, replyTool: ReplyTool): Promise<Attempt> {
     const rounds: string[] = [];
 
     const base: Attempt = {
-        called: false, mixedRound: false, acts: [], paramError: "",
+        called: false, acts: [], paramError: "",
         plain: "", rounds, error: "", ok: false, note: "",
     };
 
@@ -309,18 +307,17 @@ async function runScene(scene: Scene, replyTool: ReplyTool): Promise<Attempt> {
 
         const replyCalls = calls.filter((c) => c.function.name === REPLY_TOOL_NAME);
         if (replyCalls.length > 0) {
-            const mixed = calls.length > replyCalls.length;
             const call = replyCalls[0];
             let param: unknown;
             try {
                 param = JSON.parse(call.function.arguments || "{}");
             }
             catch {
-                return { ...base, called: true, mixedRound: mixed, paramError: "参数不是合法 JSON" };
+                return { ...base, called: true, paramError: "参数不是合法 JSON" };
             }
             const output = await replyTool.execute(param);
             if (typeof output === "string") {
-                return { ...base, called: true, mixedRound: mixed, paramError: output };
+                return { ...base, called: true, paramError: output };
             }
             // 编造引用 id（拿不存在的 messageId 去引用）是真实缺陷，所有场景统一拦截
             const bogus = output.acts
@@ -330,7 +327,7 @@ async function runScene(scene: Scene, replyTool: ReplyTool): Promise<Attempt> {
             const verdict = bogus.length > 0
                 ? { ok: false, note: `编造引用 id：${bogus.join(",")}（实际可用：${allowedReplyIds.join(",") || "无"}）` }
                 : scene.check(output.acts);
-            return { ...base, called: true, mixedRound: mixed, acts: output.acts, ok: verdict.ok, note: verdict.note };
+            return { ...base, called: true, acts: output.acts, ok: verdict.ok, note: verdict.note };
         }
 
         if (calls.length === 0) {
@@ -419,7 +416,7 @@ async function main(): Promise<void> {
             const mark = verdict.ok ? "✓" : "△";
             // 未达成时把正文也带上，方便看出它把段当文本写了还是真的走错
             const excerpt = verdict.ok ? "" : `正文：「${oneLine(textOf(at.acts), 50)}」`;
-            const extra = [at.mixedRound ? "同轮还调了别的工具" : "", verdict.note, excerpt].filter(Boolean).join("；");
+            const extra = [verdict.note, excerpt].filter(Boolean).join("；");
             console.log(`${mark} ${scene.id} #${i} [${scene.label}] ${summarizeActs(at.acts)}${extra ? `（${extra}）` : ""}`);
             lines.push(`- ${mark} **${scene.id}** #${i} [${scene.label}] \`${summarizeActs(at.acts)}\`${extra ? `（${extra}）` : ""}`);
         }

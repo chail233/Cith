@@ -3,8 +3,9 @@
  *
  * 覆盖四件事：
  * - 工具 schema 由各适配器自己的能力集生成：OneBot 有 mention/reply，微信没有，两边互不影响
- * - Agent 见到发言工具调用即视为「本轮回复」，直接产出消息段，不写工具痕迹、不回填结果
- * - 参数不合法时把原因回填给模型；工具链打满后的收敛请求只带发言工具
+ * - Agent 见到发言工具调用即视为「本轮回复」：当场交付消息段，不写工具痕迹
+ * - 同一轮还有其它工具时，话照发、工具照跑，跑完继续循环，直到只剩发言或没有工具
+ * - 工具链打满后的收敛请求只带发言工具
  * - 发言是唯一出口：模型不调工具就不发言，没有适配器直接报错
  */
 import { test, beforeEach, mock } from "node:test";
@@ -213,7 +214,7 @@ test("发言参数不合法时回填错误并继续，下一轮正常发出", as
     assert.deepEqual(replies[0].acts, [{ type: "text", data: { text: "换个说法" } }]);
 });
 
-test("同一轮既有普通工具又有发言时，先跑工具再发言", async () => {
+test("同一轮既有工具又有发言时，话当场发出并继续跑工具", async () => {
     responses = [
         {
             message: {
@@ -224,7 +225,7 @@ test("同一轮既有普通工具又有发言时，先跑工具再发言", async
                         id: "b",
                         function: {
                             name: REPLY_TOOL_NAME,
-                            arguments: JSON.stringify({ segments: [{ type: "text", data: { text: "查完了" } }] }),
+                            arguments: JSON.stringify({ segments: [{ type: "text", data: { text: "我先查一下" } }] }),
                         },
                     },
                 ],
@@ -232,17 +233,57 @@ test("同一轮既有普通工具又有发言时，先跑工具再发言", async
             totalTokens: 3,
             usage: null,
         },
+        replyToolCall({ segments: [{ type: "text", data: { text: "查完了" } }] }),
     ];
     const memory = fakeMemory();
 
     const replies = await runOnce(memory);
 
-    assert.equal(calls.length, 1);
+    assert.equal(calls.length, 2, "工具跑完应继续下一轮，而不是直接收尾");
     assert.ok(
         memory.added.some((m) => String(m.content?.text ?? "").includes("调用了工具 run_shell")),
         "普通工具的执行痕迹照旧写回",
     );
-    assert.deepEqual(replies[0].acts, [{ type: "text", data: { text: "查完了" } }]);
+    // 同轮说的那句当场发出，末尾的结论再发一条，共两条
+    assert.deepEqual(replies.map((r) => r.acts), [
+        [{ type: "text", data: { text: "我先查一下" } }],
+        [{ type: "text", data: { text: "查完了" } }],
+    ]);
+    const said = memory.added.filter((m) => Array.isArray(m.content?.action));
+    assert.equal(said.length, 2, "两次发言都应写进记忆");
+});
+
+test("同轮发言参数不合法时工具照跑，改好后再发", async () => {
+    responses = [
+        {
+            message: {
+                content: null,
+                tool_calls: [
+                    { id: "a", function: { name: "run_shell", arguments: "{}" } },
+                    {
+                        id: "b",
+                        function: {
+                            name: REPLY_TOOL_NAME,
+                            arguments: JSON.stringify({ segments: [{ type: "video", data: {} }] }),
+                        },
+                    },
+                ],
+            },
+            totalTokens: 3,
+            usage: null,
+        },
+        replyToolCall({ segments: [{ type: "text", data: { text: "查完了" } }] }),
+    ];
+    const memory = fakeMemory();
+
+    const replies = await runOnce(memory);
+
+    assert.equal(calls.length, 2, "发言失败不该中断循环");
+    assert.ok(
+        memory.added.some((m) => String(m.content?.text ?? "").includes("当前通道不支持")),
+        "错误应回填给模型",
+    );
+    assert.deepEqual(replies.map((r) => r.acts), [[{ type: "text", data: { text: "查完了" } }]]);
 });
 
 test("模型传空数组时不发言：不广播 reply，但留一条记忆痕迹", async () => {

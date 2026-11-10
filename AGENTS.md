@@ -62,7 +62,7 @@ NapCat(反向WS) / 微信(长轮询)
 
 `Agent` 是 EventEmitter，每会话一实例，由 `AgentManager` 池管理（空闲 30 分钟回收、上限 50）。**Agent 只"想"不"说"**：只广播 `reply` / `tool-call` / `tool-result` / `approval` 等事件，`pipeline/agent-runner.ts` 订阅后经适配器按拟人节奏发送。同一会话同时只允许一个模型请求。
 
-每轮流程：`contextBuilder.ts` 组装上下文（系统提示 + 强加载技能正文 + 技能/MCP 列表 + 记忆概要 + 历史 + 尾部易变项：活跃计划/唤醒说明）→ 带全量工具定义调 LLM → 同轮多个工具调用**并行执行** → 结果以 `role:"system"` 消息回填 → 再请求。最多 `toolChainMaxLength`（30）轮；达到上限后补发一次**只带发言工具**的请求强制收敛。**发言是工具调用，不是文本格式**：每轮工具表首位是由适配器能力集生成的 `send_message`（`bot/adapters/reply-tool.ts`），词表由适配器声明（OneBot 为 text / image / file / mention / reply，微信没有后两个；表情包不设独立段：`list_stickers` 工具返回画面描述+文件路径，模型挑好直接走 image 段），与接收方向统一段同构。发言调用成功即本轮结束（不回填工具结果）；传空数组表示**本轮不发言**；模型不调用任何工具也算不发言（没有纯文本兜底通道，旧 `replyParser.ts` 已删除）。agent-runner 按段顺序逐个发送，reply/mention 攒到下一个内容段合并为一条（OneBot 语义）；平台不支持的段类型由 Adapter 自行跳过（微信不支持 mention/reply），字段翻译与纠错（如本地路径被填进 `uri`）也在适配器侧由 `utils/segment-media.ts` 完成。
+每轮流程：`contextBuilder.ts` 组装上下文（系统提示 + 强加载技能正文 + 技能/MCP 列表 + 记忆概要 + 历史 + 尾部易变项：活跃计划/唤醒说明）→ 带全量工具定义调 LLM → 同轮多个工具调用**并行执行** → 结果以 `role:"system"` 消息回填 → 再请求。最多 `toolChainMaxLength`（30）轮；达到上限后补发一次**只带发言工具**的请求强制收敛。**发言是工具调用，不是文本格式**：每轮工具表首位是由适配器能力集生成的 `send_message`（`bot/adapters/reply-tool.ts`），词表由适配器声明（OneBot 为 text / image / file / mention / reply，微信没有后两个；表情包不设独立段：`list_stickers` 工具返回画面描述+文件路径，模型挑好直接走 image 段），与接收方向统一段同构。发言调用成功即交付消息（若本轮还有其它工具，则当场发出后继续循环，直到只剩发言或没有工具）；传空数组表示**本轮不发言**；模型不调用任何工具也算不发言（没有纯文本兜底通道，旧 `replyParser.ts` 已删除）。agent-runner 按段顺序逐个发送，reply/mention 攒到下一个内容段合并为一条（OneBot 语义）；平台不支持的段类型由 Adapter 自行跳过（微信不支持 mention/reply），字段翻译与纠错（如本地路径被填进 `uri`）也在适配器侧由 `utils/segment-media.ts` 完成。
 
 技能目录在**每次 `Agent.run()` 开头重扫**，没有 `#reloadskls` 命令。计划状态在 `agent/plan.ts` 的 `PlanBoard`（Agent 只持有引用，`#plan` 命令与 `contextBuilder` 共用同一份存储与渲染逻辑）。
 

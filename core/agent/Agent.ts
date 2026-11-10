@@ -111,17 +111,25 @@ export default class Agent extends EventEmitter {
 
             // 3. 先把普通工具跑完（并行执行），有门禁挂起则立即中断本轮
             const replyCalls = pickReplyCalls(calls, replyTool);
-            const otherCalls = replyCalls.length > 0 ? calls.filter((call) => !replyCalls.includes(call)) : calls;
+            const otherCalls = calls.filter((call) => !replyCalls.includes(call));
             if (otherCalls.length > 0) {
                 const holds = await this.runTools(otherCalls, toolCtx);
                 if (holds.length > 0) return { held: holds };
             }
 
-            // 4. 发言：参数合法就本轮结束（不回填工具结果）；全部不合法则把错误回填给模型自修
-            if (replyCalls.length > 0) {
-                const acts = await this.speak(replyCalls, replyTool, toolCtx);
-                // 空数组是模型明确选择不发言，同样视为本轮结束；null 才是「全部不合法、继续循环」
+            // 4. 发言：参数合法就是一段可发的消息；全部不合法则错误已回填，继续循环让模型自修
+            const acts = replyCalls.length > 0 ? await this.speak(replyCalls, replyTool, toolCtx) : null;
+
+            // 5. 没有别的活了：发言就是本轮结论，交给 run() 统一投递
+            if (otherCalls.length === 0) {
                 if (acts) return { acts, tokens };
+                continue;
+            }
+
+            // 6. 还有别的活没干完：这一轮的话当场发出，然后接着跑，直到只剩发言或没有工具
+            if (acts && acts.length > 0) {
+                this.deliver(acts, tokens);
+                tokens = 0;
             }
         }
     }
