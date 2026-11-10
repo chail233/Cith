@@ -7,7 +7,7 @@ import Agent from "./Agent.ts";
 import type { Space } from "../types/index.ts";
 
 /** 空闲超过该时长的会话会被回收（先压缩记忆） */
-const IDLE_TTL_MS = 30 * 60 * 1000;
+const IDLE_TTL_MS = 24 * 60 * 60 * 1000;
 /** 回收扫描间隔 */
 const SWEEP_INTERVAL_MS = 5 * 60 * 1000;
 /** 会话数量上限，超出时按最久未活跃回收（防止内存无限增长） */
