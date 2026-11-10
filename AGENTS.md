@@ -23,7 +23,7 @@
 | `bash update.sh` | 拉取更新 + 按需装依赖 + 编译（`--web` / `--stash` / `--force`；不会重启服务） |
 
 - **没有 linter**，没有根级 `typecheck` 脚本。`tsconfig.json` 是 IDE 类型检查基准（strict + noEmit）；如需 CLI 检查手动跑 `node node_modules/typescript/lib/tsc.js -p tsconfig.json`。
-- **测试现状（写作时）**：6 个测试文件、28 个用例，25 过 3 失败 —— `config-store.test.mjs` 整体失败（import 的 `core/config/store.ts`/`schema.ts` 尚不存在，是先行于配置重构的测试）；`thresholds.test.mjs` 有 2 个断言失败。修复前先弄清失败是"测试先行"还是"真实回归"，不要盲目改代码凑绿。
+- **测试现状（写作时）**：6 个测试文件、36 个用例，33 过 3 失败 —— `config-store.test.mjs` 整体失败（import 的 `core/config/store.ts`/`schema.ts` 尚不存在，是先行于配置重构的测试）；`thresholds.test.mjs` 有 2 个断言失败。修复前先弄清失败是"测试先行"还是"真实回归"，不要盲目改代码凑绿。
 - 需要连接 NapCat（反向 WS，默认 `ws://127.0.0.1:8080/onebot/v11/ws`）才能真正收发消息；无 NapCat 时可只验证启动自检与面板 API。
 
 ## 配置系统
@@ -80,7 +80,7 @@ NapCat(反向WS) / 微信(长轮询)
 
 按"预估 token 体积"守护而非消息条数（`CHARS_PER_TOKEN = 2.5`）：
 
-- **短期**：会话消息，超过 `chatSummaryThresholdTokens`（12000）→ 一轮 run 结束后**后台静默摘要**（不阻塞下一轮）；事实抽取按 `KEEP_TAIL_RATIO = 0.3` 保留最新尾部，一条事实一条记忆写入 rememori。
+- **短期**：会话消息，超过 `chatSummaryThresholdTokens`（12000）→ 一轮 run 结束后**后台静默摘要**（不阻塞下一轮）；事实抽取按 `KEEP_TAIL_RATIO = 0.3` 保留最新尾部，一条事实一条记忆写入 rememori。摘要提示词（`recorder.js` 的 `SUMMARY_PROMPT`）交代输入是带序号的结构化 JSON 消息（user 的 name/id/time/message 段、assistant 的 action、system 的工具痕迹），要求事实以第一人称「我」自述（概要下一轮会被模型自己读回）、对方用 name/id 指名、相对时间换算成具体日期；消息按 500 字符截断送入，提示词已声明残缺处不要臆测。
 - **中期**：滚动保留最近 `MAX_SUMMARY_FACTS = 60` 条事实（`#sm` 查看）。
 - **长期**：`services/memory-store.ts` 每进程只打开一次 rememori 文件；embedding 由 `memoryEmbedProvider` 选 `ollama`（本地）或 `openai`（任意兼容 `/embeddings` 端点）。**无 tag，全会话共享**；模型经 `get_memory` 工具检索（`queries` 最多 5 个，缺省从近期消息自动派生）。还有容量淘汰（`memory-eviction.ts`）与定期维护修剪。
 - **工作预算**：`compactIfNeeded(contextBudgetTokens = 24000)` 在每次请求前把最旧的 system 工具痕迹折叠成 `[已折叠]…` 摘要（纯内存、幂等、不动 user/assistant 消息——模型可重新调用工具找回内容）。
@@ -101,6 +101,7 @@ NapCat(反向WS) / 微信(长轮询)
 - 共享类型单一真源：跨模块接口进 `core/types/index.ts`（`CtxEvent` / `Space` / `Context`），消息段类型在 `core/types/segment.ts`；Agent 专属类型（`ToolCall` / `LlmResult` / `ReplyAct` 等）进 `agent/types.ts`——不要在别处重复定义。types 与 `BaseAdapter` 之间的 type-only 循环 import 是允许的（运行时擦除）。
 - 传输相关状态（如 ws socket）留在具体 Adapter 子类，不进 `BaseAdapter`。
 - 上下文组装讲究**前缀缓存友好**：稳定内容在前、易变内容在后；改动时勿打乱这一顺序。
+- 每轮请求的固定底噪约 **2.5k token**（`system.md` + 技能/MCP 清单 ≈ 280，8 个工具定义 ≈ 2.2k，`send_message` 单个 ≈ 940）：改工具 schema/描述时先想清楚这会让每轮成本涨多少。
 
 ## 如何扩展
 
