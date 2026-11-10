@@ -62,7 +62,7 @@ NapCat(反向WS) / 微信(长轮询)
 
 `Agent` 是 EventEmitter，每会话一实例，由 `AgentManager` 池管理（空闲 30 分钟回收、上限 50）。**Agent 只"想"不"说"**：只广播 `reply` / `tool-call` / `tool-result` / `approval` 等事件，`pipeline/agent-runner.ts` 订阅后经适配器按拟人节奏发送。同一会话同时只允许一个模型请求。
 
-每轮流程：`contextBuilder.ts` 组装上下文（系统提示 + 强加载技能正文 + 技能/MCP 列表 + 记忆概要 + 历史 + 尾部易变项：活跃计划/唤醒说明）→ 带全量工具定义调 LLM → 同轮多个工具调用**并行执行** → 结果以 `role:"system"` 消息回填 → 再请求。最多 `toolChainMaxLength`（30）轮；达到上限后补发一次**无工具**请求强制收敛。回复必须是严格 JSON `{"action": [消息段...]}`，词表为 text / image / file / mention / reply（表情包不设独立段：`list_stickers` 工具返回画面描述+文件路径，模型挑好直接走 image 段；link_card 未开放，解析层直接丢弃），与接收方向统一段同构；`replyParser.ts` 把它归一化为统一消息段（解析宽松：也接受裸数组、旧 `{cmd,content}` 文本格式、坏输出降级为单条文本）。agent-runner 按段顺序逐个发送，reply/mention 攒到下一个内容段合并为一条（OneBot 语义）；平台不支持的段类型由 Adapter 自行跳过（微信不支持 mention/reply）。
+每轮流程：`contextBuilder.ts` 组装上下文（系统提示 + 强加载技能正文 + 技能/MCP 列表 + 记忆概要 + 历史 + 尾部易变项：活跃计划/唤醒说明）→ 带全量工具定义调 LLM → 同轮多个工具调用**并行执行** → 结果以 `role:"system"` 消息回填 → 再请求。最多 `toolChainMaxLength`（30）轮；达到上限后补发一次**只带发言工具**的请求强制收敛。**发言是工具调用，不是文本格式**：每轮工具表首位是由适配器能力集生成的 `send_message`（`bot/adapters/reply-tool.ts`），词表由适配器声明（OneBot 为 text / image / file / mention / reply，微信没有后两个；表情包不设独立段：`list_stickers` 工具返回画面描述+文件路径，模型挑好直接走 image 段），与接收方向统一段同构。发言调用成功即本轮结束（不回填工具结果）；传空数组表示**本轮不发言**；模型不调用任何工具也算不发言（没有纯文本兜底通道，旧 `replyParser.ts` 已删除）。agent-runner 按段顺序逐个发送，reply/mention 攒到下一个内容段合并为一条（OneBot 语义）；平台不支持的段类型由 Adapter 自行跳过（微信不支持 mention/reply），字段翻译与纠错（如本地路径被填进 `uri`）也在适配器侧由 `utils/segment-media.ts` 完成。
 
 技能目录在**每次 `Agent.run()` 开头重扫**，没有 `#reloadskls` 命令。计划状态在 `agent/plan.ts` 的 `PlanBoard`（Agent 只持有引用，`#plan` 命令与 `contextBuilder` 共用同一份存储与渲染逻辑）。
 
@@ -107,7 +107,7 @@ NapCat(反向WS) / 微信(长轮询)
 - **加用户命令**：`pipeline/handlers/user-commands.js` 的 `cmds` 数组加一项（`name` / `description` / `needsAdmin` / `params` / `handler`）。
 - **加关键词匹配**：没有独立的关键词命令框架，直接写在 `user-commands.js` 的 handler 里判断文本。
 - **加工具**：`agent/tools/` 下新建模块 → 在 `toolRegistry` 登记；需要门禁的工具在 `callTool()` 里按工具名加分支。
-- **加聊天平台**：`bot/servers/` 加一个 `BaseServer` 子类（实现 `toSegments` 把平台消息归一化为统一段、`toEventMeta` 出元信息，媒体在 `toSegments` 内就地落地）+ `bot/adapters/` 加一个 `BaseAdapter` 子类（实现 `sendMsg()` 对外发送），并在 `services/adapter-registry.js` 注册；管道与处理器零改动。
+- **加聊天平台**：`bot/servers/` 加一个 `BaseServer` 子类（实现 `toSegments` 把平台消息归一化为统一段、`toEventMeta` 出元信息，媒体在 `toSegments` 内就地落地）+ `bot/adapters/` 加一个 `BaseAdapter` 子类（实现 `sendMsg()` 对外发送、声明 `channel` 与 `replyCapabilities()`），并在 `services/adapter-registry.js` 注册；管道与处理器零改动。
 - **加 MCP Server**：写进 `core/config.json` 的 `mcpServers`（按 `name` 增量合并规则，见上）。默认自带 `websearch`（open-websearch，无需凭据）。
 - **加技能**：`core/skills/<名称>/SKILL.md`（frontmatter `name`、`description`，可选 `force: true` 使正文固定注入上下文）+ `scripts/` 下 JS 脚本（`process.argv[2]` 收 JSON 参数、`console.log` 出结果，经 `run_shell` 执行）。社区技能经内置 `skills/skill-manager/` 从 GitHub 安装。
 

@@ -3,7 +3,7 @@
  *
  * 用法：
  *   node scripts/eval-reply-tool.ts                     # 极简系统提示（不含任何输出格式要求）
- *   node scripts/eval-reply-tool.ts --prompt=file       # 用 core/prompts/system.md 当系统提示（含旧 JSON 格式要求）
+ *   node scripts/eval-reply-tool.ts --prompt=file       # 用 core/prompts/system.md 当系统提示（当前生产版本）
  *   node scripts/eval-reply-tool.ts --prompt=hint       # 极简提示 + 一句「发言调用 send_message」
  *   node scripts/eval-reply-tool.ts --repeat=3          # 每个场景重复 3 次，看稳定性
  *   node scripts/eval-reply-tool.ts --only=mention      # 只跑 id 含 mention 的场景
@@ -12,7 +12,7 @@
  *   - 调用：本轮确实调用了发言工具
  *   - 参数合法：工具参数能解析成消息段（execute 没有返回错误文本）
  *   - 达成：解析出的消息段符合该场景的意图
- *   - 绕道：没调工具、直接输出纯文本（旧 JSON 通道之外的失败形态）
+ *   - 绕道：没调工具、直接输出纯文本（生产里不会发出任何消息）
  *
  * 说明：这里用真实模型与真实配置（core/config.json），会产生 API 费用；场景数 11，串行请求。
  * 脚本面向人阅读，与 diagnose-tool-calls.ts 一致使用 console 而不是 utils/logger。
@@ -395,9 +395,9 @@ async function main(): Promise<void> {
                 continue;
             }
             if (!at.called) {
-                // 没调工具：生产里这条纯文本会被旧降级通道当回复发出去，不等同于「不说话」
+                // 没调工具：生产里不发任何消息，不算「表达了不发言」
                 tally.plain++;
-                const why = scene.expect === "silence" ? "（想沉默却没调工具，纯文本会被降级发出）" : "";
+                const why = scene.expect === "silence" ? "（想沉默却没调工具）" : "";
                 console.log(`✗ ${scene.id} #${i} 未调用工具，直接输出纯文本：${oneLine(at.plain, 90)}${why}`);
                 lines.push(`- ✗ **${scene.id}** #${i} 未调用工具，直接输出纯文本：${oneLine(at.plain, 120)}${why}`);
                 continue;

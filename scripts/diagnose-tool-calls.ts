@@ -8,7 +8,8 @@
  *   B 同 A，但不传 response_format
  *   C 最小对照：极简 system + 1 个天气工具 + response_format: json_object
  *   D 同 C，但不传 response_format
- *   E 去掉 response_format 后的最终回复格式合规率（真实 system、问题和答案都不需要工具）
+ *
+ * 「会不会用工具说话」的实测在 scripts/eval-reply-tool.ts，不在本脚本范围。
  *
  * 判定口径：
  *   - 命中：返回了 tool_calls
@@ -21,7 +22,6 @@ import OpenAI from "openai";
 import { readFile } from "node:fs/promises";
 import config from "../core/config.js";
 import type { ToolDefinition } from "../core/agent/types.ts";
-import { parseReplyResult } from "../core/agent/replyParser.ts";
 
 import getMemoryTool from "../core/agent/tools/get-memory.ts";
 import manageMcpTool from "../core/agent/tools/manage-mcp.ts";
@@ -81,8 +81,6 @@ interface CaseDef {
     tools: ToolDefinition[];
     jsonMode: boolean;
     question: string;
-    /** 预期：调工具，或最终回复符合 {action:[...]} 格式 */
-    expect: "tool" | "format";
 }
 
 /** 一组实验的统计 */
@@ -103,8 +101,6 @@ interface Attempt {
     thinkingChars: number;
     toolNames: string[];
     content: string;
-    /** content 是否能解析成 {action:[...]} / 裸数组（复用生产解析器） */
-    formatOk: boolean;
 }
 
 function newStats(): Stats {
@@ -149,7 +145,6 @@ async function ask(client: OpenAI, c: CaseDef): Promise<Attempt> {
         thinkingChars: thinking.length,
         toolNames: rawCalls.filter((call) => call.type === "function").map((call) => call.function?.name ?? "?"),
         content,
-        formatOk: parseReplyResult(content).ok,
     };
 }
 
@@ -162,23 +157,6 @@ async function runCase(client: OpenAI, c: CaseDef, stats: Stats): Promise<void> 
     for (let i = 1; i <= REPEAT; i++) {
         try {
             const attempt = await ask(client, c);
-            if (c.expect === "format") {
-                if (attempt.formatOk) {
-                    stats.hit++;
-                    console.log(`   #${i} ✓ 格式合规 finish=${attempt.finishReason} thinking=${attempt.thinkingChars}字 | ${oneLine(attempt.content)}`);
-                }
-                else if (INTENT_RE.test(attempt.content)) {
-                    stats.claimed++;
-                    console.log(`   #${i} ✗ 格式违规（含调用意图）finish=${attempt.finishReason} thinking=${attempt.thinkingChars}字`);
-                    console.log(`        内容: ${oneLine(attempt.content)}`);
-                }
-                else {
-                    stats.silent++;
-                    console.log(`   #${i} ✗ 格式违规 finish=${attempt.finishReason} thinking=${attempt.thinkingChars}字`);
-                    console.log(`        内容: ${oneLine(attempt.content)}`);
-                }
-                continue;
-            }
             if (attempt.toolNames.length > 0) {
                 stats.hit++;
                 console.log(`   #${i} ✓ tool_calls=[${attempt.toolNames.join(", ")}] finish=${attempt.finishReason} thinking=${attempt.thinkingChars}字`);
@@ -221,11 +199,10 @@ async function main(): Promise<void> {
     const realQuestion = "帮我看看当前工作目录下有哪些文件，列出来给我";
 
     const cases: CaseDef[] = [
-        { id: "A", label: "生产复刻（真实 system + 真实工具 + json_object）", system, tools: REAL_TOOLS, jsonMode: true, question: realQuestion, expect: "tool" },
-        { id: "B", label: "去掉 response_format（其余同 A）", system, tools: REAL_TOOLS, jsonMode: false, question: realQuestion, expect: "tool" },
-        { id: "C", label: "最小对照（极简 system + 天气工具 + json_object）", system: MIN_SYSTEM, tools: [WEATHER_TOOL], jsonMode: true, question: "北京今天天气怎么样？", expect: "tool" },
-        { id: "D", label: "去掉 response_format（其余同 C）", system: MIN_SYSTEM, tools: [WEATHER_TOOL], jsonMode: false, question: "北京今天天气怎么样？", expect: "tool" },
-        { id: "E", label: "去掉 response_format 后的最终回复格式合规率", system, tools: REAL_TOOLS, jsonMode: false, question: "用一句话跟我打个招呼，不要查任何资料", expect: "format" },
+        { id: "A", label: "生产复刻（真实 system + 真实工具 + json_object）", system, tools: REAL_TOOLS, jsonMode: true, question: realQuestion },
+        { id: "B", label: "去掉 response_format（其余同 A）", system, tools: REAL_TOOLS, jsonMode: false, question: realQuestion },
+        { id: "C", label: "最小对照（极简 system + 天气工具 + json_object）", system: MIN_SYSTEM, tools: [WEATHER_TOOL], jsonMode: true, question: "北京今天天气怎么样？" },
+        { id: "D", label: "去掉 response_format（其余同 C）", system: MIN_SYSTEM, tools: [WEATHER_TOOL], jsonMode: false, question: "北京今天天气怎么样？" },
     ];
 
     const all: Array<{ id: string; stats: Stats }> = [];
@@ -246,8 +223,7 @@ async function main(): Promise<void> {
     console.log("\n判读建议：");
     console.log("  A 差而 B 好  → response_format:json_object 与 tools 冲突，被服务商忽略/压制了工具调用");
     console.log("  A、B 都差    → 模型本身在该 provider 下不愿调工具，需调 system 提示（明确“先说就要做”）或换模型");
-    console.log("  C、D 正常    → 协议与工具链没问题，问题出在真实 system.md 的输出格式约束上");
-    console.log("  E 违规率高   → 去掉 json_object 后需依赖 Agent 的格式纠错重试兜底，否则会把原始文本发出去");
+    console.log("  C、D 正常    → 协议与工具链没问题，问题出在真实 system.md 的约束上");
 }
 
 main().catch((err) => {

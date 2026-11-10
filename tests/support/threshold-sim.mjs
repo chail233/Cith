@@ -228,7 +228,8 @@ export class ChatSim {
         this.stats.peakTokens = Math.max(this.stats.peakTokens, inputTokens);
         if (inputTokens > MODEL_WINDOW_TOKENS) this.stats.overWindow = true;
 
-        const content = `{"action":[{"cmd":"text","content":"${"好".repeat(Math.round(this.opts.replyChars / 2))}"}]}`;
+        // 发言已是工具调用：输出体量按 send_message 的参数 JSON 估算
+        const content = `{"segments":[{"type":"text","data":{"text":"${"好".repeat(Math.round(this.opts.replyChars / 2))}"}}]}`;
         const outTokens = Math.ceil(content.length / CHARS_PER_TOKEN);
         this.stats.outTokens += outTokens;
         return { message: { content }, totalTokens: inputTokens + outTokens, usage: null };
@@ -303,7 +304,7 @@ export class ChatSim {
                 if (chain >= maxChain) break;
             }
 
-            this.addMessage(recorder, { role: "assistant", content: { action: [{ cmd: "text", content: "嗯嗯，我看下" }] } });
+            this.addMessage(recorder, { role: "assistant", content: { action: [{ type: "text", data: { text: "嗯嗯，我看下" } }] } });
             await this.maybeSummarize(recorder);
             this.stats.retainedMsgsSum += recorder.length;
         }

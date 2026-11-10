@@ -1,10 +1,11 @@
 /**
  * 适配器发言工具测试
  *
- * 覆盖三件事：
+ * 覆盖四件事：
  * - 工具 schema 由各适配器自己的能力集生成：OneBot 有 mention/reply，微信没有，两边互不影响
  * - Agent 见到发言工具调用即视为「本轮回复」，直接产出消息段，不写工具痕迹、不回填结果
  * - 参数不合法时把原因回填给模型；工具链打满后的收敛请求只带发言工具
+ * - 发言是唯一出口：模型不调工具就不发言，没有适配器直接报错
  */
 import { test, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
@@ -166,11 +167,11 @@ function fakeAdapter() {
 }
 
 /** 跑一轮 Agent，返回捕获到的 reply 事件 */
-async function runOnce(memory) {
+async function runOnce(memory, ctx = { adapter: fakeAdapter() }) {
     const agent = new Agent({ sessionId: "test", memory });
     const replies = [];
     agent.on("reply", (payload) => replies.push(payload));
-    await agent.run({ adapter: fakeAdapter() });
+    await agent.run(ctx);
     return replies;
 }
 
@@ -256,6 +257,29 @@ test("模型传空数组时不发言：不广播 reply，但留一条记忆痕�
     assert.ok(silent, "应写入一条 assistant 痕迹");
     assert.deepEqual(silent.content.action, []);
     assert.equal(memory.msgWithoutChat, 0, "不发言不该重置主动聊天计数");
+});
+
+test("模型没调任何工具时本轮不发言", async () => {
+    // 旧文本通道的兜底已删除：模型只回自由文本、不调工具，不再当成回复发出去
+    responses = [{ message: { content: "我觉得这个话题挺有意思的" }, totalTokens: 5, usage: null }];
+    const memory = fakeMemory();
+
+    const replies = await runOnce(memory);
+
+    assert.equal(calls.length, 1, "不调工具就是本轮结论，不该再追问");
+    assert.equal(replies.length, 0, "自由文本不该被当成消息发出");
+    assert.ok(memory.added.some((m) => Array.isArray(m.content?.action)), "仍应留下「本轮没说话」的记忆痕迹");
+});
+
+test("当前通道没有发言工具时直接报错，不退回文本", async () => {
+    responses = [{ message: { content: "随便说点什么" }, totalTokens: 5, usage: null }];
+    const memory = fakeMemory();
+
+    const replies = await runOnce(memory, {});
+
+    assert.equal(calls.length, 0, "拿不到发言工具就不该请求模型");
+    assert.equal(replies.length, 1);
+    assert.match(replies[0].acts[0].data.text, /^ERROR:/);
 });
 
 test("工具链打满后的收敛请求只带发言工具", async () => {

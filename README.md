@@ -209,7 +209,7 @@ Skill 是包含 `SKILL.md` 描述文件的目录，可附带脚本供 AI 执行�
 | QQ | `OnebotServer`（NapCat + OneBot v11，反向 WebSocket 接入，握手 token 鉴权） | `OnebotAdapter` |
 | 微信 | `WechatBotServer`（官方 iLink Bot 协议，扫码登录，凭证持久化重启复用） | `WechatBotAdapter` |
 
-**设计模式：Server 接收并格式化信息，Adapter 处理对外的动作。** Server 继承 `BaseServer` 抽象基类：`toSegments` 把平台消息一次性转成统一消息段（图片就地下载/解析落地，写好 `media.localPath`），`toEventMeta` 产出会话与发送者元信息，基类 `dispatch` 统一装配 `CtxEvent` 推入管道。Adapter 继承 `BaseAdapter` 抽象基类，只实现 `sendMsg()` 按统一消息段类型执行平台动作。收发两个方向都走统一消息段：模型回复产出 `{action:[消息段]}`（词表 text / image / file / mention / reply，表情包即 image 段），`replyParser` 归一化后按段顺序逐个发送，平台不支持的段类型由 Adapter 自动跳过（如微信不支持 @ 与引用回复）。接入新平台 = 写这两个子类，管道与处理器零改动。
+**设计模式：Server 接收并格式化信息，Adapter 处理对外的动作。** Server 继承 `BaseServer` 抽象基类：`toSegments` 把平台消息一次性转成统一消息段（图片就地下载/解析落地，写好 `media.localPath`），`toEventMeta` 产出会话与发送者元信息，基类 `dispatch` 统一装配 `CtxEvent` 推入管道。Adapter 继承 `BaseAdapter` 抽象基类，实现 `sendMsg()` 按统一消息段类型执行平台动作，并用 `replyCapabilities()` 声明本通道能发哪些段。收发两个方向都走统一消息段：每轮工具表首位是由能力集生成的 `send_message`（`bot/adapters/reply-tool.ts`），模型的发言就是一次工具调用，参数即统一消息段数组（词表 text / image / file / mention / reply，表情包即 image 段）；`agent-runner` 按段顺序逐个发送，平台不支持的段类型由 Adapter 自动跳过（如微信不支持 @ 与引用回复）。接入新平台 = 写这两个子类，管道与处理器零改动。
 
 微信侧为协议层约束的已知限制：好友首次发消息后需把其加密 `userId` 加入 `targetUserId` 白名单（管理员直接在该私聊中发送 `#bind` 即可，无需手抄日志）；拿不到昵称/头像；文本与图片消息、仅私聊；只能回复主动发过消息的用户。
 
@@ -305,10 +305,11 @@ Agent.run()（core/agent/Agent.ts，每会话一实例，AgentManager 池管理�
 组装上下文（系统提示 + 强加载技能 + 技能/MCP 列表 + 记忆概要 + 历史 + 尾部易变项：活跃计划 / 唤醒说明）
     ▼
 调用 LLM（携带全部工具定义）
-    ├─ 无工具调用 → 解析 JSON 回复 → 广播 "reply" 事件 → 写入会话记忆
+    ├─ 调用 send_message → 得到统一消息段 → 广播 "reply" 事件 → 写入会话记忆（本轮结束）
+    ├─ 一个工具都没调 → 本轮不发言（自由文本不再当回复发出）
     ├─ 工具被门禁挂起 → 中断本轮（挂起信息不给模型）→ 广播 "approval" 事件
     │   └─ agent-runner 把 tool_approval 段交给适配器发出确认询问
-    └─ 有工具调用 → 并行执行 → 结果回填记忆 → 再次请求（最多 30 轮）
+    └─ 有其它工具调用 → 并行执行 → 结果回填记忆 → 再次请求（最多 30 轮）
         ├─ 本地工具 → 路径解析钉死在 core/ 内；run_shell 经命令审查，必要时挂起等确认
         └─ MCP 工具 → 路由到对应 MCP Server
     ▼
@@ -348,7 +349,7 @@ core/
 │
 ├── bot/                        # 通信层：Server 接收并格式化信息，Adapter 处理对外的动作
 │   ├── servers/                # BaseServer 抽象基类（toSegments 归一化 + dispatch）+ Onebot / WechatBot 实现
-│   └── adapters/               # BaseAdapter 抽象基类（sendMsg 对外发送）+ Onebot / WechatBot 实现
+│   └── adapters/               # BaseAdapter 抽象基类（sendMsg 对外发送 + replyCapabilities 声明可发段）+ reply-tool（按能力集生成发言工具）+ Onebot / WechatBot 实现
 │
 ├── pipeline/                   # 事件处理管道
 │   ├── index.js                # 管道编排：处理器链（首个返回 true 即停止）
@@ -361,7 +362,6 @@ core/
 │   ├── plan.ts                 # 任务计划存储与渲染（PlanBoard）
 │   ├── AgentManager.ts         # 会话池：空闲回收 / 数量上限
 │   ├── contextBuilder.ts       # LLM 请求上下文组装
-│   ├── replyParser.ts          # 模型回复解析：{action:[...]} → 统一消息段
 │   ├── client.ts               # LLM API 客户端（文本 / 视觉 / guard）
 │   ├── tools.js                # 工具注册表与唯一入口 callTool（含 run_shell 门禁）
 │   ├── tools/                  # 细粒度工具模块（一个工具一个文件）
