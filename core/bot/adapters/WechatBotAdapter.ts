@@ -16,6 +16,8 @@ import type { ReplySegmentCap } from "./reply-tool.ts";
 const WECHAT_CAPS: ReplySegmentCap[] = [textCap(), imageCap(), fileCap()];
 
 export default class WechatBotAdapter extends BaseAdapter{
+    readonly channel = "wechat";
+
     private bot: WeChatBot;
     constructor(pipeline: (ctxEvent: CtxEvent) => Promise<void>, bot: WeChatBot) {
         super(pipeline);

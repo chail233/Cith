@@ -38,6 +38,8 @@ const ONEBOT_CAPS: ReplySegmentCap[] = [
 ];
 
 export default class OnebotAdapter extends BaseAdapter{
+    readonly channel = "onebot";
+
     private ws: any;
     constructor(pipeline: (ctxEvent: CtxEvent) => Promise<void>, ws: any) {
         super(pipeline);
