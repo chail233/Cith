@@ -68,7 +68,7 @@ NapCat(反向WS) / 微信(长轮询)
 
 ### 工具（`agent/tools.js` + `agent/tools/`）
 
-一个工具一个模块，导出 `definition`（给模型）与 `execute`（实现），在 `agent/tools.js` 的 `toolRegistry` 登记；`callTool()` 是唯一入口。MCP 工具经 `mcp-manager.js`（stdio / old_sse / sse 三种传输）路由，模型通过唯一工具 `manage_mcp` 维护**激活列表**控制可见性（未激活的 server 其工具仍可调用，只是模型看不见）。`report_progress` 让模型在长任务中播报进度，走与正常回复相同的 `reply` 事件链。
+一个工具一个模块，导出 `definition`（给模型）与 `execute`（实现），在 `agent/tools.js` 的 `toolRegistry` 登记；`callTool()` 是唯一入口。MCP 工具经 `mcp-manager.js`（stdio / old_sse / sse 三种传输）路由，模型通过唯一工具 `manage_mcp` 维护**激活列表**控制可见性（未激活的 server 其工具仍可调用，只是模型看不见）。`send_message` 负责所有对外输出，长任务的过程汇报也是它（与其它工具同轮调用时当场发出），没有独立的进度播报工具。
 
 ### 审批门禁（不可绕过）
 

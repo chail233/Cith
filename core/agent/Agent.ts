@@ -28,20 +28,6 @@ export default class Agent extends EventEmitter {
         this.memory = opts.memory;
     }
 
-    // ---------------------------------------------------------------- 对外产出
-
-    /**
-     * 向用户播报一句进展说明
-     * @param text 播报内容
-     * @returns 是否真正发出；内容为空或与上次播报重复时返回 false
-     */
-    narrate(text: string): boolean {
-        const content = text.trim();
-        if (!content) return false;
-        this.deliver([{ type: "text", data: { text: content } }], 0);
-        return true;
-    }
-
     // ---------------------------------------------------------------- 主循环
 
     async run(ctx: Context): Promise<void> {

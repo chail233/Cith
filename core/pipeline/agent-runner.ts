@@ -32,7 +32,7 @@ export async function runAgent(ctx: Context): Promise<void> {
             .catch((err) => logger.error("AI 回复分发失败:", err));
     };
     const onToolCall = ({ name, args }: { name: string; args: unknown }) => {
-        if (config.toolOutput && name !== "report_progress") {
+        if (config.toolOutput) {
             ctx.adapter.sendMsg(ctx.space, `尝试调用${name}，参数为${JSON.stringify(args)}`);
         }
     };

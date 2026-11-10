@@ -9,7 +9,6 @@ import manageMcpTool from "./tools/manage-mcp.ts";
 import listStickersTool from "./tools/list-stickers.ts";
 import managePlanTool from "./tools/manage-plan.ts";
 import scheduleTool from "./tools/schedule.ts";
-import reportProgressTool from "./tools/report-progress.ts";
 import recognizeImageTool from "./tools/recognize-image.ts";
 import runShellTool from "./tools/run-shell.ts";
 
@@ -22,7 +21,6 @@ const toolRegistry = [
     listStickersTool,
     managePlanTool,
     scheduleTool,
-    reportProgressTool,
     recognizeImageTool,
     runShellTool,
 ];

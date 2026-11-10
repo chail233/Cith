@@ -28,7 +28,6 @@ import manageMcpTool from "../core/agent/tools/manage-mcp.ts";
 import listStickersTool from "../core/agent/tools/list-stickers.ts";
 import managePlanTool from "../core/agent/tools/manage-plan.ts";
 import scheduleTool from "../core/agent/tools/schedule.ts";
-import reportProgressTool from "../core/agent/tools/report-progress.ts";
 import recognizeImageTool from "../core/agent/tools/recognize-image.ts";
 import runShellTool from "../core/agent/tools/run-shell.ts";
 
@@ -48,7 +47,6 @@ const REAL_TOOLS: ToolDefinition[] = [
     listStickersTool,
     managePlanTool,
     scheduleTool,
-    reportProgressTool,
     recognizeImageTool,
     runShellTool,
 ].map((mod) => mod.definition);
