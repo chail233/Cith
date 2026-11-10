@@ -11,7 +11,7 @@ import { runtimeState } from "../../api/runtime-state.ts";
 import { registerAdapter, unregisterAdapter } from "../../services/adapter-registry.js";
 import { isPlaceholder } from "../../services/preflight.ts";
 import type { CtxEvent, MessageSegment } from "../../types/index.ts";
-import type { MsgSegment } from "../../types/segment.ts";
+import type { MediaRef } from "../../types/segment.ts";
 
 interface OneBotSegment {
     type?: string;
@@ -137,46 +137,44 @@ class OnebotServer extends BaseServer<OneBotEvent> {
         return Promise.all((raw as OneBotSegment[]).map(async (seg): Promise<MessageSegment> => {
             const d = seg.data ?? {};
             switch (seg.type) {
-                case "text": {
-                    const data: MsgSegment["text"] = { text: d.text ?? "" };
-                    return { type: "text", data };
-                }
+                case "text":
+                    return { type: "text", data: { text: d.text ?? "" } };
 
                 case "at": {
                     const id = String(d.qq ?? "");
-                    const data: MsgSegment["mention"] = { id, isSelf: id === String(config.selfId ?? "") };
-                    if (d.name) data.name = String(d.name);
-                    else if (id === "all") data.name = "全体成员";
-                    return { type: "mention", data };
+                    // NapCat 只部分场景给昵称，@全体成员时用固定文案
+                    const name = d.name ? String(d.name) : (id === "all" ? "全体成员" : "");
+                    return {
+                        type: "mention",
+                        data: {
+                            id,
+                            isSelf: id === String(config.selfId ?? ""),
+                            ...(name === "" ? {} : { name }),
+                        },
+                    };
                 }
 
                 case "image": {
-                    const data: MsgSegment["image"] = {
-                        media: { uri: d.url ?? "" },
-                    };
-                    // NapCat 的 summary 通常是表情/图片名（如 "[动画表情]"），模型无需识图也能得体回应
-                    if (typeof d.summary === "string" && d.summary !== "") {
-                        data.alt = d.summary;
-                    }
+                    const media: MediaRef = { uri: d.url ?? "" };
                     // 收到图片时就地换出本地路径
                     const fileId = d.file;
                     if (typeof fileId === "string" && fileId !== "") {
                         const fileData = await getImage(fileId);
                         const localPath = fileData?.data?.file;
                         if (typeof localPath === "string" && localPath !== "") {
-                            data.media.localPath = localPath;
+                            media.localPath = localPath;
                         }
                         else {
                             logger.warn(`NapCat get_image 未返回本地路径: ${fileId}`);
                         }
                     }
-                    return { type: "image", data };
+                    // NapCat 的 summary 通常是表情/图片名（如 "[动画表情]"），模型无需识图也能得体回应
+                    const alt = typeof d.summary === "string" && d.summary !== "" ? d.summary : "";
+                    return { type: "image", data: alt === "" ? { media } : { media, alt } };
                 }
 
-                case "reply": {
-                    const data: MsgSegment["reply"] = { id: String(d.id ?? "") };
-                    return { type: "reply", data };
-                }
+                case "reply":
+                    return { type: "reply", data: { id: String(d.id ?? "") } };
 
                 case "json": {
                     let title = "分享";
@@ -185,17 +183,19 @@ class OnebotServer extends BaseServer<OneBotEvent> {
                         title = p?.meta?.detail_1?.title ?? p?.meta?.news?.title ?? "分享";
                     }
                     catch { /* 解析失败用兜底文案 */ }
-                    const data: MsgSegment["link_card"] = { title };
-                    return { type: "link_card", data };
+                    return { type: "link_card", data: { title } };
                 }
 
                 // 官方链接分享段，与 json 卡片同为链接语义
-                case "share": {
-                    const data: MsgSegment["link_card"] = { title: d.title ?? "" };
-                    if (d.url) data.url = String(d.url);
-                    if (d.content) data.description = String(d.content);
-                    return { type: "link_card", data };
-                }
+                case "share":
+                    return {
+                        type: "link_card",
+                        data: {
+                            title: d.title ?? "",
+                            ...(d.url ? { url: String(d.url) } : {}),
+                            ...(d.content ? { description: String(d.content) } : {}),
+                        },
+                    };
 
                 default:
                     return { type: seg.type ?? "unknown", data: d };

@@ -142,9 +142,11 @@ export class ChatRecorder {
     add(msg) {
         if (msg.role === "user") {
             const segs = Array.isArray(msg.content?.message) ? msg.content.message : [];
-            const desc = segs.find((s) => s.type === "image")?.data?.description ?? "";
-            const realText = (extractText(segs) + desc).replace(/[\s\u3000\u200b\u200c\u200d]/g, "");
-            if (realText === "") return;
+            const hasNonText = segs.some((s) => s.type !== "text");
+            if (!hasNonText) {
+                const realText = extractText(segs).replace(/[\s\u3000\u200b\u200c\u200d]/g, "");
+                if (realText === "") return;
+            }
         }
 
         this._messages.push(msg);

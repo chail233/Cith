@@ -3,17 +3,6 @@ export interface MediaRef {
     localPath?: string;
 }
 
-
-export interface MsgSegment {
-    text: { text: string };
-    image: { media: MediaRef; alt?: string };
-    file: { media: MediaRef; name?: string };
-    mention: { id: string; name?: string; isSelf?: boolean };
-    reply: { id: string; excerpt?: string };
-    link_card: { title: string; url?: string; description?: string };
-    tool_approval: ToolApprovalData;
-}
-
 /**
  * 工具门禁挂起的确认询问
  * 只由代码构造、只在发送方向存在：模型词表里没有它，也不会进入对话记忆

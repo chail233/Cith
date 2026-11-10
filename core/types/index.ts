@@ -7,7 +7,6 @@ export interface Space {
     channel: "onebot" | "wechat";
 }
 
-/** OneBot 消息段 */
 export interface MessageSegment {
     type: string;
     data: Record<string, unknown> & {

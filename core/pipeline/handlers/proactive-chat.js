@@ -3,7 +3,6 @@ import { getAgent } from "../../agent/AgentManager.ts";
 import logger from "../../utils/logger.js";
 import config from "../../config.js";
 import { nowTime} from "../../utils/time.js";
-import { compactSegments } from "../../utils/extractText.ts";
 /**
  * 主动聊天处理器
  * 当群内连续若干条消息无 AI 参与时，主动触发一次对话
@@ -19,7 +18,7 @@ export default async function proactiveChat(ctx) {
     if (!Number.isFinite(limit) || limit <= 0) return false;
 
     const recorder = getAgent(ctx.space).memory;
-    const compact = compactSegments(ctx.message || []);
+    const message = ctx.message || [];
     recorder.add({
         role: "user",
         content: {
@@ -28,7 +27,7 @@ export default async function proactiveChat(ctx) {
             time: nowTime(),
             // 空字段不写入
             ...(ctx.messageId ? { messageId: ctx.messageId } : {}),
-            ...(compact.length ? { message: compact } : {}),
+            ...(message.length ? { message } : {}),
         },
     });
 
