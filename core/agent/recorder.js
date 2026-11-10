@@ -167,6 +167,15 @@ export class ChatRecorder {
         });
     }
 
+    /**
+     * 尾部 n 条对话消息（只含 user 与 assistant，工具痕迹等不计），原始 content 不做序列化
+     * @param {number} n
+     * @returns {Array<{role: string, content: Record<string, unknown>}>}
+     */
+    tailMessages(n) {
+        return this._messages.filter((msg) => this._isCounted(msg)).slice(-n);
+    }
+
     /** 短期消息的字符总量 */
     get chars() {
         return this._chars;

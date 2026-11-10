@@ -5,6 +5,7 @@ import { hold } from "./tool-approval.js";
 import { checkShellCommand } from "./shell-guard.ts";
 
 import getMemoryTool from "./tools/get-memory.ts";
+import getSessionContextTool from "./tools/get-session-context.ts";
 import manageMcpTool from "./tools/manage-mcp.ts";
 import listStickersTool from "./tools/list-stickers.ts";
 import managePlanTool from "./tools/manage-plan.ts";
@@ -17,6 +18,7 @@ import runShellTool from "./tools/run-shell.ts";
  */
 const toolRegistry = [
     getMemoryTool,
+    getSessionContextTool,
     manageMcpTool,
     listStickersTool,
     managePlanTool,

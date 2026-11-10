@@ -68,6 +68,16 @@ export function listAgents(): AgentInfo[] {
 }
 
 /**
+ * 读取指定会话尾部的对话消息（不创建会话；只含 user 与 assistant）
+ * @returns 会话不存在时返回 null
+ */
+export function readAgentMessages(id: string, count: number) {
+    const entry = agents.get(id);
+    if (!entry) return null;
+    return entry.agent.memory.tailMessages(count);
+}
+
+/**
  * 主动结束一个会话：先压缩记忆再移出会话池（任务计划随实例一同释放）
  * @returns 会话不存在时返回 false
  */
