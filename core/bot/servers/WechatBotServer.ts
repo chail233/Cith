@@ -86,22 +86,32 @@ class WechatBotServer extends BaseServer<IncomingMessage> {
     async start() {
         // 是否走过扫码：login 会优先复用已保存凭证，此时不会有任何二维码
         let qrShown = false;
-        const creds = await this.bot.login(
-            {
-                callbacks: {
-                    onScanned: () => logger.info("WechatBot已登录！"),
-                    onExpired: () => logger.info("WechatBot已过期！"),
-                    onQrUrl: (url) => {
-                        qrShown = true;
-                        logger.info(`WechatBot二维码: ${url}`);
-                    },
-                },
+        for (let attempt = 1; ; attempt++) {
+            try {
+                const creds = await this.bot.login(
+                    {
+                        callbacks: {
+                            onScanned: () => logger.info("WechatBot已登录！"),
+                            onExpired: () => logger.info("WechatBot已过期！"),
+                            onQrUrl: (url) => {
+                                qrShown = true;
+                                logger.info(`WechatBot二维码: ${url}`);
+                            },
+                        },
+                    }
+                );
+                logger.info(
+                    `WechatBot已启动！账号 ${creds.accountId}，${qrShown ? "本次扫码登录" : "复用已保存凭证（无需扫码）"}`,
+                );
+                // 长轮询循环正常运行时永不返回；返回即轮询已停止，视为本轮结束
+                await this.bot.start();
+                return;
+            } catch (err) {
+                const delayMs = Math.min(5_000 * 2 ** (attempt - 1), 300_000);
+                logger.error(`WechatBot启动失败（第 ${attempt} 次），${Math.round(delayMs / 1000)}s 后重试:`, err);
+                await new Promise((resolve) => setTimeout(resolve, delayMs));
             }
-        );
-        logger.info(
-            `WechatBot已启动！账号 ${creds.accountId}，${qrShown ? "本次扫码登录" : "复用已保存凭证（无需扫码）"}`,
-        );
-        await this.bot.start()
+        }
     }
 
     protected async toSegments(msg: IncomingMessage): Promise<MessageSegment[]> {
