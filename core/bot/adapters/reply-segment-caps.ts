@@ -4,7 +4,7 @@ import type { ReplySegmentCap } from "./reply-tool.ts";
 export function textCap(): ReplySegmentCap {
     return {
         type: "text",
-        description: "一段文本消息；多条消息就拆成多个 text 段，模拟真人连发",
+        description: "一段文本消息；多条消息就拆成多个 text 段，模拟真人连发。最后不用加句号",
         data: {
             type: "object",
             properties: { text: { type: "string", description: "文本内容" } },
