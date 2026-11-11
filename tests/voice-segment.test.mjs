@@ -7,43 +7,42 @@
  * - OneBot 发送 voice 段发出 record 段（本地文件转 file://，magic 变声）
  * - 微信能力集里没有 voice，模型根本看不到这个段
  */
-import { test, mock, beforeEach, afterEach } from "node:test";
+import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
-/** get_record / fetch_ptt_text 的替身返回值，用例内改写 */
-let record = null;
-let pttText = "";
+/** callAction 发出的动作帧按动作名在这里找回包；数组表示依次回多帧（模拟 async 受理后补终包），缺省回失败帧 */
+let replies = {};
 /** fetch_ptt_text 收到的 message_id */
 const pttCalls = [];
-
-mock.module("../core/services/napcat.js", {
-    namedExports: {
-        getImage: async () => null,
-        getRecord: async () => record,
-        fetchPttText: async (messageId) => {
-            pttCalls.push(messageId);
-            return pttText;
-        },
-    },
-});
 
 const { OnebotServer } = await import("../core/bot/servers/OnebotServer.ts");
 const { default: OnebotAdapter } = await import("../core/bot/adapters/OnebotAdapter.ts");
 const { default: WechatBotAdapter } = await import("../core/bot/adapters/WechatBotAdapter.ts");
 
 const noop = async () => {};
-/** 不启动 WS 的服务器实例：toSegments 用不到连接 */
+/** 不启动 WS 的服务器实例：socket 用替身顶上，toSegments / callAction 照常工作 */
 const server = new OnebotServer(noop);
+server.socket = {
+    readyState: 1, // WebSocket.OPEN
+    send: (payload) => {
+        const frame = JSON.parse(payload);
+        if (frame.action === "fetch_ptt_text") pttCalls.push(frame.params.message_id);
+        const resp = replies[frame.action];
+        const frames = Array.isArray(resp) ? resp : [resp ?? { status: "failed", retcode: 100 }];
+        for (const respFrame of frames) {
+            setTimeout(() => server.onRawMessage(JSON.stringify({ ...respFrame, echo: frame.echo })));
+        }
+    },
+};
 
 /** 本用例产生的临时文件，结束后删除 */
 let created = [];
 
 beforeEach(() => {
-    record = null;
-    pttText = "";
+    replies = {};
     pttCalls.length = 0;
     created = [];
 });
@@ -74,14 +73,17 @@ function segmentTypes(tool) {
 
 test("语音：转码落地的 mp3 与 QQ 原生转写一起进 voice 段", async () => {
     const audio = "fake-mp3-bytes";
-    record = {
-        data: {
-            file: "C:/napcat/tmp/abc.mp3",
-            url: "file:///C:/napcat/tmp/abc.mp3",
-            base64: Buffer.from(audio).toString("base64"),
+    replies = {
+        get_record: {
+            status: "ok", retcode: 0,
+            data: {
+                file: "C:/napcat/tmp/abc.mp3",
+                url: "file:///C:/napcat/tmp/abc.mp3",
+                base64: Buffer.from(audio).toString("base64"),
+            },
         },
+        fetch_ptt_text: { status: "ok", retcode: 0, data: { text: "明天见" } },
     };
-    pttText = "明天见";
 
     const [seg] = await server.toSegments(recordEvent());
 
@@ -98,8 +100,7 @@ test("语音：转码落地的 mp3 与 QQ 原生转写一起进 voice 段", asyn
 });
 
 test("语音：转码失败时消息照样进上下文，只丢掉本地文件", async () => {
-    record = null;
-    pttText = "晚安";
+    replies = { fetch_ptt_text: { status: "ok", retcode: 0, data: { text: "晚安" } } };
 
     const [seg] = await server.toSegments(recordEvent());
 
@@ -110,12 +111,27 @@ test("语音：转码失败时消息照样进上下文，只丢掉本地文件",
 });
 
 test("语音：转写失败时只留段本身，duration 非法字段被丢弃", async () => {
-    record = null;
-    pttText = "";
-
     const [seg] = await server.toSegments(recordEvent({ duration: 0 }));
 
     assert.deepEqual(seg, { type: "voice", data: { media: { uri: "https://example.com/a.amr" } } });
+});
+
+test("语音：get_record 先回 async 受理帧时继续等，最终回包照常落地", async () => {
+    const audio = "fake-mp3-bytes";
+    replies = {
+        get_record: [
+            { status: "async", retcode: 1 },
+            { status: "ok", retcode: 0, data: { base64: Buffer.from(audio).toString("base64") } },
+        ],
+    };
+
+    const [seg] = await server.toSegments(recordEvent());
+
+    assert.equal(seg.type, "voice");
+    const localPath = seg.data.media.localPath;
+    created.push(localPath);
+    assert.match(localPath, /data[\\/]voices[\\/]voice-.*\.mp3$/, "落进 core/data/voices/");
+    assert.equal(await readFile(localPath, "utf8"), audio, "落地内容与 base64 一致");
 });
 
 // ---------------------------------------------------------------- 发：voice → record

@@ -68,9 +68,6 @@ const baseConfig = {
      */
     token: "your_token_here",
 
-    /** NapCat HTTP API 地址（不含协议前缀） */
-    napcatHttpHost: "127.0.0.1:3000",
-
     /** 面板 API 服务（Bot 侧，仅绑定 127.0.0.1） */
     web: {
         port: 2145,

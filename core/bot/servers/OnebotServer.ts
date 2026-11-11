@@ -1,4 +1,4 @@
-import { WebSocketServer } from "ws";
+import { WebSocket, WebSocketServer } from "ws";
 import type { IncomingMessage } from "node:http";
 import crypto from "node:crypto";
 import { existsSync } from "node:fs";
@@ -7,7 +7,6 @@ import logger from "../../utils/logger.js";
 import BaseServer from "./BaseServer.ts";
 import type { PlatformEventMeta } from "./BaseServer.ts";
 import OnebotAdapter from "../adapters/OnebotAdapter.ts";
-import { fetchPttText, getImage, getRecord } from "../../services/napcat.js";
 import { saveMediaFile } from "../../utils/media-store.ts";
 import { runtimeState } from "../../api/runtime-state.ts";
 import { registerAdapter, unregisterAdapter } from "../../services/adapter-registry.js";
@@ -17,6 +16,9 @@ import type { MediaRef } from "../../types/segment.ts";
 
 /** 入站语音落地目录（相对于 core/） */
 const VOICE_DIR = "data/voices";
+
+/** 动作 RPC 等回包超时 */
+const ACTION_TIMEOUT_MS = 10_000;
 
 interface OneBotSegment {
     type?: string;
@@ -31,6 +33,13 @@ interface OneBotEvent {
     message_id?: string | number;
     message?: unknown;
     sender?: { nickname?: string };
+}
+
+/** OneBot 动作回包帧（data 形状随 action 而异） */
+interface ActionResponse {
+    status?: string;
+    retcode?: number;
+    data?: any;
 }
 
 const expectedToken = typeof config.token === "string" ? config.token.trim() : "";
@@ -88,6 +97,9 @@ function voiceDuration(raw: unknown): number | undefined {
 
 /** OneBot 接入服务器：持有反向 WS 服务，连接建立时绑定发送适配器 */
 class OnebotServer extends BaseServer<OneBotEvent> {
+    private socket?: WebSocket;
+    /** 在途动作：echo → 收尾项（回包认领 / 超时 / 断线统一在这里了结） */
+    private readonly pending = new Map<string, { resolve: (resp: ActionResponse | null) => void; timer: NodeJS.Timeout }>();
 
     constructor(pipeline: (ctxEvent: CtxEvent) => Promise<void>) {
         super(pipeline);
@@ -116,6 +128,7 @@ class OnebotServer extends BaseServer<OneBotEvent> {
         wss.on("connection", (ws, req) => {
             logger.info(`NapCat 已连接 (端口: ${config.wsPort}, 来源: ${req.socket.remoteAddress ?? "unknown"})`);
             runtimeState.onebotConnected = true;
+            this.socket = ws;
             this.adapter = new OnebotAdapter(this.pipeline, ws);
             // 主动链路（定时苏醒）需要拿到发送通道
             registerAdapter("onebot", this.adapter);
@@ -125,6 +138,9 @@ class OnebotServer extends BaseServer<OneBotEvent> {
             ws.on("close", () => {
                 logger.info("OnebotWebSocket 连接关闭");
                 runtimeState.onebotConnected = false;
+                if (this.socket === ws) this.socket = undefined;
+                // 旧连接上的在途动作永远等不到回包了，统一按失败收尾
+                this.failPending();
                 if (this.adapter) unregisterAdapter("onebot", this.adapter);
                 this.adapter = undefined;
             });
@@ -154,14 +170,66 @@ class OnebotServer extends BaseServer<OneBotEvent> {
 
     private async onRawMessage(data: unknown) {
         try {
-            const event = JSON.parse(String(data)) as OneBotEvent;
-            logger.debug("收到事件:", event);
-            if (event.post_type !== "message") return;
-            await this.dispatch(event);
+            const frame = JSON.parse(String(data)) as OneBotEvent & { echo?: string; status?: string };
+            logger.debug("收到事件:", frame);
+            // 动作回包按 echo 认领；事件帧不带 echo，认领不了才走事件分发
+            if (typeof frame.echo === "string" && this.pending.has(frame.echo)) {
+                const entry = this.pending.get(frame.echo)!;
+                // NapCat 受理慢动作时先回 status:"async"，最终结果稍后以同一个 echo 补发
+                if (frame.status === "async") return;
+                this.pending.delete(frame.echo);
+                clearTimeout(entry.timer);
+                entry.resolve(frame);
+                return;
+            }
+            if (frame.post_type !== "message") return;
+            await this.dispatch(frame);
         }
         catch (err) {
             logger.error("解析事件 JSON 失败:", err);
         }
+    }
+
+    /**
+     * 动作 RPC：经反向 WS 下发 OneBot action，按 echo 等回包
+     * 无连接 / 发送失败 / 超时 / 断线统一 resolve null，由调用方按各自语义降级
+     */
+    private callAction(action: string, params: Record<string, unknown>, quiet = false): Promise<ActionResponse | null> {
+        return new Promise((resolve) => {
+            const socket = this.socket;
+            if (!socket || socket.readyState !== WebSocket.OPEN) {
+                logger[quiet ? "warn" : "error"](`NapCat 未连接，动作未执行 [${action}]`);
+                resolve(null);
+                return;
+            }
+            const echo = crypto.randomUUID();
+            const timer = setTimeout(() => {
+                const entry = this.pending.get(echo);
+                if (!entry) return;
+                this.pending.delete(echo);
+                logger[quiet ? "warn" : "error"](`NapCat 动作响应超时 [${action}]`);
+                entry.resolve(null);
+            }, ACTION_TIMEOUT_MS);
+            this.pending.set(echo, { resolve, timer });
+            try {
+                socket.send(JSON.stringify({ action, params, echo }));
+            }
+            catch (err) {
+                this.pending.delete(echo);
+                clearTimeout(timer);
+                logger.error(`NapCat 动作发送失败 [${action}]:`, err);
+                resolve(null);
+            }
+        });
+    }
+
+    /** 连接断开：清空在途动作，全部按 null 收尾 */
+    private failPending(): void {
+        for (const entry of this.pending.values()) {
+            clearTimeout(entry.timer);
+            entry.resolve(null);
+        }
+        this.pending.clear();
     }
 
     protected async toSegments(event: OneBotEvent): Promise<MessageSegment[]> {
@@ -195,7 +263,7 @@ class OnebotServer extends BaseServer<OneBotEvent> {
                     // 收到图片时就地换出本地路径
                     const fileId = d.file;
                     if (typeof fileId === "string" && fileId !== "") {
-                        const fileData = await getImage(fileId);
+                        const fileData = await this.callAction("get_image", { file: fileId });
                         const localPath = fileData?.data?.file;
                         if (typeof localPath === "string" && localPath !== "") {
                             media.localPath = localPath;
@@ -213,10 +281,12 @@ class OnebotServer extends BaseServer<OneBotEvent> {
                     // 语音：取转码后的音频文件 + QQ 原生转写文本，两者并行，任一路失败都只降级
                     const media: MediaRef = { uri: d.url ?? "" };
                     const fileId = typeof d.file === "string" ? d.file : "";
-                    const [record, text] = await Promise.all([
-                        fileId === "" ? Promise.resolve(null) : getRecord(fileId, "mp3"),
-                        fetchPttText(String(event.message_id ?? "")),
+                    const messageId = String(event.message_id ?? "");
+                    const [record, ptt] = await Promise.all([
+                        fileId === "" ? Promise.resolve(null) : this.callAction("get_record", { file: fileId, out_format: "mp3" }),
+                        messageId === "" ? Promise.resolve(null) : this.callAction("fetch_ptt_text", { message_id: messageId }, true),
                     ]);
+                    const text = typeof ptt?.data?.text === "string" ? ptt.data.text : "";
                     const localPath = await saveVoiceFile(record?.data?.base64, record?.data?.file);
                     if (localPath) media.localPath = localPath;
                     const duration = voiceDuration(d.duration);
