@@ -3,6 +3,7 @@ import { callLLM } from "./client.ts";
 import { callTool, getAllTools } from "./tools.js";
 import { reloadSkills } from "./skill.js";
 import { buildMessages } from "./contextBuilder.ts";
+import { runNotesMaintenance } from "./notes.ts";
 import { PlanBoard } from "./plan.ts";
 import config from "../config.js";
 import logger from "../utils/logger.js";
@@ -53,7 +54,21 @@ export default class Agent extends EventEmitter {
         }
         finally {
             this.memory.endRequest();
-            // 聊天阈值守护：整轮跑完后若上下文仍超阈值，后台静默摘要，不阻塞监听器摘除与后续对话
+            // 聊天阈值守护：整轮跑完后若上下文仍超阈值，先做笔记维护再后台静默摘要，
+            // 都不阻塞监听器摘除与后续对话
+            void this.postRunMaintenance();
+        }
+    }
+
+    /**
+     * 后台收尾：笔记维护
+     * → 摘要压缩。笔记 pass 失败不阻塞摘要。
+     */
+    private async postRunMaintenance(): Promise<void> {
+        try {
+            await runNotesMaintenance(this);
+        }
+        finally {
             this.memory.maybeSummarize();
         }
     }
@@ -141,7 +156,7 @@ export default class Agent extends EventEmitter {
     private async ask(tools: ToolDefinition[]): Promise<LlmResult | string> {
         const result = await callLLM({
             model: config.chatModel,
-            messages: buildMessages(this),
+            messages: await buildMessages(this),
             temperature: 0.2,
             tools,
         });

@@ -8,6 +8,7 @@ import {confirmPending, rejectPending} from "../../agent/approval-runner.ts";
 import { runAgent } from "../agent-runner.ts";
 import { isPlaceholder } from "../../services/preflight.ts";
 import { getUsageSummary } from "../../services/token-usage.ts";
+import { renderNotes } from "../../services/notes-store.ts";
 import logger from "../../utils/logger.js";
 import { extractText } from "../../utils/extractText.ts";
 
@@ -209,6 +210,17 @@ const cmds = [
             const text = getAgent(ctx.space).planBoard.render();
             if (!text) return "当前没有任务计划";
             return `任务计划：\n${text}`;
+        }
+    },
+    {
+        name: "notes",
+        needsAdmin: true,
+        description: "查看全局笔记",
+        params: [],
+        handler: async (args, ctx) => {
+            const text = await renderNotes();
+            if (!text) return "当前没有笔记";
+            return `全局笔记：\n${text}`;
         }
     },
     {

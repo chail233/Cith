@@ -4,6 +4,7 @@
 import { skills, forceSkills } from "./skill.js";
 import { mcpClient } from "./mcp-manager.js";
 import { readSystemPrompt } from "../services/prompt-store.ts";
+import { renderNotes } from "../services/notes-store.ts";
 import { renderPlan } from "./plan.ts";
 import type Agent from "./Agent.ts";
 
@@ -35,25 +36,34 @@ function renderTrigger(trigger: WakeTrigger | null | undefined): string | null {
 /**
  * 构建发送给 LLM 的完整消息列表
  * @param agent 当前会话的 Agent
+ * @param opts.notesPass 笔记维护 pass：复用上下文但去除技能/MCP 清单（与笔记维护无关的噪声）
  */
-export function buildMessages(agent: Agent) {
+export async function buildMessages(agent: Agent, opts: { notesPass?: boolean } = {}): Promise<Array<{ role: string; content: string }>> {
     const recorder = agent.memory;
     const activePlan = agent.planBoard.getActive();
     const messages: Array<{ role: string; content: string }> = [];
     const systemPrompt = readSystemPrompt();
     if (systemPrompt !== "") messages.push({ role: "system", content: systemPrompt });
 
-    if (forceSkills.length > 0) {
-        const forceBlock = forceSkills
-            .map(s => `### ${s.name}\n${s.content}`)
-            .join("\n\n");
-        messages.push({ role: "system", content: `强加载技能:\n${forceBlock}` });
+    if (!opts.notesPass) {
+        if (forceSkills.length > 0) {
+            const forceBlock = forceSkills
+                .map(s => `### ${s.name}\n${s.content}`)
+                .join("\n\n");
+            messages.push({ role: "system", content: `强加载技能:\n${forceBlock}` });
+        }
+
+        messages.push(
+            { role: "system", content: `技能列表：${JSON.stringify(skills)}` },
+            { role: "system", content: `mcp列表：${renderMcpServers()}` },
+        );
     }
 
-    messages.push(
-        { role: "system", content: `技能列表：${JSON.stringify(skills)}` },
-        { role: "system", content: `mcp列表：${renderMcpServers()}` },
-    );
+    // 全局笔记：AI 自我维护，位于对话历史概要之前；维护 pass 也依赖它看到当前笔记
+    const notes = await renderNotes();
+    if (notes !== "") {
+        messages.push({ role: "system", content: `你的笔记（全局，由你自己维护）：\n${notes}` });
+    }
 
     if (recorder.getMidSummary()) {
         messages.push({ role: "system", content: `对话历史概要:${recorder.getMidSummary()}` });

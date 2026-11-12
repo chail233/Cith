@@ -31,3 +31,7 @@
 
 # 微信登录凭证（wechatStorageDir 指向仓库内目录时）
 /core/data/wechatbot*/
+
+# 全局笔记（AI 自我维护，运行时懒创建）
+/core/data/notes.json
+/core/data/notes.json.tmp
