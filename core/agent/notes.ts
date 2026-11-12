@@ -1,10 +1,11 @@
 import { callLLM } from "./client.ts";
-import { buildMessages } from "./contextBuilder.ts";
 import config from "../config.js";
 import logger from "../utils/logger.js";
 import type Agent from "./Agent.ts";
 import type { ToolCall, ToolContext, ToolModule } from "./types.ts";
-import { addNote, deleteNote, updateNote } from "../services/notes-store.ts";
+import { addNote, deleteNote, renderNotesBlock, updateNote } from "../services/notes-store.ts";
+import { readSystemPrompt } from "../services/prompt-store.ts";
+import { renderPlanBlock } from "./plan.ts";
 
 /** 维护 pass 的最大请求轮数 */
 const NOTE_PASS_MAX_ROUNDS = 6;
@@ -121,14 +122,41 @@ async function execNoteTool(call: ToolCall): Promise<string> {
 }
 
 
+/**
+ * 组装维护 pass 的消息列表：复用当前对话上下文，但去除技能/MCP 清单
+ * 稳定段顺序与 Agent.buildMessages 保持一致，末尾附加维护指令
+ */
+async function buildNoteMessages(agent: Agent): Promise<Array<{ role: string; content: string }>> {
+    const messages: Array<{ role: string; content: string }> = [];
+    const systemPrompt = readSystemPrompt();
+    if (systemPrompt !== "") messages.push({ role: "system", content: systemPrompt });
+
+    const notes = await renderNotesBlock();
+    if (notes) messages.push({ role: "system", content: notes });
+
+    const midSummary = agent.memory.getMidSummary();
+    if (midSummary) {
+        messages.push({ role: "system", content: `对话历史概要:${midSummary}` });
+    }
+
+    messages.push(...agent.memory.getAll());
+
+    const activePlan = agent.planBoard.getActive();
+    if (activePlan) {
+        messages.push({ role: "system", content: renderPlanBlock(activePlan) });
+    }
+
+    messages.push({ role: "system", content: NOTES_PASS_PROMPT });
+    return messages;
+}
+
 export async function runNotesMaintenance(agent: Agent): Promise<void> {
     const threshold = config.chatSummaryThresholdTokens;
     if (!Number.isFinite(threshold) || threshold <= 0) return;
     const estimated = agent.memory.estimatedTokens;
     if (!Number.isFinite(estimated) || estimated <= threshold) return;
 
-    const messages = await buildMessages(agent, { notesPass: true });
-    messages.push({ role: "system", content: NOTES_PASS_PROMPT });
+    const messages = await buildNoteMessages(agent);
     logger.info("开始笔记维护:", agent.sessionId);
 
     let calls = 0;

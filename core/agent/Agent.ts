@@ -1,16 +1,21 @@
 import { EventEmitter } from "node:events";
 import { callLLM } from "./client.ts";
 import { callTool, getAllTools } from "./tools.js";
-import { reloadSkills } from "./skill.js";
-import { buildMessages } from "./contextBuilder.ts";
+import { reloadSkills, skills, forceSkills } from "./skill.js";
+import { mcpClient } from "./mcp-manager.js";
 import { runNotesMaintenance } from "./notes.ts";
-import { PlanBoard } from "./plan.ts";
+import { renderPlanBlock, PlanBoard } from "./plan.ts";
+import { readSystemPrompt } from "../services/prompt-store.ts";
+import { renderNotesBlock } from "../services/notes-store.ts";
 import config from "../config.js";
 import logger from "../utils/logger.js";
 import type { ChatRecorder } from "./recorder.js";
 import type { Context, MessageSegment } from "../types/index.ts";
 import type { AgentRunOutcome, AgentToolContext, HeldOutcome, LlmResult, ReplyPayload, ToolCall, ToolContext, ToolDefinition, ToolExecution, ToolHold } from "./types.ts";
 import type { ReplyTool, ReplyToolResult } from "../bot/adapters/reply-tool.ts";
+
+/** 定时苏醒的触发信息 */
+type WakeTrigger = { type: string; id?: string; title?: string; prompt?: string };
 
 export default class Agent extends EventEmitter {
     /** 会话 ID（{from}:{id}），同时作为长期记忆的派生键 */
@@ -21,7 +26,7 @@ export default class Agent extends EventEmitter {
     readonly planBoard = new PlanBoard();
 
     /** 定时苏醒注入的唤醒说明；buildMessages 读取后置空，避免污染后续对话 */
-    pendingTrigger: { type: string; id?: string; title?: string; prompt?: string } | null = null;
+    pendingTrigger: WakeTrigger | null = null;
 
     constructor(opts: { sessionId: string; memory: ChatRecorder }) {
         super();
@@ -149,6 +154,51 @@ export default class Agent extends EventEmitter {
     }
 
     /**
+     * 组装发送给 LLM 的完整消息列表
+     * 稳定前缀在前（系统提示 → 技能/MCP → 笔记 → 概要）、易变项在后（计划/唤醒说明），前缀缓存友好，勿打乱顺序
+     */
+    private async buildMessages(): Promise<Array<{ role: string; content: string }>> {
+        const messages: Array<{ role: string; content: string }> = [];
+        const systemPrompt = readSystemPrompt();
+        if (systemPrompt !== "") messages.push({ role: "system", content: systemPrompt });
+
+        if (forceSkills.length > 0) {
+            const forceBlock = forceSkills
+                .map(s => `### ${s.name}\n${s.content}`)
+                .join("\n\n");
+            messages.push({ role: "system", content: `强加载技能:\n${forceBlock}` });
+        }
+
+        messages.push(
+            { role: "system", content: `技能列表：${JSON.stringify(skills)}` },
+            { role: "system", content: `mcp列表：${renderMcpServers()}` },
+        );
+
+        // 全局笔记：AI 自我维护，位于对话历史概要之前
+        const notes = await renderNotesBlock();
+        if (notes) messages.push({ role: "system", content: notes });
+
+        const midSummary = this.memory.getMidSummary();
+        if (midSummary) {
+            messages.push({ role: "system", content: `对话历史概要:${midSummary}` });
+        }
+
+        const tail: Array<{ role: string; content: string }> = [];
+        const activePlan = this.planBoard.getActive();
+        if (activePlan) {
+            tail.push({ role: "system", content: renderPlanBlock(activePlan) });
+        }
+
+        const trigger = renderTrigger(this.pendingTrigger);
+        if (trigger) {
+            tail.push({ role: "system", content: trigger });
+        }
+        this.pendingTrigger = null;
+
+        return [...messages, ...this.memory.getAll(), ...tail];
+    }
+
+    /**
      * 请求一次模型
      * @param tools 本轮可用的工具定义
      * @returns 成功返回模型结果，失败返回错误文本（调用方只需判断 string）
@@ -156,7 +206,7 @@ export default class Agent extends EventEmitter {
     private async ask(tools: ToolDefinition[]): Promise<LlmResult | string> {
         const result = await callLLM({
             model: config.chatModel,
-            messages: await buildMessages(this),
+            messages: await this.buildMessages(),
             temperature: 0.2,
             tools,
         });
@@ -308,6 +358,29 @@ export default class Agent extends EventEmitter {
 /** 统一提取异常信息文本 */
 function errorMessage(err: unknown): string {
     return err instanceof Error ? err.message : String(err);
+}
+
+/** 渲染 MCP 服务器清单：名称 + 描述 + 激活状态 */
+function renderMcpServers(): string {
+    const servers = mcpClient.listServers();
+    if (servers.length === 0) return "无";
+    return servers
+        .map((s) => `${s.name}${s.description ? `（${s.description}）` : ""}${mcpClient.isActive(s.name) ? "[已激活]" : ""}`)
+        .join("、");
+}
+
+/** 渲染「定时苏醒」触发说明：让模型知道自己是被闹钟叫醒的，而不是收到新消息 */
+function renderTrigger(trigger: WakeTrigger | null | undefined): string | null {
+    if (!trigger || trigger.type !== "schedule") return null;
+    const lines = [
+        "你被自己的定时闹钟叫醒了",
+        `任务：${trigger.title ?? ""}`,
+    ];
+    if (trigger.prompt) lines.push(`备忘：${trigger.prompt}`);
+    lines.push(
+        "接下来由你自己决定行为"
+    );
+    return lines.join("\n");
 }
 
 /** 守卫：工具调用结果是否为门禁挂起 */

@@ -118,9 +118,6 @@ mock.module("../core/agent/tools.js", {
 mock.module("../core/agent/skill.js", {
     namedExports: { reloadSkills: async () => {}, skills: [], forceSkills: [] },
 });
-mock.module("../core/agent/contextBuilder.ts", {
-    namedExports: { buildMessages: () => [] },
-});
 
 const { default: Agent } = await import("../core/agent/Agent.ts");
 
@@ -133,6 +130,8 @@ function fakeMemory() {
         endRequest: () => {},
         compactIfNeeded: () => 0,
         maybeSummarize: () => false,
+        getMidSummary: () => "",
+        getAll: () => [],
         add(msg) { this.added.push(msg); },
     };
 }

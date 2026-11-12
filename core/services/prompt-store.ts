@@ -45,7 +45,7 @@ function readPromptText(): string | null {
 /**
  * 当前生效的系统提示词
  *
- * 文件不存在时返回空串，由 contextBuilder 跳过这条 system 消息。
+ * 文件不存在时返回空串，由 Agent.buildMessages 跳过这条 system 消息。
  */
 export function readSystemPrompt(): string {
     return readPromptText() ?? "";

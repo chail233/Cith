@@ -1,9 +1,3 @@
-/**
- * 全局笔记存储：AI 自我维护的长期笔记（自我认知、想记住的事）
- *
- * 全会话共享，注入在对话历史概要之前；完全由模型通过笔记工具增改删，
- * 文件运行时懒创建，gitignore。
- */
 import { readFile, writeFile, mkdir, rename } from "node:fs/promises";
 import { dirname } from "node:path";
 import logger from "../utils/logger.js";
@@ -132,6 +126,12 @@ export async function getNotes(): Promise<Note[]> {
 export async function renderNotes(): Promise<string> {
     await load();
     return state.notes.map((n) => `- [${n.id}] ${n.content}`).join("\n");
+}
+
+/** 渲染进上下文的笔记 system 消息全文（Agent.buildMessages 与笔记维护 pass 共用）；空笔记返回 null */
+export async function renderNotesBlock(): Promise<string | null> {
+    const text = await renderNotes();
+    return text ? `你的笔记（全局，由你自己维护）：\n${text}` : null;
 }
 
 /** 新增一条笔记，返回给模型的执行结果文本 */

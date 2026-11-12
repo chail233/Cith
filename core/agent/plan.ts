@@ -16,6 +16,11 @@ export function renderPlan(plan: Plan): string {
     return plan.goal ? `目标：${plan.goal}\n${steps}` : steps;
 }
 
+/** 渲染进上下文的计划 system 消息全文（Agent.buildMessages 与笔记维护 pass 共用） */
+export function renderPlanBlock(plan: Plan): string {
+    return `当前任务计划：\n${renderPlan(plan)}\n（勿偏离目标，随进度用 manage_plan 更新状态）`;
+}
+
 /** 单个会话的任务计划：同一时间至多一份，每次全量覆盖 */
 export class PlanBoard {
     private plan: Plan | null = null;

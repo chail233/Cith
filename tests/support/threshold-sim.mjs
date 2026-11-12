@@ -235,7 +235,7 @@ export class ChatSim {
         return { message: { content }, totalTokens: inputTokens + outTokens, usage: null };
     }
 
-    /** 复刻 contextBuilder.buildMessages 的骨架：固定前缀 → 概要 → 历史 */
+    /** 复刻 Agent.buildMessages 的骨架：固定前缀 → 概要 → 历史 */
     buildMessages(recorder, prefix) {
         const messages = [{ role: "system", content: prefix }];
         const midSummary = recorder.getMidSummary();
