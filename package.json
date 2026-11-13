@@ -8,6 +8,7 @@
     "build": "node node_modules/typescript/lib/tsc.js -p tsconfig.build.json && node scripts/copy-assets.js",
     "build:watch": "node node_modules/typescript/lib/tsc.js -p tsconfig.build.json --watch",
     "build:web": "cd web && node node_modules/typescript/lib/tsc.js -b && node node_modules/vite/bin/vite.js build",
+    "build:desktop": "cd desktop && node node_modules/typescript/lib/tsc.js -b && node node_modules/electron-vite/bin/electron-vite.js build",
     "build:all": "npm run build && npm run build:web",
     "start:dist": "node dist/index.js",
     "test": "node --experimental-test-module-mocks --test \"tests/**/*.test.mjs\"",

@@ -16,6 +16,7 @@
 | `npm run build` | tsc 按 `tsconfig.build.json` 只转译不检查（`noCheck`）→ `dist/`，再由 `scripts/copy-assets.js` 拷贝非代码资源 |
 | `npm run start:dist` | 运行构建产物 `dist/index.js`（部署用；需先 build） |
 | `npm run build:web` | 编译 Web 面板（`web/` 内 tsc -b + Vite → `web/dist/`） |
+| `npm run build:desktop` | 编译桌面客户端（`desktop/` 内 tsc -b + electron-vite → `out/`；开发进 `desktop/` 跑 `npm run dev`） |
 | `npm test` | `node --experimental-test-module-mocks --test "tests/**/*.test.mjs"` |
 | `npm run bench:thresholds` | 只跑记忆阈值基准测试 |
 | `npm run setup` | 交互式初始化（写 `core/config.json` 与 `web/.env`；`--check` 只读检查 / `--no-start` / `--force`） |
@@ -92,6 +93,7 @@ NapCat(反向WS) / 微信(长轮询)
 
 - `core/api/`：独立 WS 服务（默认 `ws://127.0.0.1:2145/api/v1/ws`，token 鉴权、心跳、action 白名单路由 `router.ts`、事件总线/环形日志缓冲）。各动件在 `api/actions/`。
 - `web/`：独立 npm 工程——React 18 + TS + Vite 前端 + Express BFF（`web/server/index.mjs`，:2146，持 `BOT_API_TOKEN`，可选 `WEB_PASSWORD` 登录与自签 HTTPS，SSE `/api/events`）。开发在 `web/` 内 `npm run dev` + `npm run server`；详见 `web/README.md`。
+- `desktop/`：独立 npm 工程——Electron 桌面客户端（electron-vite：main/preload/renderer 三段，React 18 + TS 渲染层，全 ESM）。与 core 完全解耦，仅经 WS 协议通信；连接协议尚未实现，详见 `desktop/README.md`。
 
 ## 开发约定
 
