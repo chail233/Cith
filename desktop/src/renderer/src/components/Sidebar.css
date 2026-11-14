@@ -1,0 +1,282 @@
+.sidebar {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: 18px 14px 14px;
+    background: var(--bg-1);
+}
+
+.side-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 2px 8px 18px;
+}
+
+.brand-mark {
+    width: 11px;
+    height: 11px;
+    flex-shrink: 0;
+    background: var(--accent);
+    border-radius: 3.5px;
+    transform: rotate(45deg);
+    animation: breathe 4s ease-in-out infinite alternate;
+}
+
+@keyframes breathe {
+    from {
+        box-shadow: 0 0 8px rgba(233, 162, 92, 0.35);
+    }
+    to {
+        box-shadow: 0 0 20px rgba(233, 162, 92, 0.75);
+    }
+}
+
+.brand-name {
+    font-family: var(--font-display);
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 0.4px;
+}
+
+.side-status {
+    margin-left: auto;
+}
+
+.status-dot {
+    display: block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--text-3);
+    box-shadow: 0 0 0 3px rgba(181, 168, 151, 0.18);
+}
+
+.side-new {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 10px 14px;
+    border-radius: 14px;
+    background: var(--bg-2);
+    color: var(--text-2);
+    font-size: 13px;
+    transition: background var(--speed) var(--ease), color var(--speed) var(--ease), transform var(--speed) var(--ease);
+}
+
+.side-new:hover {
+    background: var(--bg-3);
+    color: var(--text-1);
+    transform: translateY(-1px);
+}
+
+.side-new:active {
+    transform: scale(0.97);
+}
+
+.side-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 16px;
+    padding: 2px;
+}
+
+.conv {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    text-align: left;
+    padding: 10px 34px 10px 14px;
+    border-radius: 14px;
+    cursor: pointer;
+    transition: background var(--speed) var(--ease);
+}
+
+.conv:hover {
+    background: var(--bg-2);
+}
+
+.conv.active {
+    background: var(--bg-3);
+}
+
+/* 激活项的小菱形，品牌符号的回声 */
+.conv::before {
+    content: '';
+    position: absolute;
+    left: 5px;
+    top: 50%;
+    width: 6px;
+    height: 6px;
+    background: var(--accent);
+    border-radius: 1.5px;
+    transform: translateY(-50%) rotate(45deg) scale(0.4);
+    opacity: 0;
+    transition: opacity var(--speed) var(--ease), transform var(--speed) var(--ease-spring);
+}
+
+.conv.active::before {
+    opacity: 1;
+    transform: translateY(-50%) rotate(45deg) scale(1);
+}
+
+.conv-title {
+    font-size: 13px;
+    color: var(--text-2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: color var(--speed) var(--ease);
+}
+
+.conv:hover .conv-title,
+.conv.active .conv-title {
+    color: var(--text-1);
+}
+
+.conv-meta {
+    font-size: 11px;
+    color: var(--text-3);
+}
+
+/* 悬停浮现的会话菜单按钮 */
+.conv-more {
+    position: absolute;
+    right: 7px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 22px;
+    height: 22px;
+    display: grid;
+    place-items: center;
+    border-radius: 7px;
+    color: var(--text-3);
+    opacity: 0;
+    transition:
+        opacity var(--speed) var(--ease),
+        background var(--speed) var(--ease),
+        color var(--speed) var(--ease);
+}
+
+.conv:hover .conv-more,
+.conv.menu-open .conv-more {
+    opacity: 1;
+}
+
+.conv-more:hover {
+    background: rgba(243, 237, 228, 0.09);
+    color: var(--text-1);
+}
+
+.menu-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+}
+
+.conv-menu {
+    position: absolute;
+    right: 6px;
+    z-index: 50;
+    min-width: 104px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    background: var(--bg-2);
+    border-radius: 12px;
+    padding: 5px;
+    box-shadow: var(--shadow-m);
+    transform-origin: top right;
+    animation: menu-in 160ms var(--ease-spring);
+}
+
+@keyframes menu-in {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+}
+
+.conv-menu-item {
+    text-align: left;
+    padding: 7px 12px;
+    border-radius: 8px;
+    font-size: 12.5px;
+    color: var(--text-1);
+    transition: background var(--speed) var(--ease);
+}
+
+.conv-menu-item:hover {
+    background: var(--bg-3);
+}
+
+.conv-menu-item.danger {
+    color: var(--danger);
+}
+
+.conv-menu-item.danger:hover {
+    background: rgba(229, 118, 92, 0.12);
+}
+
+/* 已归档分组：弱化展示，点击条目恢复 */
+.archived-group {
+    margin-top: 12px;
+}
+
+.archived-label {
+    display: block;
+    padding: 2px 14px 6px;
+    font-size: 10.5px;
+    color: var(--text-3);
+    user-select: none;
+}
+
+.conv.archived {
+    opacity: 0.5;
+}
+
+.conv.archived:hover {
+    opacity: 0.85;
+    background: var(--bg-2);
+}
+
+.side-foot {
+    display: flex;
+    align-items: center;
+    margin-top: 12px;
+    padding: 8px 6px 2px;
+}
+
+.side-setting {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 8px 10px;
+    border-radius: var(--radius-s);
+    color: var(--text-3);
+    font-size: 12.5px;
+    transition: color var(--speed) var(--ease), background var(--speed) var(--ease);
+}
+
+.side-setting:hover {
+    color: var(--text-1);
+    background: var(--bg-2);
+}
+
+.side-setting.active {
+    color: var(--text-1);
+    background: var(--bg-2);
+}
+
+.side-version {
+    margin-left: auto;
+    font-family: var(--font-display);
+    font-size: 11px;
+    color: var(--text-3);
+    opacity: 0.8;
+}

@@ -3,8 +3,10 @@ import { app, BrowserWindow, ipcMain, shell } from 'electron'
 
 function createWindow(): void {
     const win = new BrowserWindow({
-        width: 960,
-        height: 680,
+        width: 1120,
+        height: 740,
+        minWidth: 940,
+        minHeight: 600,
         show: false,
         autoHideMenuBar: true,
         backgroundColor: '#111418',

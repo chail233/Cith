@@ -1,0 +1,79 @@
+.composer {
+    padding: 14px 24px 18px;
+}
+
+.composer-box {
+    max-width: var(--content-width);
+    margin: 0 auto;
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+    background: var(--bg-2);
+    border-radius: 26px;
+    padding: 11px 12px 11px 20px;
+    box-shadow: var(--shadow-s);
+    transition: box-shadow 250ms var(--ease);
+}
+
+.composer-box:focus-within {
+    box-shadow:
+        0 0 0 4px var(--accent-dim),
+        var(--shadow-m);
+}
+
+.composer-input {
+    flex: 1;
+    background: none;
+    border: 0;
+    outline: 0;
+    resize: none;
+    max-height: 160px;
+    padding: 5px 0;
+    line-height: 1.55;
+    color: var(--text-1);
+}
+
+.composer-input::placeholder {
+    color: var(--text-3);
+}
+
+.composer-send {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: #221408;
+    display: grid;
+    place-items: center;
+    transition:
+        background var(--speed) var(--ease),
+        transform 220ms var(--ease-spring),
+        box-shadow var(--speed) var(--ease);
+}
+
+.composer-send:hover:not(:disabled) {
+    background: var(--accent-strong);
+    transform: translateY(-2px) scale(1.04);
+    box-shadow: 0 6px 16px rgba(233, 162, 92, 0.3);
+}
+
+.composer-send:active:not(:disabled) {
+    transform: scale(0.88);
+}
+
+.composer-send:disabled {
+    background: var(--bg-3);
+    color: var(--text-3);
+    cursor: default;
+}
+
+.composer-hint {
+    max-width: var(--content-width);
+    margin: 8px auto 0;
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-3);
+    opacity: 0.7;
+    user-select: none;
+}
