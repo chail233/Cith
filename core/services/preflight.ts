@@ -26,6 +26,11 @@ function allowsAnything(value: unknown): boolean {
     return value.some((item) => !isPlaceholder(item));
 }
 
+/** owner 是否配置了至少一个有效 ID（owner 语义与白名单相反：空数组 = 没有管理员） */
+export function ownerConfigured(owner: unknown): boolean {
+    return Array.isArray(owner) && owner.some((item) => !isPlaceholder(item));
+}
+
 /** 收集配置问题清单，纯函数便于后续复用到自检命令 */
 export function collectConfigWarnings(): ConfigWarning[] {
     const warnings: ConfigWarning[] = [];
@@ -35,12 +40,12 @@ export function collectConfigWarnings(): ConfigWarning[] {
     };
 
     // ===== 致命：不修复就完全收不到回复 =====
-    if (isPlaceholder(cfg.owner)) {
+    if (!ownerConfigured(cfg.owner)) {
         add(
             "error",
             "owner",
             "管理员（owner）未配置，所有管理指令（#bind、#do-yes、#plan 等）都会返回「无权限」",
-            'core/config.json 中填写 owner: "你的QQ号"（或改 core/config.js 的默认值）',
+            'core/config.json 中填写 owner: ["你的QQ号"]（或改 core/config.js 的默认值）',
         );
     }
 

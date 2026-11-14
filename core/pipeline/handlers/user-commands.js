@@ -6,7 +6,7 @@ import {getAllTools} from "../../agent/tools.js";
 import {list as doList} from "../../agent/tool-approval.js";
 import {confirmPending, rejectPending} from "../../agent/approval-runner.ts";
 import { runAgent } from "../agent-runner.ts";
-import { isPlaceholder } from "../../services/preflight.ts";
+import { ownerConfigured } from "../../services/preflight.ts";
 import { getUsageSummary } from "../../services/token-usage.ts";
 import { renderNotes } from "../../services/notes-store.ts";
 import logger from "../../utils/logger.js";
@@ -357,10 +357,10 @@ export default async function userCommands(ctx) {
     if (!command) return false;
 
     if (command.needsAdmin && !ctx.isAdmin) {
-        // owner 未配置时所有人都会被拒，这里直接点明原因，避免用户以为是权限 bug
-        const hint = isPlaceholder(config.owner)
-            ? "（管理员尚未配置：请部署者在 config.js 的 owner 中填写管理员 QQ 号）"
-            : "";
+        // owner 未配置有效 ID 时所有人都会被拒，这里直接点明原因，避免用户以为是权限 bug
+        const hint = ownerConfigured(config.owner)
+            ? ""
+            : "（管理员尚未配置：请部署者在 config 的 owner 数组中填写管理员 ID）";
         ctx.adapter.sendMsg(ctx.space, `无权限：该指令仅管理员可用${hint}`);
         return true;
     }

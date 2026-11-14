@@ -209,7 +209,7 @@ class Prompter {
 // ===== 纯函数：生成配置文本（导出便于单测，不触碰真实文件） =====
 
 export interface SetupAnswers {
-    owner: string;
+    owner: string[];
     selfId: string;
     targetGroupId: string[];
     targetUserId: string[];
@@ -568,7 +568,7 @@ interface ConfigSnapshot {
     webPort: number;
     webPath: string;
     webToken: string;
-    owner: string;
+    owner: string[];
     selfId: string;
     aiApiKey: string;
     chatModel: string;
@@ -655,8 +655,9 @@ function reportConfig(snapshot: ConfigSnapshot, env: Record<string, string> | nu
         ? "core/config.js + core/config.json 已合并加载"
         : "core/config.js 已加载（无 core/config.json，全部使用默认值）");
 
-    if (looksPlaceholder(snapshot.owner)) bad("owner 未填写：所有管理指令都会返回无权限");
-    else ok("owner 已填写");
+    const owners = snapshot.owner.filter((item) => !looksPlaceholder(item));
+    if (owners.length === 0) bad("owner 未填写：所有管理指令都会返回无权限");
+    else ok(`owner 已填写（${owners.length} 个管理员）`);
 
     if (looksPlaceholder(snapshot.aiApiKey)) bad("aiApiKey 未填写：AI 无法生成回复");
     else ok(`模型：${snapshot.chatModel}`);
@@ -702,7 +703,16 @@ function isHttpUrl(value: string): string | null {
 
 async function collectAnswers(p: Prompter): Promise<SetupAnswers> {
     heading("机器人身份");
-    const owner = await p.ask("管理员 QQ 号（owner，接收管理指令）", { required: true, validate: isQQ });
+    const ownerRaw = await p.ask("管理员 QQ 号（owner，可多个，逗号分隔）", {
+        required: true,
+        validate: (value) => {
+            const ids = parseIdList(value);
+            return ids.length > 0 && ids.every((id) => isQQ(id) === null)
+                ? null
+                : "请输入 5-12 位数字 QQ 号，多个用逗号分隔";
+        },
+    });
+    const owner = parseIdList(ownerRaw);
     const selfId = await p.ask("机器人自身 QQ 号（selfId）", { required: true, validate: isQQ });
     const groupRaw = await p.ask("初始群号（可留空，之后在群里发 #bind 自动绑定）", {});
     const userRaw = await p.ask("初始私聊用户 QQ（可留空，对方首次发消息后发 #bind）", {});

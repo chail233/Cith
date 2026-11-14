@@ -92,8 +92,8 @@ const baseConfig = {
     /** 机器人自身 QQ 号 */
     selfId: "your_bot_qq",
 
-    /** 主人（管理员）QQ 号 */
-    owner: "your_owner_qq",
+    /** 管理员 ID 列表 */
+    owner: ["your_owner_qq"],
 
     /**
      * QQ 号 → 群昵称 映射表
@@ -283,9 +283,13 @@ function resolveMcpServer(server) {
 /** 默认配置里的 MCP 项与 config.json 共用同一套占位符，在合并用户配置前先行还原 */
 baseConfig.mcpServers = baseConfig.mcpServers.map(resolveMcpServer);
 
-/** JSON 表达不了的结构（Map）在此还原 */
+/** members 在加载期转 Map；owner 兼容旧版单值 / 数字写法，统一归一化为字符串数组 */
 function normalizeValue(key, value) {
     if (key === "members") return toMemberMap(value);
+    if (key === "owner") {
+        if (value == null) return [];
+        return Array.isArray(value) ? value.map(String) : [String(value)];
+    }
     return value;
 }
 

@@ -9,7 +9,7 @@ export function buildContext(event: CtxEvent): Context {
         if (!data.name) data.name = resolveName(data.id);
     }
 
-    const isAdmin = event.userId === config.owner;
+    const isAdmin = config.owner.includes(event.userId);
     // 白名单为空数组时全放行
     const isTarget = event.space.from === "user"
         ? config.targetUserId.length === 0 || config.targetUserId.includes(event.space.id)
