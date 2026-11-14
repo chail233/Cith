@@ -256,12 +256,19 @@ export default class Agent extends EventEmitter {
     private async speak(calls: ToolCall[], replyTool: ReplyTool, toolCtx: AgentToolContext): Promise<MessageSegment[] | null> {
         const acts: MessageSegment[] = [];
         let accepted = false;
+        /** 本轮已成功受理的发言参数：端点偶发重复下发同一 tool_call 时，避免同一句话发两遍 */
+        const acceptedArgs = new Set<string>();
         for (const call of calls) {
+            if (acceptedArgs.has(call.function.arguments)) {
+                this.recordToolCall(call.function.name, call.function.arguments, "与本轮已发送的发言调用完全相同，已忽略，消息只发一次");
+                continue;
+            }
             const output = await runReplyCall(replyTool, call, toolCtx);
             if (typeof output === "string") {
                 this.recordToolCall(call.function.name, call.function.arguments, output);
                 continue;
             }
+            acceptedArgs.add(call.function.arguments);
             accepted = true;
             acts.push(...output.acts);
         }
