@@ -1,6 +1,5 @@
 import { useState } from 'react'
-import { initialConversations } from './mock/conversations'
-import type { ChatMessage, Conversation, TraceData } from './types'
+import type { ChatMessage, Conversation, Segment, TraceData } from './types'
 
 let seq = 0
 export function nextId() {
@@ -14,13 +13,13 @@ export function nowTime() {
 
 /**
  * 会话集合状态：列表 / 归档 / 激活会话及其增删改。
- * 数据源目前是 mock；协议接通后，数据从这里进出，组件层不需要感知。
- * 消息段在缝内按协议段构建：出站消息在这里包成 {type, data}，入站消息将来原样进来。
+ * 会话没有历史同步，从空开始；协议侧数据经 useBackendChat 进出，组件层不需要感知。
+ * 消息段在缝内按协议段构建：出站段数组从这里交出去，不做二次转换。
  */
 export function useConversations() {
-    const [conversations, setConversations] = useState<Conversation[]>(initialConversations)
+    const [conversations, setConversations] = useState<Conversation[]>([])
     const [archived, setArchived] = useState<Conversation[]>([])
-    const [activeId, setActiveId] = useState(initialConversations[0]?.id ?? '')
+    const [activeId, setActiveId] = useState('')
 
     const active = conversations.find((c) => c.id === activeId) ?? conversations[0]
 
@@ -40,8 +39,9 @@ export function useConversations() {
         return conv.id
     }
 
-    /** 发出的消息进列表；新对话的第一句话升级为标题 */
-    function sendOutgoing(convId: string, text: string) {
+    /** 发出的消息进列表并返回构建好的协议段（传输层直接搬运）；新对话的第一句话升级为标题 */
+    function sendOutgoing(convId: string, text: string): Segment[] {
+        const segments: Segment[] = [{ type: 'text', data: { text } }]
         setConversations((list) =>
             list.map((c) => {
                 if (c.id !== convId) return c
@@ -51,17 +51,12 @@ export function useConversations() {
                     title,
                     messages: [
                         ...c.messages,
-                        {
-                            id: nextId(),
-                            role: 'user' as const,
-                            time: nowTime(),
-                            // 协议段在这里构建：将来直接把这段数组交给传输层，不做二次转换
-                            segments: [{ type: 'text' as const, data: { text } }],
-                        },
+                        { id: nextId(), role: 'user' as const, time: nowTime(), segments },
                     ],
                 }
             }),
         )
+        return segments
     }
 
     function appendMessage(convId: string, msg: ChatMessage) {

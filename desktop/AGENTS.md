@@ -20,7 +20,7 @@
 
 ## 进程模型（Electron 三段）
 
-- `src/main/` —— 主进程（Node 环境，每个 App 一个）：窗口生命周期、IPC handler。**后端 WS 客户端将来放这里**——主进程不随窗口关闭而死，托盘 / 系统通知也需要它常驻
+- `src/main/` —— 主进程（Node 环境，每个 App 一个）：窗口生命周期、IPC handler。**后端 WS 客户端在 `backend.ts`**——主进程不随窗口关闭而死，常驻连接是托盘 / 系统通知的前提
 - `src/preload/` —— 预加载桥：`api.ts` 定义 `desktopApi`（单一真源），经 `contextBridge` 暴露为 `window.desktop`，类型通过 `index.d.ts` 给渲染层。**能力收口**：渲染层永远不直接碰 Node，新能力逐个显式加进 `desktopApi`
 - `src/renderer/` —— React 界面（结构与数据流见下）
 
@@ -33,24 +33,23 @@ src/renderer/src/
 ├── types.ts                  域类型单一真源：Conversation / ChatMessage / Segment（协议段 {type,data}）/ TraceData
 ├── settings.ts               UI 设置：load / save（localStorage）/ apply（写 CSS 变量到根节点）
 ├── useConversations.ts       会话状态缝：列表 / 归档组 / 激活会话 + 全部增删改
-├── useDemoReply.ts           演示回复节奏（协议接通后整块删除）
-├── mock/conversations.ts     演示数据，零类型定义
+├── useBackendChat.ts         消息通道会话桥：出站装帧、入站转段进会话（space.id 归属映射 + pending）
 ├── styles/
 │   ├── tokens.css            设计 token 单一真源（色板 / 圆角 / 缓动 / 可调变量）
 │   └── base.css              reset + 滚动条 + .app 骨架 + 跨组件共享动画帧（rise / view-in / breathe）
 └── components/
-    ├── Sidebar.tsx/.css      会话列表 + 悬停 ⋯ 菜单（归档/删除，靠底自动上翻）+ 已归档分组
+    ├── Sidebar.tsx/.css      会话列表 + 悬停 ⋯ 菜单（归档/删除，靠底自动上翻）+ 已归档分组 + 品牌行连接状态点
     ├── Chat.tsx/.css         视图编排：头部 / 消息列表（自动滚底）/ 思考点 / 空状态
     ├── Message.tsx/.css      段渲染器：文本段拆段落 + 行内 code；trace 段转交 ToolTrace
     ├── ToolTrace.tsx/.css    工具痕迹卡片（签名组件，grid-rows 平滑展开终端输出）
     ├── Composer.tsx/.css     自适应高度输入框（Enter 发送 / Shift+Enter 换行）
-    ├── Settings.tsx/.css     分类导航（预留）+ 界面滑组 + 实时预览
+    ├── Settings.tsx/.css     分类导航 + 界面滑组 + 后端连接（地址 / token / 连接状态，状态文案与侧栏共用）+ 实时预览
     └── icons.tsx             手写 SVG，不引图标库
 ```
 
-**数据流**（一次发送的旅程）：Composer `onSend` → `App.handleSend` → `store.sendOutgoing()`（用户消息 + 标题升级）→ `demo.start()`（定时编排）→ `store.appendMessage / updateLastTrace` → React 重渲染 → `Message` / `ToolTrace`。
+**数据流**（一次发送的旅程）：Composer `onSend` → `App.handleSend`（须已连接）→ `chat.send()` 装帧发出（用户消息已在缝内建段）→ 入站帧经 `useBackendChat` 转段、按归属映射落会话 → React 重渲染 → `Message` / `ToolTrace`。
 
-**两个缝是协议接通的落点**：删掉 `useDemoReply.ts`、在 `useConversations` 换数据源，组件层零感知。组件内不直接操作会话数据，一律走 hook 方法。
+**数据源缝在 `useBackendChat`**：协议侧数据从这里进出，组件层零感知。组件内不直接操作会话数据，一律走 hook 方法。
 
 ## 约定
 
@@ -61,11 +60,14 @@ src/renderer/src/
 - 加 `window.desktop` 能力：`preload/api.ts` 加方法 + `index.d.ts` 类型自动跟随，渲染层可选链调用
 - 每轮请求 UI 改动后：`npm run typecheck` + `npm run build`，视觉改动用 `dev:web` 截图自查（改动后导航要带时间戳参数穿透缓存）
 
-## 协议（待实现）
+## 协议（占位已接通）
 
-- 方向：core 侧 DesktopServer 自开 WS（走「加聊天平台」标准路径：BaseServer + BaseAdapter + adapter-registry 注册），桌面端主进程持连接；审批桥（`#do-yes` 按钮化）单独走 core/api（2145）的 action
-- 动手前先定协议契约：统一段 JSON 序列化 + `chat.*` 事件集 + 审批桥 action + 握手版本号
-- **段建模已先行**：渲染层 `Segment` 即协议段形状（`{type, data}`），出站消息在 `useConversations.sendOutgoing` 缝内构建（目前仅 text），接协议时传输层只管搬运这段数组；trace 是桌面本地展示段，将来由 `tool-*` 事件在缝里转换生成，不进传输协议
+- core 侧 `DesktopServer` 已落地（`desktopPort`，默认 2147；token 与 NapCat 共用，握手阶段校验 `Authorization: Bearer`）；审批桥（`#do-yes` 按钮化）仍走 core/api（2145）的 action
+- 占位帧契约（正式协议定型后替换）：出站 `{type:'message', messageId, userId, segments}`，入站 `{type:'message', space:{from,id}, segments}`，段一律 `{type, data}` 统一段直传；帧类型单一真源在 `preload/api.ts`
+- **连接客户端**：`src/main/backend.ts` 常驻持有传输层（Bearer 握手、自动指数重连、建连超时兜底、入站帧经 `backend:message` 广播给渲染层）；地址 / token 在设置页「后端连接」配置并实时经 `desktopApi.setBackend` 下发
+- **会话桥**：`useBackendChat` 装帧/收帧；agent 回复按段拆帧连发（段间 3~4s 拟人间隔），客户端逐帧追加即保节奏，第一帧解锁输入、后续帧按 space.id 归位；桌面频道身份固定 `userId: 'desktop'`，主动消息（定时苏醒）无 pending 时按映射落到对应会话
+- **段建模**：出站段在 `useConversations.sendOutgoing` 缝内构建（目前仅 text），返回值直接装帧、不做二次转换；trace 是桌面本地展示段，将来由 `tool-*` 事件在缝里转换生成，不进传输协议
+- 待办：正式协议握手版本号与 `chat.*` 事件集、trace / 审批卡片事件、历史同步、图片等段能力放开
 - 设置页「后端连接」分类已预留（地址 / token / 连接状态）
 
 ## 已知坑

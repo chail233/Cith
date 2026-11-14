@@ -5,9 +5,11 @@ import './Composer.css'
 type Props = {
     onSend: (text: string) => void
     disabled: boolean
+    /** 覆盖底部提示文案；缺省为快捷键说明 */
+    hint?: string
 }
 
-export function Composer({ onSend, disabled }: Props) {
+export function Composer({ onSend, disabled, hint }: Props) {
     const [value, setValue] = useState('')
     const ref = useRef<HTMLTextAreaElement>(null)
 
@@ -58,7 +60,7 @@ export function Composer({ onSend, disabled }: Props) {
                     <SendIcon />
                 </button>
             </div>
-            <div className="composer-hint">Enter 发送 · Shift+Enter 换行</div>
+            <div className="composer-hint">{hint ?? 'Enter 发送 · Shift+Enter 换行'}</div>
         </div>
     )
 }

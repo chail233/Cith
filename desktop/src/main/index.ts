@@ -1,5 +1,21 @@
 import { join } from 'path'
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { BackendConnection } from './backend'
+import type { BackendConfig } from '../preload/api.ts'
+
+// 消息通道连接客户端：常驻主进程，状态与消息帧广播给所有窗口
+const backend = new BackendConnection({
+    onStatus: (status) => {
+        for (const win of BrowserWindow.getAllWindows()) {
+            win.webContents.send('backend:status', status)
+        }
+    },
+    onMessage: (frame) => {
+        for (const win of BrowserWindow.getAllWindows()) {
+            win.webContents.send('backend:message', frame)
+        }
+    },
+})
 
 function createWindow(): void {
     const win = new BrowserWindow({
@@ -33,6 +49,12 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
     ipcMain.handle('app:get-version', () => app.getVersion())
+    ipcMain.handle('backend:get-status', () => backend.current())
+    ipcMain.handle('backend:apply', (_e, raw: unknown) => {
+        const config = asBackendConfig(raw)
+        if (config) backend.apply(config)
+    })
+    ipcMain.handle('backend:send', (_e, raw: unknown) => backend.send(raw))
     createWindow()
 
     app.on('activate', () => {
@@ -43,3 +65,11 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit()
 })
+
+/** 渲染层传来的配置做形状校验，不合形直接丢弃 */
+function asBackendConfig(raw: unknown): BackendConfig | null {
+    if (typeof raw !== 'object' || raw === null) return null
+    const cfg = raw as Record<string, unknown>
+    if (typeof cfg.url !== 'string' || typeof cfg.token !== 'string') return null
+    return { url: cfg.url, token: cfg.token }
+}

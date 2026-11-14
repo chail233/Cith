@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { applySettings, loadSettings, saveSettings, type UiSettings } from './settings'
+import type { BackendStatus } from '../../preload/api.ts'
 import { useConversations } from './useConversations'
-import { useDemoReply } from './useDemoReply'
+import { useBackendChat } from './useBackendChat'
 import { Sidebar } from './components/Sidebar'
 import { ChatArea } from './components/Chat'
 import { SettingsView } from './components/Settings'
@@ -12,8 +13,9 @@ export default function App() {
     const [view, setView] = useState<'chat' | 'settings'>('chat')
     const [version, setVersion] = useState('')
     const [settings, setSettings] = useState<UiSettings>(loadSettings)
+    const [backendStatus, setBackendStatus] = useState<BackendStatus>({ state: 'idle' })
     const conv = useConversations()
-    const demo = useDemoReply()
+    const chat = useBackendChat(conv)
 
     useEffect(() => {
         window.desktop?.getVersion?.().then(setVersion).catch(() => {})
@@ -23,11 +25,21 @@ export default function App() {
         applySettings(settings)
     }, [settings])
 
+    // 订阅消息通道状态并拉一次快照；dev:web 无主进程，整链可选链短路
+    useEffect(() => {
+        const unsub = window.desktop?.onBackendStatus?.(setBackendStatus)
+        window.desktop?.getBackendStatus?.().then(setBackendStatus).catch(() => {})
+        return () => unsub?.()
+    }, [])
+
+    // 连接配置随设置实时下发，主进程防抖重连
+    useEffect(() => {
+        window.desktop?.setBackend?.({ url: settings.backendUrl, token: settings.backendToken }).catch(() => {})
+    }, [settings.backendUrl, settings.backendToken])
+
     function handleSend(text: string) {
-        if (!conv.active || demo.pending) return
-        const convId = conv.active.id
-        conv.sendOutgoing(convId, text)
-        demo.start(convId, conv)
+        if (!conv.active || chat.pending || backendStatus.state !== 'connected') return
+        chat.send(conv.active.id, text)
     }
 
     function handleNew() {
@@ -55,13 +67,14 @@ export default function App() {
 
     return (
         <div className="app">
-            <Sidebar
-                conversations={conv.conversations}
-                archived={conv.archived}
-                activeId={conv.active?.id ?? ''}
-                version={version}
-                settingsOpen={view === 'settings'}
-                onSelect={handleSelect}
+                <Sidebar
+                    conversations={conv.conversations}
+                    archived={conv.archived}
+                    activeId={conv.active?.id ?? ''}
+                    version={version}
+                    settingsOpen={view === 'settings'}
+                    backendStatus={backendStatus}
+                    onSelect={handleSelect}
                 onNew={handleNew}
                 onOpenSettings={() => setView('settings')}
                 onArchive={conv.archive}
@@ -69,9 +82,15 @@ export default function App() {
                 onRestore={handleRestore}
             />
             {view === 'settings' ? (
-                <SettingsView settings={settings} onChange={updateSettings} version={version} />
+                <SettingsView settings={settings} onChange={updateSettings} version={version} backendStatus={backendStatus} />
             ) : conv.active ? (
-                <ChatArea key={conv.active.id} conversation={conv.active} pending={demo.pending} onSend={handleSend} />
+                <ChatArea
+                    key={conv.active.id}
+                    conversation={conv.active}
+                    pending={chat.pending}
+                    connected={backendStatus.state === 'connected'}
+                    onSend={handleSend}
+                />
             ) : (
                 <main className="chat">
                     <div className="empty">

@@ -4,6 +4,10 @@ export type UiSettings = {
     paraGap: number
     msgGap: number
     contentWidth: number
+    /** 消息通道地址（DesktopServer），空 = 未配置 */
+    backendUrl: string
+    /** 通道 token；协议握手定下后随连接下发，当前仅存储 */
+    backendToken: string
 }
 
 export const defaultSettings: UiSettings = {
@@ -12,6 +16,8 @@ export const defaultSettings: UiSettings = {
     paraGap: 10,
     msgGap: 24,
     contentWidth: 760,
+    backendUrl: '',
+    backendToken: '',
 }
 
 const KEY = 'cith-ui-settings'

@@ -7,10 +7,11 @@ import './Chat.css'
 type Props = {
     conversation: Conversation
     pending: boolean
+    connected: boolean
     onSend: (text: string) => void
 }
 
-export function ChatArea({ conversation, pending, onSend }: Props) {
+export function ChatArea({ conversation, pending, connected, onSend }: Props) {
     const empty = conversation.messages.length === 0
     return (
         <main className="chat">
@@ -24,7 +25,11 @@ export function ChatArea({ conversation, pending, onSend }: Props) {
                 <MessageList messages={conversation.messages} pending={pending} />
             )}
 
-            <Composer onSend={onSend} disabled={pending} />
+            <Composer
+                onSend={onSend}
+                disabled={pending || !connected}
+                hint={connected ? undefined : '未连接后端，消息无法送达 · 前往设置配置连接'}
+            />
         </main>
     )
 }
@@ -66,7 +71,7 @@ function EmptyState({ onPick }: { onPick: (text: string) => void }) {
         <div className="empty">
             <span className="empty-mark" />
             <h2 className="empty-title">向 Cith 说点什么</h2>
-            <p className="empty-sub">演示数据 · 后端协议接通后这里是真实会话</p>
+            <p className="empty-sub">消息直达 core 后端，回复按段送达</p>
             <div className="sugs">
                 {SUGGESTIONS.map((s) => (
                     <button key={s} className="sug" onClick={() => onPick(s)}>

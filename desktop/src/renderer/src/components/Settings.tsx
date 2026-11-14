@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { defaultSettings, type UiSettings } from '../settings'
+import type { BackendStatus } from '../../../preload/api.ts'
 import './Settings.css'
 
 const CATEGORIES = [
@@ -11,13 +12,16 @@ const CATEGORIES = [
     { id: 'about', label: '关于', hint: '' },
 ]
 
+const OPEN_CATEGORIES = ['interface', 'backend', 'about']
+
 type Props = {
     settings: UiSettings
     onChange: (patch: Partial<UiSettings>) => void
     version: string
+    backendStatus: BackendStatus
 }
 
-export function SettingsView({ settings, onChange, version }: Props) {
+export function SettingsView({ settings, onChange, version, backendStatus }: Props) {
     const [active, setActive] = useState('interface')
     const cat = CATEGORIES.find((c) => c.id === active) ?? CATEGORIES[0]
 
@@ -35,15 +39,18 @@ export function SettingsView({ settings, onChange, version }: Props) {
                             onClick={() => setActive(c.id)}
                         >
                             <span>{c.label}</span>
-                            {!['interface', 'about'].includes(c.id) && <span className="set-cat-soon">未开放</span>}
+                            {!OPEN_CATEGORIES.includes(c.id) && <span className="set-cat-soon">未开放</span>}
                         </button>
                     ))}
                 </nav>
 
                 <section className="settings-pane" key={active}>
                     {cat.id === 'interface' && <InterfacePane settings={settings} onChange={onChange} />}
+                    {cat.id === 'backend' && (
+                        <BackendPane settings={settings} onChange={onChange} status={backendStatus} />
+                    )}
                     {cat.id === 'about' && <AboutPane version={version} />}
-                    {!['interface', 'about'].includes(cat.id) && <ReservedPane label={cat.label} hint={cat.hint} />}
+                    {!OPEN_CATEGORIES.includes(cat.id) && <ReservedPane label={cat.label} hint={cat.hint} />}
                 </section>
             </div>
         </main>
@@ -160,6 +167,75 @@ function SliderRow({ label, value, min, max, step, format, onChange }: {
                 style={{ background: `linear-gradient(to right, var(--accent) ${pct}%, var(--bg-3) ${pct}%)` }}
                 onChange={(e) => onChange(Number(e.target.value))}
             />
+        </div>
+    )
+}
+
+/** 连接状态的状态文案，设置页与侧栏共用 */
+export const STATUS_LABEL: Record<BackendStatus['state'], string> = {
+    idle: '未连接',
+    connecting: '正在连接…',
+    connected: '已连接',
+    reconnecting: '连接中断，正在重连…',
+}
+
+function BackendPane({ settings, onChange, status }: {
+    settings: UiSettings
+    onChange: (p: Partial<UiSettings>) => void
+    status: BackendStatus
+}) {
+    return (
+        <>
+            <header className="pane-head">
+                <h2 className="pane-title">后端连接</h2>
+                <p className="pane-desc">桌面端与 core 的消息通道。协议握手接入前，这里只反映通道是否可达。</p>
+            </header>
+
+            <div className="pane-card">
+                <FieldRow label="服务器地址">
+                    <input
+                        className="field-input"
+                        value={settings.backendUrl}
+                        placeholder="ws://127.0.0.1:2150"
+                        spellCheck={false}
+                        onChange={(e) => onChange({ backendUrl: e.target.value })}
+                    />
+                </FieldRow>
+                <FieldRow label="Token">
+                    <input
+                        className="field-input"
+                        type="password"
+                        value={settings.backendToken}
+                        placeholder="后端配置的连接 token"
+                        autoComplete="off"
+                        onChange={(e) => onChange({ backendToken: e.target.value })}
+                    />
+                </FieldRow>
+                <div className="status-block">
+                    <div className="status-row">
+                        <span className={`status-dot ${status.state}`} />
+                        <span className={`status-text ${status.state}`}>{STATUS_LABEL[status.state]}</span>
+                    </div>
+                    {status.state === 'reconnecting' && status.message && (
+                        <div className="status-hint">{status.message}——正在自动重连</div>
+                    )}
+                </div>
+            </div>
+
+            <div className="pane-foot">
+                <p className="pane-desc">改动即时生效；连接由主进程常驻持有，关窗重开后自动恢复。</p>
+            </div>
+        </>
+    )
+}
+
+function FieldRow({ label, children }: { label: string; children: ReactNode }) {
+    return (
+        <div className="field-row">
+            <div className="field-head">
+                <span className="field-label">{label}</span>
+            </div>
+            {children}
         </div>
     )
 }

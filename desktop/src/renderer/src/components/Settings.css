@@ -169,6 +169,102 @@
     transform: scale(1.25);
 }
 
+.field-row {
+    padding: 14px 0;
+}
+
+.field-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.field-label {
+    font-size: 13px;
+    color: var(--text-1);
+}
+
+.field-input {
+    display: block;
+    width: 100%;
+    padding: 9px 13px;
+    background: var(--bg-0);
+    border: 0;
+    border-radius: 11px;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    color: var(--text-1);
+    transition: background var(--speed) var(--ease), box-shadow var(--speed) var(--ease);
+}
+
+.field-input::placeholder {
+    color: var(--text-3);
+}
+
+.field-input:focus {
+    outline: none;
+    background: var(--bg-1);
+    box-shadow: 0 0 0 2px var(--accent-dim);
+}
+
+.status-block {
+    padding: 14px 0 8px;
+}
+
+.status-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.status-dot {
+    flex-shrink: 0;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    transition: background var(--speed) var(--ease);
+}
+
+.status-dot.idle {
+    background: var(--bg-3);
+}
+
+.status-dot.connecting,
+.status-dot.reconnecting {
+    background: var(--accent);
+    animation: breathe 1.6s var(--ease) infinite alternate;
+}
+
+.status-dot.connected {
+    background: var(--ok);
+    box-shadow: 0 0 8px rgba(156, 196, 143, 0.4);
+}
+
+.status-text {
+    font-size: 13px;
+    color: var(--text-1);
+}
+
+.status-text.idle {
+    color: var(--text-2);
+}
+
+.status-text.connected {
+    color: var(--ok);
+}
+
+.status-text.reconnecting {
+    color: var(--danger);
+}
+
+.status-hint {
+    font-size: 12px;
+    color: var(--text-3);
+    margin-top: 4px;
+    padding-left: 19px;
+}
+
 .preview-card {
     margin-top: 16px;
     background: var(--bg-0);

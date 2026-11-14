@@ -50,6 +50,19 @@
     border-radius: 50%;
     background: var(--text-3);
     box-shadow: 0 0 0 3px rgba(181, 168, 151, 0.18);
+    transition: background var(--speed) var(--ease), box-shadow var(--speed) var(--ease);
+}
+
+.status-dot.connected {
+    background: var(--ok);
+    box-shadow: 0 0 0 3px rgba(156, 196, 143, 0.2);
+}
+
+.status-dot.connecting,
+.status-dot.reconnecting {
+    background: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-dim);
+    animation: breathe 1.6s var(--ease) infinite alternate;
 }
 
 .side-new {

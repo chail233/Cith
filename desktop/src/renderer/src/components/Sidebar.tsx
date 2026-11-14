@@ -1,5 +1,7 @@
 import { useEffect, useState, type MouseEvent } from 'react'
 import type { Conversation } from '../types'
+import type { BackendStatus } from '../../../preload/api.ts'
+import { STATUS_LABEL } from './Settings'
 import { MoreIcon, PlusIcon, SlidersIcon } from './icons'
 import './Sidebar.css'
 
@@ -9,6 +11,7 @@ type Props = {
     activeId: string
     version: string
     settingsOpen: boolean
+    backendStatus: BackendStatus
     onSelect: (id: string) => void
     onNew: () => void
     onOpenSettings: () => void
@@ -17,7 +20,7 @@ type Props = {
     onRestore: (id: string) => void
 }
 
-export function Sidebar({ conversations, archived, activeId, version, settingsOpen, onSelect, onNew, onOpenSettings, onArchive, onDelete, onRestore }: Props) {
+export function Sidebar({ conversations, archived, activeId, version, settingsOpen, backendStatus, onSelect, onNew, onOpenSettings, onArchive, onDelete, onRestore }: Props) {
     const [menuId, setMenuId] = useState<string | null>(null)
     const [menuFlip, setMenuFlip] = useState(false)
 
@@ -49,8 +52,11 @@ export function Sidebar({ conversations, archived, activeId, version, settingsOp
             <div className="side-brand">
                 <span className="brand-mark" />
                 <span className="brand-name">Cith</span>
-                <span className="side-status" title="后端连接尚未接入">
-                    <span className="status-dot" />
+                <span
+                    className="side-status"
+                    title={`消息通道：${STATUS_LABEL[backendStatus.state]}${backendStatus.message ? `（${backendStatus.message}）` : ''}`}
+                >
+                    <span className={`status-dot ${backendStatus.state}`} />
                 </span>
             </div>
 
