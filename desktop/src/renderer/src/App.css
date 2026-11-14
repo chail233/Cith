@@ -1,5 +1,0 @@
-.app {
-    display: grid;
-    grid-template-columns: 262px minmax(0, 1fr);
-    height: 100%;
-}

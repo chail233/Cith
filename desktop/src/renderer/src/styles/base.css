@@ -68,6 +68,41 @@ a {
     background: none;
 }
 
+/* 应用骨架布局 */
+.app {
+    display: grid;
+    grid-template-columns: 262px minmax(0, 1fr);
+    height: 100%;
+}
+
+/* 跨组件共享的动画帧（组件私有的动画留在各自的 css 里） */
+@keyframes rise {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+        filter: blur(5px);
+    }
+    to {
+        filter: blur(0);
+    }
+}
+
+@keyframes view-in {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+}
+
+@keyframes breathe {
+    from {
+        box-shadow: 0 0 8px rgba(233, 162, 92, 0.35);
+    }
+    to {
+        box-shadow: 0 0 20px rgba(233, 162, 92, 0.75);
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
     *,
     *::before,

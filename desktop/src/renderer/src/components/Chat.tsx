@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
-import type { ChatMessage, Conversation, ToolTrace } from '../mock/conversations'
-import { ChevronIcon } from './icons'
+import { useEffect, useRef } from 'react'
+import type { ChatMessage, Conversation } from '../types'
+import { Message } from './Message'
 import { Composer } from './Composer'
 import './Chat.css'
 
@@ -43,70 +43,7 @@ function MessageList({ messages, pending }: { messages: ChatMessage[]; pending: 
                 {messages.map((m) => (
                     <Message key={m.id} msg={m} />
                 ))}
-                {pending && messages[messages.length - 1]?.role === "user" && <TypingRow />}
-            </div>
-        </div>
-    )
-}
-
-function Message({ msg }: { msg: ChatMessage }) {
-    return (
-        <div className={`msg ${msg.role}`}>
-            <div className="msg-segs">
-                {msg.segments.map((seg, i) =>
-                    seg.kind === 'text' ? (
-                        <div key={i} className="msg-text">
-                            {seg.text
-                                .split(/\n{2,}/)
-                                .map((para, j) => (
-                                    <p key={j} className="msg-para">{renderText(para)}</p>
-                                ))}
-                        </div>
-                    ) : (
-                        <ToolTrace key={i} trace={seg} />
-                    ),
-                )}
-            </div>
-            <span className="msg-time">{msg.time}</span>
-        </div>
-    )
-}
-
-/** 只处理 `行内代码` 一种标记，够聊天场景用 */
-function renderText(text: string) {
-    return text.split(/(`[^`]+`)/g).map((part, i) =>
-        part.startsWith('`') && part.endsWith('`')
-            ? <code key={i}>{part.slice(1, -1)}</code>
-            : part,
-    )
-}
-
-function ToolTrace({ trace }: { trace: ToolTrace }) {
-    const [open, setOpen] = useState(false)
-    const statusText = trace.status === 'ok' ? '完成' : trace.status === 'error' ? '出错' : '运行中'
-    const duration = trace.durationMs != null ? ` · ${(trace.durationMs / 1000).toFixed(1)}s` : ''
-
-    return (
-        <div className={`trace ${trace.status}${open ? ' open' : ''}`}>
-            <button className="trace-bar" onClick={() => setOpen(!open)}>
-                <ChevronIcon open={open} />
-                <span className="trace-name">{trace.name}</span>
-                <span className="trace-summary">{trace.summary}</span>
-                <span className="trace-status">
-                    <i className={`trace-dot ${trace.status}`} />
-                    {statusText}{duration}
-                </span>
-            </button>
-            <div className="trace-body">
-                <div className="trace-pad">
-                    {trace.command && (
-                        <div className="trace-cmd">
-                            <span className="trace-prompt">$</span>
-                            {trace.command}
-                        </div>
-                    )}
-                    {trace.output && <pre className="trace-out">{trace.output}</pre>}
-                </div>
+                {pending && messages[messages.length - 1]?.role === 'user' && <TypingRow />}
             </div>
         </div>
     )

@@ -16,7 +16,10 @@ npm run typecheck  # 只做类型检查（node / web 两个子项目）
 
 - `src/main/` —— 主进程：窗口生命周期、后端连接层（待实现）
 - `src/preload/` —— 预加载：contextBridge 暴露 `window.desktop`（类型声明在 `index.d.ts`）
-- `src/renderer/` —— 渲染层：React + TS，与 `web/` 同栈
+- `src/renderer/` —— 渲染层：React + TS
+  - `types.ts` 会话/消息/段域类型；`styles/tokens.css` 设计 token 单一真源
+  - `useConversations.ts` 会话状态缝（协议接通后数据从这里进出）；`useDemoReply.ts` 演示回复节奏（届时整体删除）
+  - `mock/` 演示数据；`components/` 按组件分文件，样式与组件同名同目录
 
 ## 待接入
 

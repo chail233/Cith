@@ -1,5 +1,5 @@
 import { useEffect, useState, type MouseEvent } from 'react'
-import type { Conversation } from '../mock/conversations'
+import type { Conversation } from '../types'
 import { MoreIcon, PlusIcon, SlidersIcon } from './icons'
 import './Sidebar.css'
 
