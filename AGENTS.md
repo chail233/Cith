@@ -93,7 +93,7 @@ NapCat(反向WS) / 微信(长轮询)
 
 - `core/api/`：独立 WS 服务（默认 `ws://127.0.0.1:2145/api/v1/ws`，token 鉴权、心跳、action 白名单路由 `router.ts`、事件总线/环形日志缓冲）。各动件在 `api/actions/`。
 - `web/`：独立 npm 工程——React 18 + TS + Vite 前端 + Express BFF（`web/server/index.mjs`，:2146，持 `BOT_API_TOKEN`，可选 `WEB_PASSWORD` 登录与自签 HTTPS，SSE `/api/events`）。开发在 `web/` 内 `npm run dev` + `npm run server`；详见 `web/README.md`。
-- `desktop/`：独立 npm 工程——Electron 桌面客户端（electron-vite：main/preload/renderer 三段，React 18 + TS 渲染层，全 ESM）。与 core 完全解耦，仅经 WS 协议通信；连接协议尚未实现，详见 `desktop/README.md`。
+- `desktop/`：独立 npm 工程——Electron 桌面客户端（electron-vite：main/preload/renderer 三段，React 18 + TS 渲染层，全 ESM）。与 core 完全解耦，仅经 WS 协议通信；连接协议尚未实现，工程级指南见 `desktop/AGENTS.md`。
 
 ## 开发约定
 
