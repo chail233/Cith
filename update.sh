@@ -2,7 +2,7 @@
 # Cith 一键更新：从远端仓库拉取代码，按需安装依赖并重新编译
 #
 # 用法:
-#   ./update.sh                 拉取当前分支的最新代码并编译（后端；前端已装过则一并编译）
+#   ./update.sh                 拉取当前分支的最新代码并编译（后端；前端面板编译过则一并重编）
 #   ./update.sh --web           强制连前端面板一起编译
 #   ./update.sh --no-web        跳过前端面板
 #   ./update.sh --branch dev    更新指定分支
@@ -107,7 +107,6 @@ fingerprint() {
     [ -f "$1" ] && git hash-object "$1" || true
 }
 PKG_BEFORE=$(fingerprint package.json; fingerprint package-lock.json)
-WEBPKG_BEFORE=$(fingerprint web/package.json; fingerprint web/package-lock.json)
 
 info "拉取 origin 最新提交..."
 git fetch --prune --quiet origin
@@ -156,28 +155,23 @@ fi
 info "编译后端（dist/）..."
 npm run build
 
-WEBPKG_AFTER=$(fingerprint web/package.json; fingerprint web/package-lock.json)
 BUILD_WEB=0
 if [ "$WITH_WEB" = "always" ]; then
     BUILD_WEB=1
-elif [ "$WITH_WEB" = "auto" ] && { [ -d web/node_modules ] || [ -d web/dist ]; }; then
+elif [ "$WITH_WEB" = "auto" ] && [ -d packages/web/dist ]; then
     BUILD_WEB=1
 fi
 
 if [ "$BUILD_WEB" = "1" ]; then
-    if [ "$SKIP_INSTALL" = "0" ] && { [ ! -d web/node_modules ] || [ "$WEBPKG_BEFORE" != "$WEBPKG_AFTER" ]; }; then
-        info "安装前端依赖..."
-        (cd web && npm install --no-audit --no-fund)
-    fi
-    info "编译前端面板（web/dist/）..."
+    info "编译前端面板（packages/web/dist/）..."
     npm run build:web
 else
-    info "跳过前端编译（未安装 web/node_modules；需要时加 --web）"
+    info "跳过前端编译（packages/web/dist 不存在；需要时加 --web）"
 fi
 
 # ---------- 完成 ----------
 info "更新完成：$(git rev-parse --short HEAD) $(git log -1 --pretty=%s)"
-[ -f core/config.json ] || warn "未找到 core/config.json，首次部署请先运行 npm run setup"
+[ -f packages/core/config.json ] || warn "未找到 packages/core/config.json，首次部署请先运行 npm run setup"
 
 echo
 echo "重启服务后生效："

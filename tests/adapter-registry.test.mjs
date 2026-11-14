@@ -10,8 +10,8 @@
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 
-import BaseAdapter from "../core/bot/adapters/BaseAdapter.ts";
-import { registerAdapter, unregisterAdapter, resolveAdapter } from "../core/services/adapter-registry.js";
+import BaseAdapter from "../packages/core/bot/adapters/BaseAdapter.ts";
+import { registerAdapter, unregisterAdapter, resolveAdapter } from "../packages/core/services/adapter-registry.js";
 
 /** 最小适配器替身：只关心通道与 accepts */
 class FakeAdapter extends BaseAdapter {

@@ -15,10 +15,10 @@ import { createInterface, type Interface } from "node:readline";
 const execFileAsync = promisify(execFile);
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const CONFIG_JS = join(ROOT, "core", "config.js");
-const CONFIG_JSON = join(ROOT, "core", "config.json");
-const WEB_ENV = join(ROOT, "web", ".env");
-const WEB_DIST = join(ROOT, "web", "dist", "index.html");
+const CONFIG_JS = join(ROOT, "packages", "core", "config.js");
+const CONFIG_JSON = join(ROOT, "packages", "core", "config.json");
+const WEB_ENV = join(ROOT, "packages", "web", ".env");
+const WEB_DIST = join(ROOT, "packages", "web", "dist", "index.html");
 /** 系统提示词文件（相对 core/），与 core/services/prompt-store.ts 的 PROMPT_REL_PATH 保持一致 */
 const PROMPT_REL = "prompts/system.md";
 
@@ -456,7 +456,8 @@ async function npmRun(args: string[], cwd: string): Promise<void> {
 function depsReady(): { root: boolean; web: boolean } {
     return {
         root: existsSync(join(ROOT, "node_modules", "express")),
-        web: existsSync(join(ROOT, "web", "node_modules", "express")),
+        // workspace 依赖提升后 web 的依赖也在根 node_modules，用 react（仅 web/desktop 用）探测
+        web: existsSync(join(ROOT, "node_modules", "react")),
     };
 }
 
@@ -481,9 +482,9 @@ async function ensureDependencies(skipInstall: boolean): Promise<void> {
         ok("Bot 依赖安装完成");
     }
     if (needWeb) {
-        note("安装 Web 面板依赖（web/ 下 npm install）...");
-        await npmRun(["install"], join(ROOT, "web"));
-        ok("Web 面板依赖安装完成");
+        note("安装依赖（根 npm install，workspaces 统一覆盖 Bot 与 Web 面板）...");
+        await npmRun(["install"], ROOT);
+        ok("依赖安装完成");
     }
 }
 
@@ -635,7 +636,7 @@ function isBlankList(value: unknown): boolean {
  * 文件缺失或为空时 Bot 不会注入任何 system 消息，JSON 输出格式会直接失效。
  */
 function reportPromptFile(): void {
-    const file = resolve(join(ROOT, "core"), PROMPT_REL);
+    const file = resolve(join(ROOT, "packages", "core"), PROMPT_REL);
     if (!existsSync(file)) {
         bad(`系统提示词文件缺失：${PROMPT_REL}（Bot 将不注入任何系统提示词）`);
         note("修复：恢复该文件，或在面板「系统提示词」页保存一次自动创建");

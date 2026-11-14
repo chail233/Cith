@@ -1,0 +1,19 @@
+{
+    "name": "@cith/core",
+    "version": "1.2.0",
+    "private": true,
+    "description": "Cith 核心：多轮工具调用 Agent 循环、四层记忆、MCP 扩展与多频道收发",
+    "type": "module",
+    "dependencies": {
+        "@modelcontextprotocol/client": "^2.3.1",
+        "@modelcontextprotocol/sdk": "^1.32.1",
+        "@wechatbot/wechatbot": "^2.2.0",
+        "express": "^5.2.1",
+        "jimp": "^1.6.1",
+        "node-schedule": "^2.1.1",
+        "open-websearch": "2.2.0",
+        "openai": "^7.45.1",
+        "rememori": "^0.7.0",
+        "ws": "^8.21.3"
+    }
+}

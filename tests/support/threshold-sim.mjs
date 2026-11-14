@@ -18,7 +18,7 @@ export const PRICE = { miss: 1, hit: 0.1, output: 4 };
 /** 模型上下文窗口，超出视为真实请求会失败 */
 export const MODEL_WINDOW_TOKENS = 128_000;
 
-const CORE_URL = new URL("../../core/", import.meta.url);
+const CORE_URL = new URL("../../packages/core/", import.meta.url);
 const core = (path) => new URL(path, CORE_URL).href;
 
 /** 摘要把上下文压成事实清单的固定提示词前缀，用来识别摘要调用 */

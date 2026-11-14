@@ -1,10 +1,10 @@
 # AGENTS.md（desktop）
 
-本文件为 AI 编码代理与开发者提供桌面客户端（`desktop/`）的工作指南。仓库级指南见根目录 [AGENTS.md](../AGENTS.md)；面向使用者的简介见 [README.md](README.md)。
+本文件为 AI 编码代理与开发者提供桌面客户端（`packages/desktop/`）的工作指南。仓库级指南见根目录 [AGENTS.md](../AGENTS.md)；面向使用者的简介见 [README.md](README.md)。
 
 ## 定位
 
-- Cith 的桌面客户端：Electron + React 18 + TS + electron-vite，独立 npm 工程，**与 core 完全解耦**，仅经 WS 协议通信（协议尚未实现，方向见下文「协议」）
+- Cith 的桌面客户端：Electron + React 18 + TS + electron-vite，workspace 子包（`packages/desktop/`，根 `workspaces: ["packages/*"]`，统一 lockfile），**与 core 完全解耦**，仅经 WS 协议通信（占位协议已接通，详见下文「协议」）
 - 桌面端只承接**桌面频道**：不做跨平台收件箱，不消费 QQ / 微信的会话数据
 - 状态边界：core 拥有全部权威状态（会话、记忆、审批），desktop 只拥有表现层；本地存储（localStorage）只放 UI 偏好，不做第二真源
 
@@ -74,7 +74,7 @@ src/renderer/src/
 
 ## 已知坑
 
-- Electron 二进制与 electron-builder 的 NSIS / winCodeSign 下载走 npmmirror（两个键都固化在 `.npmrc`），GitHub 直连会 `fetch failed`
+- Electron 二进制与 electron-builder 的 NSIS / winCodeSign 下载走 npmmirror（镜像键在**根** `.npmrc`，GitHub 直连会 `fetch failed`）；electron 依赖必须钉**精确版本**（无 `^`）——提升后 electron-builder 无法从范围版本解析平台二进制
 - 打包：无应用图标（默认 Electron 图标，放 `build/icon.ico` 即换）；未签名，别的机器首启有 SmartScreen 提示；`release/` 已 gitignored
 - ESM 产物命名：main 是 `.js`（靠 package.json 的 `type: module` 判定）、preload 是 `.mjs`（预加载无 package.json 上下文，靠扩展名自证）——`package.json#main` 与主进程里的 preload 路径必须与产物对齐
 - `dev:web` 模式下 `localStorage` 与 Electron 正式环境同源策略不同（浏览器端口 5199），UI 设置两边不共享，属预期

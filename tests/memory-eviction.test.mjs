@@ -6,7 +6,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { EVICT_GRACE_MS, selectEvictions } from "../core/services/memory-eviction.ts";
+import { EVICT_GRACE_MS, selectEvictions } from "../packages/core/services/memory-eviction.ts";
 
 const DAY = 24 * 60 * 60 * 1000;
 const NOW = 1_760_000_000_000;

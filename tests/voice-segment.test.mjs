@@ -18,9 +18,9 @@ let replies = {};
 /** fetch_ptt_text 收到的 message_id */
 const pttCalls = [];
 
-const { OnebotServer } = await import("../core/bot/servers/OnebotServer.ts");
-const { default: OnebotAdapter } = await import("../core/bot/adapters/OnebotAdapter.ts");
-const { default: WechatBotAdapter } = await import("../core/bot/adapters/WechatBotAdapter.ts");
+const { OnebotServer } = await import("../packages/core/bot/servers/OnebotServer.ts");
+const { default: OnebotAdapter } = await import("../packages/core/bot/adapters/OnebotAdapter.ts");
+const { default: WechatBotAdapter } = await import("../packages/core/bot/adapters/WechatBotAdapter.ts");
 
 const noop = async () => {};
 /** 不启动 WS 的服务器实例：socket 用替身顶上，toSegments / callAction 照常工作 */

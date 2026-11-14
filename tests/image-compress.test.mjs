@@ -11,7 +11,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Jimp } from "jimp";
 
-import { compressForVision } from "../core/utils/image-compress.ts";
+import { compressForVision } from "../packages/core/utils/image-compress.ts";
 
 /** 造一张纯色图 */
 async function makeImage(width, height, mime, options) {

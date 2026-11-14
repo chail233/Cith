@@ -6,8 +6,8 @@
     "moduleResolution": "NodeNext",
     "lib": ["ES2022"],
 
-    // 编译目录与输出目录：core 下所有源码编译输出到 dist
-    "rootDir": "core",
+    // 编译目录与输出目录：packages/core 下所有源码编译输出到 dist
+    "rootDir": "packages/core",
     "outDir": "dist",
 
     // 项目主体为 JS，逐步引入 TS：允许编译 .js，但不检查 .js 类型
@@ -32,10 +32,10 @@
     "removeComments": true
   },
   "include": [
-    "core/**/*.js",
-    "core/**/*.ts"
+    "packages/core/**/*.js",
+    "packages/core/**/*.ts"
   ],
   "exclude": ["node_modules", "dist",
-    "core/workspace"
+    "packages/core/workspace"
   ]
 }

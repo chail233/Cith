@@ -11,11 +11,11 @@
 import { test, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
 
-import { buildReplyTool, REPLY_TOOL_NAME } from "../core/bot/adapters/reply-tool.ts";
-import { imageCap, textCap } from "../core/bot/adapters/reply-segment-caps.ts";
-import OnebotAdapter from "../core/bot/adapters/OnebotAdapter.ts";
-import WechatBotAdapter from "../core/bot/adapters/WechatBotAdapter.ts";
-import config from "../core/config.js";
+import { buildReplyTool, REPLY_TOOL_NAME } from "../packages/core/bot/adapters/reply-tool.ts";
+import { imageCap, textCap } from "../packages/core/bot/adapters/reply-segment-caps.ts";
+import OnebotAdapter from "../packages/core/bot/adapters/OnebotAdapter.ts";
+import WechatBotAdapter from "../packages/core/bot/adapters/WechatBotAdapter.ts";
+import config from "../packages/core/config.js";
 
 // ---------------------------------------------------------------- 能力集
 
@@ -104,7 +104,7 @@ const calls = [];
 /** 待返回的响应队列；用尽后重复最后一条 */
 let responses = [];
 
-mock.module("../core/agent/client.ts", {
+mock.module("../packages/core/agent/client.ts", {
     namedExports: {
         callLLM: async (opts) => {
             calls.push(opts);
@@ -112,14 +112,14 @@ mock.module("../core/agent/client.ts", {
         },
     },
 });
-mock.module("../core/agent/tools.js", {
+mock.module("../packages/core/agent/tools.js", {
     namedExports: { getAllTools: () => [], callTool: async () => "ok" },
 });
-mock.module("../core/agent/skill.js", {
+mock.module("../packages/core/agent/skill.js", {
     namedExports: { reloadSkills: async () => {}, skills: [], forceSkills: [] },
 });
 
-const { default: Agent } = await import("../core/agent/Agent.ts");
+const { default: Agent } = await import("../packages/core/agent/Agent.ts");
 
 /** 只记录写入的记忆替身 */
 function fakeMemory() {

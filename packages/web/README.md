@@ -11,7 +11,7 @@ Bot 的 Web 管理面板：React 18 + TypeScript + Vite 前端 + 轻量 Node BFF
 BFF (web/server, :2146, http 或 https 自签名)  ← token(BOT_API_TOKEN) 只保存在这里
    │  WebSocket（bot-api-integration.md 定义的协议）
    ▼
-Bot 面板 API Server (core/api/server.ts, ws://127.0.0.1:2145/api/v1/ws)
+Bot 面板 API Server (packages/core/api/server.ts, ws://127.0.0.1:2145/api/v1/ws)
 ```
 
 设计要点（与 `bot-api-integration.md` 对齐）：
@@ -86,7 +86,7 @@ web/
 │   │   └── usePolling.ts     # 轮询 hook（后台标签页暂停）
 │   ├── components/      # 通用 UI（卡片 / 徽标 / 状态灯 / 登录页等）
 │   ├── pages/           # 五个功能页面
-│   ├── types.ts         # 协议与领域类型（对应 core/api/types.ts）
+│   ├── types.ts         # 协议与领域类型（对应 packages/core/api/types.ts）
 │   ├── utils/format.ts  # 展示格式化
 │   └── App.tsx          # 布局 + hash 路由
 ├── bot-api-integration.md  # Bot 端协议文档（对接依据，勿随意修改）
@@ -114,7 +114,7 @@ web/
 
 ## 常见问题
 
-- **顶栏 Bot 灯一直是红的**：确认 Bot 主进程已启动且 `core/config.js` 的 `web.port` 与 BFF 的 `BOT_API_URL` 端口一致；查看 BFF 终端日志，若出现 `4401` 说明 token 不匹配。
-- **配置编辑保存报「该配置项不允许修改」**：Bot 端白名单（`core/api/actions/config.ts` 的 `WRITABLE_KEYS`）未包含该字段，属预期行为。
+- **顶栏 Bot 灯一直是红的**：确认 Bot 主进程已启动且 `packages/core/config.js` 的 `web.port` 与 BFF 的 `BOT_API_URL` 端口一致；查看 BFF 终端日志，若出现 `4401` 说明 token 不匹配。
+- **配置编辑保存报「该配置项不允许修改」**：Bot 端白名单（`packages/core/api/actions/config.ts` 的 `WRITABLE_KEYS`）未包含该字段，属预期行为。
 - **日志页看不到更早的历史**：受 Bot 环形缓冲容量限制，超出部分已被覆盖。
 - **浏览器访问 HTTPS 面板提示证书不受信任**：自签名证书的预期行为，信任后即可；若信任后仍提示，多半是服务器 IP 变了而证书 SAN 还是旧 IP——更新 `WEB_SERVER_IP` 并删除 `web/.ssl/` 后重启重新生成。

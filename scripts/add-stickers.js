@@ -27,7 +27,7 @@ import getImageType from "../core/utils/image-type.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, "..");
-const coreDir = resolve(root, "core");
+const coreDir = resolve(root, "packages", "core");
 /** 表情包根目录，与 manifest 的 baseDir 对应 */
 const imagesDir = resolve(coreDir, "stickers", "images");
 /** manifest.baseDir 的固定值，与运行时 resolveSrcPath 的基准保持一致 */

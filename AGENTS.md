@@ -5,40 +5,40 @@
 **Cith / SunbatwoBot** 是一个跑在自建设备上的个人 Agent，住在 QQ（OneBot v11 / NapCat）与微信里。核心是一个多轮工具调用的 LLM Agent 循环，配四层记忆系统、MCP 工具扩展、SKILL.md 技能系统和一个 Web 管理面板。
 
 - Node.js **>= 24**：依赖原生 type stripping 直接运行 `.ts`；全仓 ESM（`"type": "module"`）
-- JS/TS 混合结构：`core/` 中 TS 略多于 JS，逐步向 TS 迁移
+- JS/TS 混合结构：`packages/core/` 中 TS 略多于 JS，逐步向 TS 迁移
 - LLM 走 OpenAI 兼容协议，接入任意端点；MCP 客户端基于 `@modelcontextprotocol/sdk`
 
 ## 常用命令
 
 | 命令 | 说明 |
 |------|------|
-| `npm start` | 直接运行 `core/index.js`（Node 24 现场转译 TS，开发推荐，改完即生效） |
+| `npm start` | 直接运行 `packages/core/index.js`（Node 24 现场转译 TS，开发推荐，改完即生效） |
 | `npm run build` | tsc 按 `tsconfig.build.json` 只转译不检查（`noCheck`）→ `dist/`，再由 `scripts/copy-assets.js` 拷贝非代码资源 |
 | `npm run start:dist` | 运行构建产物 `dist/index.js`（部署用；需先 build） |
-| `npm run build:web` | 编译 Web 面板（`web/` 内 tsc -b + Vite → `web/dist/`） |
-| `npm run build:desktop` | 编译桌面客户端（`desktop/` 内 tsc -b + electron-vite → `out/`；开发进 `desktop/` 跑 `npm run dev`） |
+| `npm run build:web` | 编译 Web 面板（`packages/web/` 内 tsc -b + Vite → `packages/web/dist/`） |
+| `npm run build:desktop` | 编译桌面客户端（`packages/desktop/` 内 tsc -b + electron-vite → `out/`；开发进 `packages/desktop/` 跑 `npm run dev`） |
 | `npm test` | `node --experimental-test-module-mocks --test "tests/**/*.test.mjs"` |
 | `npm run bench:thresholds` | 只跑记忆阈值基准测试 |
-| `npm run setup` | 交互式初始化（写 `core/config.json` 与 `web/.env`；`--check` 只读检查 / `--no-start` / `--force`） |
+| `npm run setup` | 交互式初始化（写 `packages/core/config.json` 与 `packages/web/.env`；`--check` 只读检查 / `--no-start` / `--force`） |
 | `npm run add-stickers` | 用视觉模型批量给表情包图片生成描述/标签，写入 sticker manifest |
 | `bash update.sh` | 拉取更新 + 按需装依赖 + 编译（`--web` / `--stash` / `--force`；不会重启服务） |
 
 - **没有 linter**，没有根级 `typecheck` 脚本。`tsconfig.json` 是 IDE 类型检查基准（strict + noEmit）；如需 CLI 检查手动跑 `node node_modules/typescript/lib/tsc.js -p tsconfig.json`。
-- **测试现状（写作时）**：8 个测试文件、46 个用例，43 过 3 失败 —— `config-store.test.mjs` 整体失败（import 的 `core/config/store.ts`/`schema.ts` 尚不存在，是先行于配置重构的测试）；`thresholds.test.mjs` 有 2 个断言失败。修复前先弄清失败是“测试先行”还是“真实回归”，不要盲目改代码凑绿。
+- **测试现状（写作时）**：8 个测试文件、46 个用例，43 过 3 失败 —— `config-store.test.mjs` 整体失败（import 的 `packages/core/config/store.ts`/`schema.ts` 尚不存在，是先行于配置重构的测试）；`thresholds.test.mjs` 有 2 个断言失败。修复前先弄清失败是“测试先行”还是“真实回归”，不要盲目改代码凑绿。
 - 需要连接 NapCat（反向 WS，默认 `ws://127.0.0.1:8080/onebot/v11/ws`）才能真正收发消息；无 NapCat 时可只验证启动自检与面板 API。
 
 ## 配置系统
 
 两层配置，`git pull` 永远不会覆盖用户配置：
 
-- `core/config.js` —— 默认值层，随仓库分发，可提交
-- `core/config.json` —— 用户配置层，**gitignored**（路径可用环境变量 `CITH_CONFIG` 指向仓库外）
+- `packages/core/config.js` —— 默认值层，随仓库分发，可提交
+- `packages/core/config.json` —— 用户配置层，**gitignored**（路径可用环境变量 `CITH_CONFIG` 指向仓库外）
 
 合并规则：标量与数组整体覆盖；普通对象只覆盖写了的字段；`mcpServers` 是唯一**按 `name` 增量合并**的数组（同 `name` 整项代替；`{"name": ..., "disabled": true}` 剔除默认项）；`members` 写成 `{"QQ号": "昵称"}` 对象，加载时转 Map；`$` / `_` 开头的键是注释，加载时忽略；`command: "$NODE"` 重写为当前 node 可执行文件。解析失败直接中止启动，不静默降级。旧版大写键（`TOOLCHAIN_MAX_LENGTH` 等）自动迁移为新 camelCase 键。
 
-运行期细节：`config` 被 Proxy 包裹，顶层键赋值自动读改写回 `config.json`（`members`/`mcpServers` 不落盘；密钥类键只警告需重启）。跑 `dist/` 时配置在 `dist/config.json`，`npm run build` 会用 `core/config.json` 覆盖它。
+运行期细节：`config` 被 Proxy 包裹，顶层键赋值自动读改写回 `config.json`（`members`/`mcpServers` 不落盘；密钥类键只警告需重启）。跑 `dist/` 时配置在 `dist/config.json`，`npm run build` 会用 `packages/core/config.json` 覆盖它。
 
-**系统提示词不是配置项**：固定路径 `core/prompts/system.md`，每轮重读，改完即生效；缺失时不注入任何 system 消息。面板通过 prompt 接口写入（带 `.bak` 备份），`set_config` 刻意无法触碰它。
+**系统提示词不是配置项**：固定路径 `packages/core/prompts/system.md`，每轮重读，改完即生效；缺失时不注入任何 system 消息。面板通过 prompt 接口写入（带 `.bak` 备份），`set_config` 刻意无法触碰它。
 
 ## 架构
 
@@ -58,7 +58,7 @@ NapCat(反向WS) / 微信(长轮询) / 桌面客户端(自开WS, DesktopServer)
 - 目标过滤：`targetGroupId` / `targetUserId` 均为**数组白名单**，空数组视为全放行；未授权会话中管理员发 `#bind` 可放行（bootstrap）。
 - 处理器（**首个返回 true 即停止**）：`user-commands`（`#` 命令真表）→ `ai-chat` → `proactive-chat`。加新行为 = 插入处理器，不改管道循环。
 - 图片是**懒识别**：消息里的图片段只带 `media.localPath` 进上下文，不自动调视觉模型；模型需要看图时用 `recognize_image` 工具按需识别（工具内做魔数校验，仅 jpg/png/webp）。送模型前会先过 `utils/image-compress.ts`：最长边超 1568px 或体积超 1.5MB 才等比缩小/重编码（png 保透明、jpg quality 85），小图与 webp（jimp 不解码）原样发送，解码失败也回退原图。
-- 语音是**收到即处理**：`record` 段并行调 NapCat 的两个 action 后归一化为 `voice` 段——`get_record`（`out_format` 必填，默认 `mp3`）取音频、优先用返回的 `base64` 写进 `core/data/voices/`（NapCat 跑在容器/另一台机时它的本机路径读不到），`fetch_ptt_text` 取 QQ 客户端自带的转写文本放在 `data.text`。两者任一失败只降级，段本身照进上下文；转写会拖慢 `toSegments` 1~3 秒。
+- 语音是**收到即处理**：`record` 段并行调 NapCat 的两个 action 后归一化为 `voice` 段——`get_record`（`out_format` 必填，默认 `mp3`）取音频、优先用返回的 `base64` 写进 `packages/core/data/voices/`（NapCat 跑在容器/另一台机时它的本机路径读不到），`fetch_ptt_text` 取 QQ 客户端自带的转写文本放在 `data.text`。两者任一失败只降级，段本身照进上下文；转写会拖慢 `toSegments` 1~3 秒。
 
 ### Agent 循环（`agent/Agent.ts`）
 
@@ -74,7 +74,7 @@ NapCat(反向WS) / 微信(长轮询) / 桌面客户端(自开WS, DesktopServer)
 
 ### 审批门禁（不可绕过）
 
-- `utils/file-security.js` 的 `resolveSrcPath` 把相对路径解析钉死在 `core/`（跑 dist 时为 `dist/`）内，`..` 穿越**硬拒绝**，供内部服务与 `run_shell` 的 cwd 解析使用。
+- `utils/file-security.js` 的 `resolveSrcPath` 把相对路径解析钉死在 `packages/core/`（跑 dist 时为 `dist/`）内，`..` 穿越**硬拒绝**，供内部服务与 `run_shell` 的 cwd 解析使用。
 - `run_shell` 门禁集中在 `callTool()`：已确认调用直通；**非管理员任何模式都审查**，管理员仅 `shellGate: "guard"`（默认）审查、`"open"` 直通——审查经小模型三分类（`agent/shell-guard.ts`，无状态、无会话上下文，guard 端点/密钥缺省回落 `llmApiUrl`/`aiApiKey`），`allow` 放行，`deny` / `unsure` / 未配置 `guardModel` / 调用失败一律挂起（10 分钟超时），等管理员 `#do-yes <id>` / `#do-no` / `#do-pending`，确认执行链在 `agent/approval-runner.ts`。挂起时 `callTool()` 返回 `ToolHold` 而非文本：Agent 主循环当场中断、挂起信息不写进对话记忆也不回给模型，`agent-runner` 收到 Agent 的 `approval` 事件后构造只对适配器可见的 `tool_approval` 消息段（文本渲染在 `utils/approval-notice.ts`），由 Adapter 发消息请求确认。`#do-yes` / `#do-no` 均可带多个编号；确认执行的结果用 `recordToolCall` 写回，拒绝用 `recordToolDenial` 写回（模型知道该操作未运行、不要重试）。
 - 文件操作类工具（read_file / list_files / create_file / edit_file / delete_file / run_JS）已按 Issue #42 退役，文件与脚本操作统一走 `run_shell`。
 
@@ -91,9 +91,10 @@ NapCat(反向WS) / 微信(长轮询) / 桌面客户端(自开WS, DesktopServer)
 
 ### 面板 API 与 Web 面板
 
-- `core/api/`：独立 WS 服务（默认 `ws://127.0.0.1:2145/api/v1/ws`，token 鉴权、心跳、action 白名单路由 `router.ts`、事件总线/环形日志缓冲）。各动件在 `api/actions/`。
-- `web/`：独立 npm 工程——React 18 + TS + Vite 前端 + Express BFF（`web/server/index.mjs`，:2146，持 `BOT_API_TOKEN`，可选 `WEB_PASSWORD` 登录与自签 HTTPS，SSE `/api/events`）。开发在 `web/` 内 `npm run dev` + `npm run server`；详见 `web/README.md`。
-- `desktop/`：独立 npm 工程——Electron 桌面客户端（electron-vite：main/preload/renderer 三段，React 18 + TS 渲染层，全 ESM）。与 core 完全解耦，仅经 WS 协议通信；连接协议尚未实现，工程级指南见 `desktop/AGENTS.md`。
+- `packages/core/api/`：独立 WS 服务（默认 `ws://127.0.0.1:2145/api/v1/ws`，token 鉴权、心跳、action 白名单路由 `router.ts`、事件总线/环形日志缓冲）。各动件在 `api/actions/`。
+- **npm workspaces**：根 `package.json` 声明 `workspaces: ["core", "web", "desktop"]`，统一 lockfile、依赖提升到根 `node_modules`；`packages/core/` 是 `@cith/core` 子包（运行依赖在其 package.json），根上只留编排脚本与 TypeScript。`.npmrc`（Electron / electron-builder 镜像）在根。跨包脚本用 `npm run xxx -w packages/web`（-w 收路径，包名亦可）。
+- `packages/web/`：workspace 子包——React 18 + TS + Vite 前端 + Express BFF（`packages/web/server/index.mjs`，:2146，持 `BOT_API_TOKEN`，可选 `WEB_PASSWORD` 登录与自签 HTTPS，SSE `/api/events`）。开发在 `packages/web/` 内 `npm run dev` + `npm run server`；详见 `packages/web/README.md`。
+- `packages/desktop/`：workspace 子包——Electron 桌面客户端（electron-vite：main/preload/renderer 三段，React 18 + TS 渲染层，全 ESM；electron 依赖钉精确版本）。与 core 完全解耦，仅经 WS 协议通信（占位协议已接通）；工程级指南见 `packages/desktop/AGENTS.md`。
 
 ## 开发约定
 
@@ -101,7 +102,7 @@ NapCat(反向WS) / 微信(长轮询) / 桌面客户端(自开WS, DesktopServer)
 - 用 `utils/logger.js`，不要用 `console`。
 - **JS 引用 TS 模块时 import 路径显式写 `.ts` 后缀**（构建时 `rewriteRelativeImportExtensions` 自动重写为 `.js`）；导入 interface **必须 `import type`**；JS 文件中用 JSDoc 引用类型：`/** @typedef {import("./xxx.ts").Type} Type */`。
 - `.ts` 中只允许可擦除语法（`erasableSyntaxOnly`：禁 `enum` 等）。
-- 共享类型单一真源：跨模块接口进 `core/types/index.ts`（`CtxEvent` / `Space` / `Context`），消息段类型在 `core/types/segment.ts`；Agent 专属类型（`ToolCall` / `LlmResult` / `ReplyAct` 等）进 `agent/types.ts`——不要在别处重复定义。types 与 `BaseAdapter` 之间的 type-only 循环 import 是允许的（运行时擦除）。
+- 共享类型单一真源：跨模块接口进 `packages/core/types/index.ts`（`CtxEvent` / `Space` / `Context`），消息段类型在 `packages/core/types/segment.ts`；Agent 专属类型（`ToolCall` / `LlmResult` / `ReplyAct` 等）进 `agent/types.ts`——不要在别处重复定义。types 与 `BaseAdapter` 之间的 type-only 循环 import 是允许的（运行时擦除）。
 - 传输相关状态（如 ws socket）留在具体 Adapter 子类，不进 `BaseAdapter`。
 - 上下文组装讲究**前缀缓存友好**：稳定内容在前、易变内容在后；改动时勿打乱这一顺序。
 - 每轮请求的固定底噪约 **2.5k token**（`system.md` + 技能/MCP 清单 ≈ 280，8 个工具定义 ≈ 2.2k，`send_message` 单个 ≈ 940）：改工具 schema/描述时先想清楚这会让每轮成本涨多少。
@@ -112,11 +113,11 @@ NapCat(反向WS) / 微信(长轮询) / 桌面客户端(自开WS, DesktopServer)
 - **加关键词匹配**：没有独立的关键词命令框架，直接写在 `user-commands.js` 的 handler 里判断文本。
 - **加工具**：`agent/tools/` 下新建模块 → 在 `toolRegistry` 登记；需要门禁的工具在 `callTool()` 里按工具名加分支。
 - **加聊天平台**：`bot/servers/` 加一个 `BaseServer` 子类（实现 `toSegments` 把平台消息归一化为统一段、`toEventMeta` 出元信息，媒体在 `toSegments` 内就地落地）+ `bot/adapters/` 加一个 `BaseAdapter` 子类（实现 `sendMsg()` 对外发送、声明 `channel` 与 `replyCapabilities()`），并在 `services/adapter-registry.js` 注册；管道与处理器零改动。
-- **加 MCP Server**：写进 `core/config.json` 的 `mcpServers`（按 `name` 增量合并规则，见上）。默认自带 `websearch`（open-websearch，无需凭据）。
-- **加技能**：`core/skills/<名称>/SKILL.md`（frontmatter `name`、`description`，可选 `force: true` 使正文固定注入上下文）+ `scripts/` 下 JS 脚本（`process.argv[2]` 收 JSON 参数、`console.log` 出结果，经 `run_shell` 执行）。社区技能经内置 `skills/skill-manager/` 从 GitHub 安装。
+- **加 MCP Server**：写进 `packages/core/config.json` 的 `mcpServers`（按 `name` 增量合并规则，见上）。默认自带 `websearch`（open-websearch，无需凭据）。
+- **加技能**：`packages/core/skills/<名称>/SKILL.md`（frontmatter `name`、`description`，可选 `force: true` 使正文固定注入上下文）+ `scripts/` 下 JS 脚本（`process.argv[2]` 收 JSON 参数、`console.log` 出结果，经 `run_shell` 执行）。社区技能经内置 `skills/skill-manager/` 从 GitHub 安装。
 
 ## 仓库注意
 
-- gitignored 的本地路径：`core/config.json`、`core/app.pem`、`mcp/`（本地 MCP server，如 `mcp/github-server`）、`core/data/rememori/`（长期记忆）、`core/data/images/`（微信图片落地缓存）、`core/data/voices/`（QQ 语音转码落地）、`core/data/wechatbot*/`（微信登录凭证）、`core/stickers/manifest.dev.json`、`core/prompts/*.bak`、`web/.env`、`dist/`。sticker manifest 有 `manifest.example.json` 模板。
-- 表情包素材：`core/stickers/`（manifest + images/），根目录 `homura/`、`imgs/` 是未跟踪的原始素材，等待 `npm run add-stickers` 处理。
+- gitignored 的本地路径：`packages/core/config.json`、`packages/core/app.pem`、`mcp/`（本地 MCP server，如 `mcp/github-server`）、`packages/core/data/rememori/`（长期记忆）、`packages/core/data/images/`（微信图片落地缓存）、`packages/core/data/voices/`（QQ 语音转码落地）、`packages/core/data/wechatbot*/`（微信登录凭证）、`packages/core/stickers/manifest.dev.json`、`packages/core/prompts/*.bak`、`packages/web/.env`、`dist/`。sticker manifest 有 `manifest.example.json` 模板。
+- 表情包素材：`packages/core/stickers/`（manifest + images/），根目录 `homura/`、`imgs/` 是未跟踪的原始素材，等待 `npm run add-stickers` 处理。
 - `docs/` 只收录了 rememori 库的中文文档（原理与用法）。

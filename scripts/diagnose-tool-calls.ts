@@ -20,16 +20,16 @@
  */
 import OpenAI from "openai";
 import { readFile } from "node:fs/promises";
-import config from "../core/config.js";
-import type { ToolDefinition } from "../core/agent/types.ts";
+import config from "../packages/core/config.js";
+import type { ToolDefinition } from "../packages/core/agent/types.ts";
 
-import getMemoryTool from "../core/agent/tools/get-memory.ts";
-import manageMcpTool from "../core/agent/tools/manage-mcp.ts";
-import listStickersTool from "../core/agent/tools/list-stickers.ts";
-import managePlanTool from "../core/agent/tools/manage-plan.ts";
-import scheduleTool from "../core/agent/tools/schedule.ts";
-import recognizeImageTool from "../core/agent/tools/recognize-image.ts";
-import runShellTool from "../core/agent/tools/run-shell.ts";
+import getMemoryTool from "../packages/core/agent/tools/get-memory.ts";
+import manageMcpTool from "../packages/core/agent/tools/manage-mcp.ts";
+import listStickersTool from "../packages/core/agent/tools/list-stickers.ts";
+import managePlanTool from "../packages/core/agent/tools/manage-plan.ts";
+import scheduleTool from "../packages/core/agent/tools/schedule.ts";
+import recognizeImageTool from "../packages/core/agent/tools/recognize-image.ts";
+import runShellTool from "../packages/core/agent/tools/run-shell.ts";
 
 /** 每组重复次数（命令行第一个参数） */
 const REPEAT = Math.max(1, Math.min(Number(process.argv[2] ?? 2) || 2, 10));
@@ -186,7 +186,7 @@ async function main(): Promise<void> {
 
     const baseURL = normalizeBaseURL(config.llmApiUrl);
     const client = new OpenAI({ baseURL, apiKey, timeout: TIMEOUT });
-    const system = await readFile(new URL("../core/prompts/system.md", import.meta.url), "utf-8");
+    const system = await readFile(new URL("../packages/core/prompts/system.md", import.meta.url), "utf-8");
 
     console.log("=== 当前配置 ===");
     console.log(`   endpoint: ${baseURL}`);

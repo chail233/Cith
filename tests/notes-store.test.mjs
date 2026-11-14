@@ -8,10 +8,10 @@ import assert from "node:assert/strict";
 import { existsSync, renameSync, readFileSync, rmSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { addNote, deleteNote, getNotes, renderNotes, updateNote } from "../core/services/notes-store.ts";
+import { addNote, deleteNote, getNotes, renderNotes, updateNote } from "../packages/core/services/notes-store.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const notesFile = resolve(here, "../core/data/notes.json");
+const notesFile = resolve(here, "../packages/core/data/notes.json");
 const backupFile = `${notesFile}.test-bak`;
 
 before(() => {

@@ -2,13 +2,14 @@
   "name": "sunbatwobot",
   "version": "1.2.0",
   "description": "A Personal Agent with any adapter you want, featuring multi-turn tool calling, a four-tier memory system, user profiling, image vision, MCP tool extensions and a pluggable skill system.",
+  "workspaces": ["packages/*"],
   "scripts": {
     "setup": "node scripts/setup.ts",
-    "start": "node core/index.js",
-    "build": "node node_modules/typescript/lib/tsc.js -p tsconfig.build.json && node scripts/copy-assets.js",
-    "build:watch": "node node_modules/typescript/lib/tsc.js -p tsconfig.build.json --watch",
-    "build:web": "cd web && node node_modules/typescript/lib/tsc.js -b && node node_modules/vite/bin/vite.js build",
-    "build:desktop": "cd desktop && node node_modules/typescript/lib/tsc.js -b && node node_modules/electron-vite/bin/electron-vite.js build",
+    "start": "node packages/core/index.js",
+    "build": "tsc -p tsconfig.build.json && node scripts/copy-assets.js",
+    "build:watch": "tsc -p tsconfig.build.json --watch",
+    "build:web": "npm run build -w packages/web",
+    "build:desktop": "npm run build -w packages/desktop",
     "build:all": "npm run build && npm run build:web",
     "start:dist": "node dist/index.js",
     "test": "node --experimental-test-module-mocks --test \"tests/**/*.test.mjs\"",
@@ -27,23 +28,11 @@
   "author": "chail233",
   "license": "MIT",
   "type": "module",
-  "dependencies": {
-    "@modelcontextprotocol/client": "^2.3.1",
-    "@modelcontextprotocol/sdk": "^1.32.1",
-    "@wechatbot/wechatbot": "^2.2.0",
-    "express": "^5.2.1",
-    "jimp": "^1.6.1",
-    "node-schedule": "^2.1.1",
-    "open-websearch": "2.2.0",
-    "openai": "^7.45.1",
-    "rememori": "^0.7.0",
-    "typescript": "^7.0.2",
-    "ws": "^8.21.3"
-  },
   "devDependencies": {
     "@types/node": "^26.6.5",
     "@types/ws": "^8.18.2",
     "octokit": "^5.0.5",
+    "typescript": "^7.0.2",
     "zod": "^4.6.5"
   }
 }

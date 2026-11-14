@@ -1,12 +1,12 @@
 # 用户配置层（含真实密钥，不入库；生产可放仓库外并用 CITH_CONFIG 指向）
-/core/config.json
-/core/config.json.tmp
+/packages/core/config.json
+/packages/core/config.json.tmp
 
 # 旧版配置层：机制已废弃，仅保留忽略规则以免残留文件被误提交
-/core/configDev.js
-/core/configOverride.json
-/core/configOverride.json.tmp
-/core/app.pem
+/packages/core/configDev.js
+/packages/core/configOverride.json
+/packages/core/configOverride.json.tmp
+/packages/core/app.pem
 /secrets/
 
 *.pem
@@ -14,24 +14,30 @@
 
 /node_modules/
 /dist/
-/core/stickers/manifest.dev.json
+/packages/core/stickers/manifest.dev.json
 
 # 提示词面板保存时产生的备份与临时文件
-/core/prompts/*.bak
-/core/prompts/*.tmp
+/packages/core/prompts/*.bak
+/packages/core/prompts/*.tmp
 
 # 长期记忆数据（rememori append-only 文件）
-/core/data/rememori/
+/packages/core/data/rememori/
 
 # 微信图片落地（图像识别用的临时缓存）
-/core/data/images/
+/packages/core/data/images/
 
 # 入站语音落地（QQ 语音转码后的 mp3）
-/core/data/voices/
+/packages/core/data/voices/
+
+# 语音 MCP server 的数据（tts 生成的 mp3 + 默认音色记录）
+/voice-data/
 
 # 微信登录凭证（wechatStorageDir 指向仓库内目录时）
-/core/data/wechatbot*/
+/packages/core/data/wechatbot*/
 
 # 全局笔记（AI 自我维护，运行时懒创建）
-/core/data/notes.json
-/core/data/notes.json.tmp
+/packages/core/data/notes.json
+/packages/core/data/notes.json.tmp
+
+# token-usage 运行数据（与 data 路径问题一族，待统一治理）
+/packages/core/data/token-usage.json
