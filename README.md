@@ -46,9 +46,9 @@ powershell -ExecutionPolicy Bypass -File setup.ps1
 bash setup.sh
 ```
 
-脚本会依次完成：检查 Node 版本 → 安装根目录与 `web/` 依赖 → 交互式询问必填项（`owner`、`selfId`、模型地址与 Key、NapCat 地址、面板端口与密码等）→ 生成 `core/config.json` 与 `web/.env`（`BOT_API_TOKEN` 自动与 Bot 的 `web.token` 对齐）→ 校验配置能否真实加载 → 端口检查 →（首次）构建 Web 面板 → 前台启动并打印面板地址与 NapCat 反向 WS 地址。
+脚本会依次完成：检查 Node 版本 → 根上一次 `npm install`（workspaces 统一安装 core / web / desktop 三包）→ 交互式询问必填项（`owner`、`selfId`、模型地址与 Key、NapCat 地址、面板端口与密码等）→ 生成 `packages/core/config.json` 与 `packages/web/.env`（`BOT_API_TOKEN` 自动与 Bot 的 `web.token` 对齐）→ 校验配置能否真实加载 → 端口检查 →（首次）构建 Web 面板 → 前台启动并打印面板地址与 NapCat 反向 WS 地址。
 
-- 只生成两个已被 gitignore 的文件，**不修改** `core/config.js`；重复运行会先备份旧文件，不会静默覆盖
+- 只生成两个已被 gitignore 的文件，**不修改** `packages/core/config.js`；重复运行会先备份旧文件，不会静默覆盖
 - 密钥输入不回显，脚本全程不打印密钥原文
 - `npm run setup -- --check`：只读检查（环境、依赖、配置能否加载、端口、`.env` 是否与 Bot 对齐），开发与生产同一套配置机制，均适用
 - `npm run setup -- --no-start`：只写配置并校验，不启动；`--force`：跳过「保持现有配置」的询问，备份后重新生成
@@ -70,10 +70,10 @@ NapCat 反向 WebSocket 连接地址：`ws://127.0.0.1:8080/onebot/v11/ws`（端
 
 | 命令 | 说明 |
 |------|------|
-| `npm start` | 直接运行 `core/` 源码（开发推荐，改完即生效） |
-| `npm run build` | tsc 编译 `core/` → `dist/`，并拷贝 SKILL.md 等非代码资源 |
+| `npm start` | 直接运行 `packages/core/` 源码（开发推荐，改完即生效） |
+| `npm run build` | tsc 编译 `packages/core/` → `dist/`，并拷贝 SKILL.md 等非代码资源 |
 | `npm run build:watch` | watch 模式构建（资源拷贝不会自动重跑，需手动 build） |
-| `npm run build:web` | 编译 Web 面板（`web/`：tsc + Vite → `web/dist/`，需先装好 `web/node_modules`） |
+| `npm run build:web` | 编译 Web 面板（`packages/web/`：tsc + Vite → `packages/web/dist/`，依赖随根安装统一就位） |
 | `npm run build:all` | 一键编译 core + web（先 `build` 后 `build:web`） |
 | `npm run start:dist` | 运行构建产物 `dist/index.js`（上线部署用） |
 
@@ -88,11 +88,11 @@ bash update.sh --stash      # 自动暂存本地未提交改动，结束后恢�
 bash update.sh --force      # 远端无新提交也重新编译（修本地 dist 时用）
 ```
 
-脚本只处理已跟踪文件，`core/config.json`、`mcp/`、`core/data/` 等被忽略的本地文件不会被触碰；拉取使用 `--ff-only`，本地分叉时直接报错而不是生成 merge commit；依赖文件（`package.json` / lock）未变时跳过 `npm install`。更新完成不会自动重启服务，按运行方式执行 `npm start` / `npm run start:dist` / `pm2 restart <应用名>` 生效。
+脚本只处理已跟踪文件，`packages/core/config.json`、`mcp/`、`packages/core/data/` 等被忽略的本地文件不会被触碰；拉取使用 `--ff-only`，本地分叉时直接报错而不是生成 merge commit；依赖文件（`package.json` / lock）未变时跳过 `npm install`。更新完成不会自动重启服务，按运行方式执行 `npm start` / `npm run start:dist` / `pm2 restart <应用名>` 生效。
 
 ### 配置
 
-配置分两层：`core/config.js` 是**随仓库分发的默认值**（可提交，不含真实密钥），`core/config.json` 是**用户配置层**（已 gitignore，只写需要覆盖的键）。启动时按 `config.js → config.json` 合并，**开发与生产共用同一套机制**，`git pull` 永远不会覆盖你的配置。
+配置分两层：`packages/core/config.js` 是**随仓库分发的默认值**（可提交，不含真实密钥），`packages/core/config.json` 是**用户配置层**（已 gitignore，只写需要覆盖的键）。启动时按 `config.js → config.json` 合并，**开发与生产共用同一套机制**，`git pull` 永远不会覆盖你的配置。
 
 - **命名规范**：配置键统一 camelCase（`chatModel`、`aiApiKey`、`llmApiUrl` …）。旧版大写键（`CHAT_MODEL`、`aiAPIKEY` 等）仍兼容：启动时自动映射为新键、迁移落盘并打印改名提示。
 - **覆盖规则**：标量与数组整体覆盖；`web` 这类普通对象只覆盖写了的字段（改端口不用把 `path` / `logBufferSize` 一起写全）。
@@ -102,7 +102,7 @@ bash update.sh --force      # 远端无新提交也重新编译（修本地 dist
 - **配置脱离代码目录**：生产可把配置文件放到仓库外，用环境变量 `CITH_CONFIG=/etc/cith/config.json` 指向它。
 - **运行期持久化**：`config` 由 Proxy 包裹，运行期的顶层键赋值（面板 `set_config` 等）会读-改-写回 `config.json`，保留你手写的其他键（`members` / `mcpServers` 不落盘）。
 
-> 跑 `dist/` 构建产物时配置文件位于 `dist/config.json`：`npm run build` 会用 `core/config.json` **覆盖**它，唯一真源始终是 `core/config.json`。直接用 `start:dist` 跑且在上面热改（面板保存）时，热改值会在下次构建时被覆盖，需要保留就同步回 `core/config.json`；或用 `CITH_CONFIG` 指向仓库外的固定文件（构建不会碰它）。
+> 跑 `dist/` 构建产物时配置文件位于 `dist/config.json`：`npm run build` 会用 `packages/core/config.json` **覆盖**它，唯一真源始终是 `packages/core/config.json`。直接用 `start:dist` 跑且在上面热改（面板保存）时，热改值会在下次构建时被覆盖，需要保留就同步回 `packages/core/config.json`；或用 `CITH_CONFIG` 指向仓库外的固定文件（构建不会碰它）。
 
 **启动自检**：进程启动时会检查关键配置是否仍是模板占位符（`owner`、会话白名单、`aiApiKey`、`llmApiUrl`/`chatModel` 等），把「致命 / 提示」两级问题汇总成中文清单打印到控制台，并存入运行状态供面板「运行状态」页顶部常驻展示——避免配置没填对却看着一切正常、实际收不到任何回复。
 
@@ -224,10 +224,10 @@ Skill 是包含 `SKILL.md` 描述文件的目录，可附带脚本供 AI 执行�
 浏览器（React 18 + Vite，:5173 开发 / :2146 生产）
    │  HTTP(S) /api/rpc · SSE /api/events
    ▼
-面板 BFF（web/server，Express 5，:2146，http 或 https 自签名）← 面板 token 只保存在这里
-   │  WebSocket（协议见 web/bot-api-integration.md）
+面板 BFF（packages/web/server，Express 5，:2146，http 或 https 自签名）← 面板 token 只保存在这里
+   │  WebSocket（协议帧形状见 packages/web/README.md）
    ▼
-Bot 面板 API 服务（core/api/，仅绑定 127.0.0.1）
+Bot 面板 API 服务（packages/core/api/，仅绑定 127.0.0.1）
 ```
 
 Bot 侧 API 内嵌于 Bot 主进程：独立 token 鉴权（5s 握手超时）、action 白名单分发、配置输出脱敏（密钥不外泄）、30s 心跳回收死连接、日志/事件进环形缓冲支持断线补拉。BFF 持有常驻 WS 客户端（自动鉴权、指数退避重连），对浏览器暴露统一 RPC 与 SSE 事件流，action 转发同样有白名单门禁，生产模式下单进程托管前端构建产物。
@@ -236,7 +236,7 @@ Bot 侧 API 内嵌于 Bot 主进程：独立 token 鉴权（5s 握手超时）�
 |------|------|
 | 运行状态 | 运行时长 / OneBot 在线 / MCP 连接数 / 内存 / Node 版本 + Token 用量与花销（今日 / 近 7 天 / 累计，含缓存命中率与金额）+ 最近事件速览 |
 | 模型价格 | 按模型填「元 / 百万 tokens」单价（输入 / 缓存命中 / 输出），保存即时生效，用量金额按当前价目重算 |
-| 系统提示词 | 在线编辑 `core/prompts/system.md`，保存带 `.bak` 备份，下一轮对话即生效 |
+| 系统提示词 | 在线编辑 `packages/core/prompts/system.md`，保存带 `.bak` 备份，下一轮对话即生效 |
 | 配置管理 | 脱敏快照查看；白名单字段可热改，拒绝原因原样展示 |
 | 事件日志 | SSE 实时事件流 + 断线按 Last-Event-ID 自动续传，级别/类型筛选与搜索 |
 | 能力清单 | 动态展示 Bot 支持的 action 及说明 |
@@ -253,13 +253,13 @@ npm run dev      # 终端 2：Vite，http://localhost:5173
 cd web && npm run build && npm run server
 ```
 
-环境变量（复制 `web/.env.example` 为 `web/.env`）：`WEB_PORT`（默认 2146）、`BOT_API_URL`（默认 `ws://127.0.0.1:2145/api/v1/ws`）、`BOT_API_TOKEN`（与 Bot `config.web.token` 一致）、`WEB_PASSWORD`（设置后打开面板需先登录）、`WEB_SSL_ENABLED`（设为 `true` 时 BFF 以自签名证书提供 https，无域名也能 HTTPS 访问）、`WEB_SERVER_IP`（写入证书 SAN 的公网 IP，留空则仅含 `localhost`/`127.0.0.1`）。
+环境变量（复制 `packages/web/.env.example` 为 `packages/web/.env`）：`WEB_PORT`（默认 2146）、`BOT_API_URL`（默认 `ws://127.0.0.1:2145/api/v1/ws`）、`BOT_API_TOKEN`（与 Bot `config.web.token` 一致）、`WEB_PASSWORD`（设置后打开面板需先登录）、`WEB_SSL_ENABLED`（设为 `true` 时 BFF 以自签名证书提供 https，无域名也能 HTTPS 访问）、`WEB_SERVER_IP`（写入证书 SAN 的公网 IP，留空则仅含 `localhost`/`127.0.0.1`）。
 
-> ⚠️ 生产部署务必修改 `BOT_API_TOKEN` 并设置 `WEB_PASSWORD`；BFF 与 Bot API 仅应暴露在本机或可信内网。启用 HTTPS 后证书自动生成并落盘到 `web/.ssl/`（10 年有效期，重启复用同一证书，浏览器信任一次即可），首次访问会出现自签名证书安全警告，属预期行为。
+> ⚠️ 生产部署务必修改 `BOT_API_TOKEN` 并设置 `WEB_PASSWORD`；BFF 与 Bot API 仅应暴露在本机或可信内网。启用 HTTPS 后证书自动生成并落盘到 `packages/web/.ssl/`（10 年有效期，重启复用同一证书，浏览器信任一次即可），首次访问会出现自签名证书安全警告，属预期行为。
 
-详细文档见 [web/README.md](web/README.md)。
+详细文档见 [packages/web/README.md](packages/web/README.md)。
 
-> **花销口径**：用量只记 token 数，金额是读取时按「模型价格」页（或 `core/data/model-pricing.json`）的价目现算的，因此改价后历史记录会自动按新价重算；价格表里没有的模型只统计 token 不折算金额，页面上会列为「未计价」。缓存命中价留空表示与输入价相同，embedding 调用（长期记忆向量化）不计入此统计。
+> **花销口径**：用量只记 token 数，金额是读取时按「模型价格」页（或 `packages/core/data/model-pricing.json`）的价目现算的，因此改价后历史记录会自动按新价重算；价格表里没有的模型只统计 token 不折算金额，页面上会列为「未计价」。缓存命中价留空表示与输入价相同，embedding 调用（长期记忆向量化）不计入此统计。
 
 ---
 
@@ -302,7 +302,7 @@ bot/adapters/*（BaseAdapter 子类）—— Adapter 处理对外的动作
 用户消息触发对话（pipeline/agent-runner.ts：runAgent）
     │  临时挂上 reply / tool-call / approval 事件监听 → run → 分发链落定后摘监听
     ▼
-Agent.run()（core/agent/Agent.ts，每会话一实例，AgentManager 池管理）
+Agent.run()（packages/core/agent/Agent.ts，每会话一实例，AgentManager 池管理）
     │  开工前：重新扫描 skills 目录
     │  每轮请求前：工作阈值（contextBudgetTokens）→ 折叠最旧的工具痕迹
     ▼
@@ -315,7 +315,7 @@ Agent.run()（core/agent/Agent.ts，每会话一实例，AgentManager 池管理�
     │   └─ agent-runner 把 tool_approval 段交给适配器发出确认询问
     └─ 还有其它工具调用 → 并行执行 → 结果回填记忆 → 再次请求（最多 30 轮）
         │   （同轮里的 send_message 当场发出，工具照跑；直到只剩发言或没工具为止）
-        ├─ 本地工具 → 路径解析钉死在 core/ 内；run_shell 经命令审查，必要时挂起等确认
+        ├─ 本地工具 → 路径解析钉死在 packages/core/ 内；run_shell 经命令审查，必要时挂起等确认
         └─ MCP 工具 → 路由到对应 MCP Server
     ▼
 事件消费方（agent-runner）通过适配器发送消息（分段、拟人化节流）
@@ -346,8 +346,10 @@ Agent 不持有任何聊天通道，所有输出以事件广播——换协议�
 
 ## 项目结构
 
+npm workspaces：根 package.json 声明 `workspaces: ["packages/*"]`，core / web / desktop 三个子包统一 lockfile、依赖提升到根 node_modules，跨包脚本用 `npm run xxx -w packages/web`。
+
 ```
-core/
+packages/core/
 ├── index.js                    # 入口：启动自检 / 长期记忆 / MCP → WS 服务（QQ/微信）→ 面板 API → 定时调度
 ├── config.js                   # 默认值层（随仓库分发）+ Proxy 热改落盘
 ├── config.json                 # 用户配置层（gitignore，覆盖 config.js 的默认值）
@@ -387,8 +389,9 @@ core/
 ├── workspace/                  # 工作区（AI 可读写）
 └── utils/                      # logger / file-security（路径防护）/ media-store（媒体落地）/ image-compress（识图压缩）/ extractText 等
 
+packages/desktop/                       # Electron 桌面客户端（workspace 子包，与 core 完全解耦；详见 packages/desktop/README.md）
 scripts/copy-assets.js          # 构建后把 skills / workspace / stickers / prompts 与 config.json 同步到 dist
-web/                            # Web 管理面板（独立 npm 工程，详见 web/README.md）
+packages/web/                            # Web 管理面板（workspace 子包，详见 packages/web/README.md）
 mcp/                            # 本地 MCP Server（gitignore；mcp/github-server 为示例）
 ```
 
@@ -420,14 +423,14 @@ mcp/                            # 本地 MCP Server（gitignore；mcp/github-ser
 
 ### 添加 MCP Server
 
-`core/config.js` 已自带一个 `websearch` 项（open-websearch，多引擎搜索 + 网页正文抓取，无需任何凭据）。`mcpServers` 是配置里唯一**按 `name` 增量合并**的数组：
+`packages/core/config.js` 已自带一个 `websearch` 项（open-websearch，多引擎搜索 + 网页正文抓取，无需任何凭据）。`mcpServers` 是配置里唯一**按 `name` 增量合并**的数组：
 
 - 只写自己要加的项即可，新 `name` 追加到默认项之后；
 - 与默认项同 `name` 时代替整项（不是逐字段合并，`env` 要写全）；
 - 不想用某个默认项，写 `{ "name": "websearch", "disabled": true }` 即可剔除；
 - 你写的项保持你写的先后顺序。
 
-在 `core/config.json` 的 `mcpServers` 中添加（`command` 写 `"$NODE"` 直接用当前运行的 node，避免写死路径）：
+在 `packages/core/config.json` 的 `mcpServers` 中添加（`command` 写 `"$NODE"` 直接用当前运行的 node，避免写死路径）：
 
 ```json
 {
@@ -441,12 +444,12 @@ mcp/                            # 本地 MCP Server（gitignore；mcp/github-ser
 
 ### Skill 开发
 
-1. 在 `core/skills/` 下创建目录与 `SKILL.md`（frontmatter：`name`、`description`，可选 `force: true` 使正文固定注入上下文）
+1. 在 `packages/core/skills/` 下创建目录与 `SKILL.md`（frontmatter：`name`、`description`，可选 `force: true` 使正文固定注入上下文）
 2. 在 `scripts/` 子目录中编写 JS 脚本：通过 `process.argv[2]` 接收 JSON 参数，`console.log()` 输出结果；脚本经 `run_shell` 在子进程中执行（`run_shell` 没有内置超时，长任务需脚本自行控制时长）
 
 ### TypeScript 开发约定
 
-项目为 JS/TS 混合结构（`core/` 中 TS 略多于 JS），依赖 Node 24 原生 type stripping 直接运行 `.ts`：
+项目为 JS/TS 混合结构（`packages/core/` 中 TS 略多于 JS），依赖 Node 24 原生 type stripping 直接运行 `.ts`：
 
 - JS 文件引用 TS 模块时，import 路径**显式写 `.ts` 后缀**；构建时 tsc 自动重写为 `.js`（`rewriteRelativeImportExtensions`）
 - 导入 interface **必须用 `import type`**；JS 文件中引用类型用 JSDoc：`/** @typedef {import("./xxx.ts").Type} Type */`
@@ -456,7 +459,7 @@ mcp/                            # 本地 MCP Server（gitignore；mcp/github-ser
 ### 安全设计
 
 - **命令审查门禁**：`run_shell` 经小模型三分类审查（`guard` 模式），`deny` / `unsure` / 未配置 guard 模型一律挂起等管理员确认
-- **目录穿越防护**：`..` 等越出 `core/`（跑 dist 时为 `dist/`）的路径被 `file-security.js` 硬拦截
+- **目录穿越防护**：`..` 等越出 `packages/core/`（跑 dist 时为 `dist/`）的路径被 `file-security.js` 硬拦截
 - **面板 API**：仅绑定 `127.0.0.1`、独立 token 鉴权、action 白名单分发、配置输出脱敏、全量 try/catch 故障隔离
 - **OneBot 接入鉴权**：反向 WebSocket 在握手阶段校验 `Authorization: Bearer` / `?access_token=`（与 NapCat 复用同一 token，sha256 + 恒定时间比较），失败回 401 不进入连接回调，并按来源 IP 记告警
 
