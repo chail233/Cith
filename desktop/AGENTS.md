@@ -17,6 +17,8 @@
 | `npm run build` | `tsc -b` 类型检查 + electron-vite 编译 → `out/` |
 | `npm run typecheck` | 只做类型检查（tsconfig.node / tsconfig.web 两个子项目） |
 | `npm run preview` | 运行 `out/` 编译产物 |
+| `npm run dist` | 打包分发产物 → `release/`（NSIS 安装包 + portable 单文件，先 build 再 electron-builder） |
+| `npm run dist:dir` | 只出未打包目录（`release/win-unpacked/`），调试打包结果用 |
 
 ## 进程模型（Electron 三段）
 
@@ -72,6 +74,7 @@ src/renderer/src/
 
 ## 已知坑
 
-- Electron 二进制下载走 npmmirror（已固化在 `.npmrc`），GitHub 直连会 `fetch failed`
+- Electron 二进制与 electron-builder 的 NSIS / winCodeSign 下载走 npmmirror（两个键都固化在 `.npmrc`），GitHub 直连会 `fetch failed`
+- 打包：无应用图标（默认 Electron 图标，放 `build/icon.ico` 即换）；未签名，别的机器首启有 SmartScreen 提示；`release/` 已 gitignored
 - ESM 产物命名：main 是 `.js`（靠 package.json 的 `type: module` 判定）、preload 是 `.mjs`（预加载无 package.json 上下文，靠扩展名自证）——`package.json#main` 与主进程里的 preload 路径必须与产物对齐
 - `dev:web` 模式下 `localStorage` 与 Electron 正式环境同源策略不同（浏览器端口 5199），UI 设置两边不共享，属预期
