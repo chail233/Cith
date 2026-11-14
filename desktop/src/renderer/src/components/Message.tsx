@@ -16,16 +16,16 @@ export function Message({ msg }: { msg: ChatMessage }) {
         <div className={`msg ${msg.role}`}>
             <div className="msg-segs">
                 {msg.segments.map((seg, i) =>
-                    seg.kind === 'text' ? (
+                    seg.type === 'text' ? (
                         <div key={i} className="msg-text">
-                            {seg.text
+                            {seg.data.text
                                 .split(/\n{2,}/)
                                 .map((para, j) => (
                                     <p key={j} className="msg-para">{renderText(para)}</p>
                                 ))}
                         </div>
                     ) : (
-                        <ToolTrace key={i} trace={seg} />
+                        <ToolTrace key={i} data={seg.data} />
                     ),
                 )}
             </div>

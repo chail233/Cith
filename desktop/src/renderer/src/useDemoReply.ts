@@ -24,7 +24,7 @@ export function useDemoReply() {
 
         timers.current.push(window.setTimeout(() => {
             store.appendMessage(convId, agentMessage([
-                { kind: 'trace', name: 'run_shell', summary: 'tail -n 30 构建日志', status: 'running' },
+                { type: 'trace', data: { name: 'run_shell', summary: 'tail -n 30 构建日志', status: 'running' } },
             ]))
         }, TRACE_DELAY))
 
@@ -38,7 +38,7 @@ export function useDemoReply() {
         }, TRACE_DONE_DELAY))
 
         timers.current.push(window.setTimeout(() => {
-            store.appendMessage(convId, agentMessage([{ kind: 'text', text: DEMO_REPLY }]))
+            store.appendMessage(convId, agentMessage([{ type: 'text', data: { text: DEMO_REPLY } }]))
             setPending(false)
         }, REPLY_DELAY))
     }

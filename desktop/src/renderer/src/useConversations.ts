@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { initialConversations } from './mock/conversations'
-import type { ChatMessage, Conversation, ToolTrace } from './types'
+import type { ChatMessage, Conversation, TraceData } from './types'
 
 let seq = 0
 export function nextId() {
@@ -15,6 +15,7 @@ export function nowTime() {
 /**
  * 会话集合状态：列表 / 归档 / 激活会话及其增删改。
  * 数据源目前是 mock；协议接通后，数据从这里进出，组件层不需要感知。
+ * 消息段在缝内按协议段构建：出站消息在这里包成 {type, data}，入站消息将来原样进来。
  */
 export function useConversations() {
     const [conversations, setConversations] = useState<Conversation[]>(initialConversations)
@@ -50,7 +51,13 @@ export function useConversations() {
                     title,
                     messages: [
                         ...c.messages,
-                        { id: nextId(), role: 'user' as const, time: nowTime(), segments: [{ kind: 'text' as const, text }] },
+                        {
+                            id: nextId(),
+                            role: 'user' as const,
+                            time: nowTime(),
+                            // 协议段在这里构建：将来直接把这段数组交给传输层，不做二次转换
+                            segments: [{ type: 'text' as const, data: { text } }],
+                        },
                     ],
                 }
             }),
@@ -64,7 +71,7 @@ export function useConversations() {
     }
 
     /** 更新指定会话最后一条消息里的工具痕迹（运行中 → 完成 等） */
-    function updateLastTrace(convId: string, patch: Partial<ToolTrace>) {
+    function updateLastTrace(convId: string, patch: Partial<TraceData>) {
         setConversations((list) =>
             list.map((c) => {
                 if (c.id !== convId || c.messages.length === 0) return c
@@ -72,9 +79,9 @@ export function useConversations() {
                 const segs = last.segments
                 for (let j = segs.length - 1; j >= 0; j--) {
                     const seg = segs[j]
-                    if (seg.kind === 'trace') {
+                    if (seg.type === 'trace') {
                         const newSegs = [...segs]
-                        newSegs[j] = { ...seg, ...patch }
+                        newSegs[j] = { ...seg, data: { ...seg.data, ...patch } }
                         return {
                             ...c,
                             messages: [...c.messages.slice(0, -1), { ...last, segments: newSegs }],
