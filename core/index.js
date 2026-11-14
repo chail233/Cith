@@ -4,6 +4,7 @@ import runPipeline from "./pipeline/index.js";
 import {mcpClient} from "./agent/mcp-manager.js";
 import { startApiServer } from "./api/server.ts";
 import startWechatBotServer from "./bot/servers/WechatBotServer.ts";
+import { startDesktopServer } from "./bot/servers/DesktopServer.ts";
 import { startScheduler, stopScheduler } from "./services/scheduler.js";
 import { wakeUp } from "./services/wake.js";
 import { runPreflight } from "./services/preflight.ts";
@@ -22,6 +23,7 @@ await mcpClient.init();
 // 启动 WebSocket 服务，使用管道模式处理事件
 startOneBotServer(runPipeline);
 startWechatBotServer(runPipeline);
+startDesktopServer(runPipeline);
 
 // 启动面板 API WebSocket 服务
 const apiServer = startApiServer();

@@ -61,10 +61,13 @@ const baseConfig = {
     /** OneBot 反向 WebSocket 服务端口 */
     wsPort: 8080,
 
+    /** 桌面客户端 WebSocket 服务端口（DesktopServer 自开 WS，鉴权与 NapCat 共用 token） */
+    desktopPort: 2147,
+
     wechatStorageDir: ".wechatbot",
 
     /**
-     * NapCat 鉴权 token
+     * 接入鉴权 token
      */
     token: "your_token_here",
 

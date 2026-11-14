@@ -10,6 +10,7 @@ registerAction("get_status", () => {
     return {
         uptimeMs: Date.now() - runtimeState.startedAt,
         onebotConnected: runtimeState.onebotConnected,
+        desktopConnected: runtimeState.desktopConnected,
         mcpConnections,
         memoryMb: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
         nodeVersion: process.version,

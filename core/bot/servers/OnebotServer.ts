@@ -1,9 +1,9 @@
 import { WebSocket, WebSocketServer } from "ws";
-import type { IncomingMessage } from "node:http";
 import crypto from "node:crypto";
 import { existsSync } from "node:fs";
 import config from "../../config.js";
 import logger from "../../utils/logger.js";
+import { extractToken, tokenMatches } from "../../utils/ws-auth.ts";
 import BaseServer from "./BaseServer.ts";
 import type { PlatformEventMeta } from "./BaseServer.ts";
 import OnebotAdapter from "../adapters/OnebotAdapter.ts";
@@ -46,24 +46,6 @@ const expectedToken = typeof config.token === "string" ? config.token.trim() : "
 
 /** token 未配置（空 / your_xxx 模板）时不校验，由启动自检提示风险；一旦配置则强制鉴权 */
 const authEnabled = !isPlaceholder(expectedToken);
-
-
-function extractToken(req: IncomingMessage): string {
-    const header = req.headers.authorization ?? "";
-    if (header.startsWith("Bearer ")) return header.slice(7).trim();
-    try {
-        return new URL(req.url ?? "/", "http://localhost").searchParams.get("access_token")?.trim() ?? "";
-    }
-    catch {
-        return "";
-    }
-}
-
-function tokenMatches(candidate: string): boolean {
-    const given = crypto.createHash("sha256").update(candidate).digest();
-    const expect = crypto.createHash("sha256").update(expectedToken).digest();
-    return crypto.timingSafeEqual(given, expect);
-}
 
 /**
  * 语音落地：get_record 会给出转码后的 base64 与本机路径
@@ -116,7 +98,7 @@ class OnebotServer extends BaseServer<OneBotEvent> {
                     return;
                 }
                 const token = extractToken(info.req);
-                if (token && tokenMatches(token)) {
+                if (token && tokenMatches(token, expectedToken)) {
                     done(true);
                     return;
                 }
@@ -129,9 +111,10 @@ class OnebotServer extends BaseServer<OneBotEvent> {
             logger.info(`NapCat 已连接 (端口: ${config.wsPort}, 来源: ${req.socket.remoteAddress ?? "unknown"})`);
             runtimeState.onebotConnected = true;
             this.socket = ws;
-            this.adapter = new OnebotAdapter(this.pipeline, ws);
+            const adapter = new OnebotAdapter(this.pipeline, ws);
+            this.adapter = adapter;
             // 主动链路（定时苏醒）需要拿到发送通道
-            registerAdapter("onebot", this.adapter);
+            registerAdapter("onebot", adapter);
 
             ws.on("message", (data) => this.onRawMessage(data));
 
@@ -141,8 +124,11 @@ class OnebotServer extends BaseServer<OneBotEvent> {
                 if (this.socket === ws) this.socket = undefined;
                 // 旧连接上的在途动作永远等不到回包了，统一按失败收尾
                 this.failPending();
-                if (this.adapter) unregisterAdapter("onebot", this.adapter);
-                this.adapter = undefined;
+                // 只在仍是本连接占位时摘除，避免重连时旧连接的关闭事件顶掉新实例
+                if (this.adapter === adapter) {
+                    unregisterAdapter("onebot", adapter);
+                    this.adapter = undefined;
+                }
             });
 
             ws.on("error", (err) => {

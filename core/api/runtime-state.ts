@@ -17,10 +17,12 @@ export interface ConfigWarning {
 export const runtimeState: {
     startedAt: number;
     onebotConnected: boolean;
+    desktopConnected: boolean;
     /** 启动自检结果，启动后不再变化 */
     configWarnings: ConfigWarning[];
 } = {
     startedAt: Date.now(),
     onebotConnected: false,
+    desktopConnected: false,
     configWarnings: [],
 };

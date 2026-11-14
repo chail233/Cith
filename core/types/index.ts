@@ -4,7 +4,7 @@ import type BaseAdapter from "../bot/adapters/BaseAdapter.ts";
 export interface Space {
     from: "user" | "group";
     id: string;
-    channel: "onebot" | "wechat";
+    channel: "onebot" | "wechat" | "desktop";
 }
 
 export interface MessageSegment {

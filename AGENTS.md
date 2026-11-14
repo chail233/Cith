@@ -47,7 +47,7 @@
 **设计模式：Server 接收并格式化信息，Adapter 处理对外的动作。**
 
 ```
-NapCat(反向WS) / 微信(长轮询)
+NapCat(反向WS) / 微信(长轮询) / 桌面客户端(自开WS, DesktopServer)
   → bot/servers/*（BaseServer 子类）                    连接生命周期；toSegments 收到消息时归一化为统一段（图片就地落地写 media.localPath，语音转码落 mp3 + 附 QQ 原生转写），toEventMeta 出会话/发送者元信息，dispatch 统一装配 CtxEvent
   → pipeline/context.ts buildContext                   构建 ctx + 目标过滤
   → pipeline/index.js                                  处理器

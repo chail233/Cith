@@ -219,7 +219,7 @@ function normalizeSpace(raw) {
     if (!from || !id)
         return null;
     // 渠道：字段加入前的历史任务没有 channel，回落 onebot 保持旧路由行为
-    const channel = raw.channel === "wechat" ? "wechat" : "onebot";
+    const channel = raw.channel === "wechat" || raw.channel === "desktop" ? raw.channel : "onebot";
     return { from, id, channel };
 }
 
