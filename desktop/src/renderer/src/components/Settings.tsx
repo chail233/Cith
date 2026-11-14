@@ -8,11 +8,12 @@ const CATEGORIES = [
     { id: 'general', label: '通用', hint: '语言、开机自启、窗口与托盘行为' },
     { id: 'chats', label: '会话', hint: '会话管理、历史与本地缓存清理' },
     { id: 'notifications', label: '通知', hint: '系统通知与审批提醒的规则' },
+    { id: 'user', label: '用户', hint: '桌面频道身份，随消息发送到后端' },
     { id: 'backend', label: '后端连接', hint: 'DesktopServer 地址、token 与连接状态' },
     { id: 'about', label: '关于', hint: '' },
 ]
 
-const OPEN_CATEGORIES = ['interface', 'backend', 'about']
+const OPEN_CATEGORIES = ['interface', 'user', 'backend', 'about']
 
 type Props = {
     settings: UiSettings
@@ -46,6 +47,7 @@ export function SettingsView({ settings, onChange, version, backendStatus }: Pro
 
                 <section className="settings-pane" key={active}>
                     {cat.id === 'interface' && <InterfacePane settings={settings} onChange={onChange} />}
+                    {cat.id === 'user' && <UserPane settings={settings} onChange={onChange} />}
                     {cat.id === 'backend' && (
                         <BackendPane settings={settings} onChange={onChange} status={backendStatus} />
                     )}
@@ -177,6 +179,32 @@ export const STATUS_LABEL: Record<BackendStatus['state'], string> = {
     connecting: '正在连接…',
     connected: '已连接',
     reconnecting: '连接中断，正在重连…',
+}
+
+function UserPane({ settings, onChange }: {
+    settings: UiSettings
+    onChange: (p: Partial<UiSettings>) => void
+}) {
+    return (
+        <>
+            <header className="pane-head">
+                <h2 className="pane-title">用户</h2>
+                <p className="pane-desc">桌面频道身份，随每条消息发送到后端；后端的会话与记忆按它归属。</p>
+            </header>
+
+            <div className="pane-card">
+                <FieldRow label="用户 ID">
+                    <input
+                        className="field-input"
+                        value={settings.backendUserId}
+                        placeholder="desktop"
+                        spellCheck={false}
+                        onChange={(e) => onChange({ backendUserId: e.target.value })}
+                    />
+                </FieldRow>
+            </div>
+        </>
+    )
 }
 
 function BackendPane({ settings, onChange, status }: {

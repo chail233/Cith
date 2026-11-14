@@ -43,7 +43,7 @@ src/renderer/src/
     ├── Message.tsx/.css      段渲染器：文本段拆段落 + 行内 code；trace 段转交 ToolTrace
     ├── ToolTrace.tsx/.css    工具痕迹卡片（签名组件，grid-rows 平滑展开终端输出）
     ├── Composer.tsx/.css     自适应高度输入框（Enter 发送 / Shift+Enter 换行）
-    ├── Settings.tsx/.css     分类导航 + 界面滑组 + 后端连接（地址 / token / 连接状态，状态文案与侧栏共用）+ 实时预览
+    ├── Settings.tsx/.css     分类导航 + 界面滑组 + 用户（频道身份）+ 后端连接（地址 / token / 连接状态，状态文案与侧栏共用）+ 实时预览
     └── icons.tsx             手写 SVG，不引图标库
 ```
 
@@ -65,7 +65,7 @@ src/renderer/src/
 - core 侧 `DesktopServer` 已落地（`desktopPort`，默认 2147；token 与 NapCat 共用，握手阶段校验 `Authorization: Bearer`）；审批桥（`#do-yes` 按钮化）仍走 core/api（2145）的 action
 - 占位帧契约（正式协议定型后替换）：出站 `{type:'message', messageId, userId, segments}`，入站 `{type:'message', space:{from,id}, segments}`，段一律 `{type, data}` 统一段直传；帧类型单一真源在 `preload/api.ts`
 - **连接客户端**：`src/main/backend.ts` 常驻持有传输层（Bearer 握手、自动指数重连、建连超时兜底、入站帧经 `backend:message` 广播给渲染层）；地址 / token 在设置页「后端连接」配置并实时经 `desktopApi.setBackend` 下发
-- **会话桥**：`useBackendChat` 装帧/收帧；agent 回复按段拆帧连发（段间 3~4s 拟人间隔），客户端逐帧追加即保节奏，第一帧解锁输入、后续帧按 space.id 归位；桌面频道身份固定 `userId: 'desktop'`，主动消息（定时苏醒）无 pending 时按映射落到对应会话
+- **会话桥**：`useBackendChat` 装帧/收帧；agent 回复按段拆帧连发（段间 3~4s 拟人间隔），客户端逐帧追加即保节奏，第一帧解锁输入、后续帧按 space.id 归位；桌面频道身份 `userId` 在「用户」设置页可配（缺省 `desktop`，留空回退），随消息帧发送到后端并决定会话归属；主动消息（定时苏醒）无 pending 时按映射落到对应会话
 - **段建模**：出站段在 `useConversations.sendOutgoing` 缝内构建（目前仅 text），返回值直接装帧、不做二次转换；trace 是桌面本地展示段，将来由 `tool-*` 事件在缝里转换生成，不进传输协议
 - 待办：正式协议握手版本号与 `chat.*` 事件集、trace / 审批卡片事件、历史同步、图片等段能力放开
 - 设置页「后端连接」分类已预留（地址 / token / 连接状态）

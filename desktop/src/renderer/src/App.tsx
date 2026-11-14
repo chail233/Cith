@@ -15,7 +15,7 @@ export default function App() {
     const [settings, setSettings] = useState<UiSettings>(loadSettings)
     const [backendStatus, setBackendStatus] = useState<BackendStatus>({ state: 'idle' })
     const conv = useConversations()
-    const chat = useBackendChat(conv)
+    const chat = useBackendChat(conv, settings.backendUserId)
 
     useEffect(() => {
         window.desktop?.getVersion?.().then(setVersion).catch(() => {})

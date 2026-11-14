@@ -3,7 +3,7 @@ import { nextId, nowTime, type ConversationsStore } from './useConversations'
 import type { Segment } from './types'
 import type { IncomingMessageFrame, OutgoingMessageFrame } from '../../preload/api.ts'
 
-/** 桌面频道的占位身份：单用户通道，后端会话归属靠它保持稳定 */
+/** 桌面频道身份的缺省值（设置留空时回退） */
 const DESKTOP_USER_ID = 'desktop'
 /** 发出后等待回复的兜底窗口：超时解锁输入，避免服务端无回复时卡死 */
 const REPLY_TIMEOUT_MS = 120_000
@@ -11,11 +11,14 @@ const REPLY_TIMEOUT_MS = 120_000
 /**
  * 消息通道会话桥：出站帧由缝里构建的段数组直装，入站帧转成渲染段进会话。
  * 会话归属：优先回复最近一次发送的会话，其次按 space.id 记忆映射，都没有落到当前会话。
+ * @param userId 桌面频道身份（设置页可配），随消息帧携带；留空回退 'desktop'
  */
-export function useBackendChat(store: ConversationsStore) {
+export function useBackendChat(store: ConversationsStore, userId: string) {
     const [pending, setPending] = useState(false)
     const storeRef = useRef(store)
     storeRef.current = store
+    const userIdRef = useRef(userId)
+    userIdRef.current = userId
     /** 等回复期间记住发出的会话，回复优先落回那里 */
     const pendingConv = useRef<string | null>(null)
     /** space.id → 会话 id：主动消息（定时苏醒）也按它归位 */
@@ -34,15 +37,16 @@ export function useBackendChat(store: ConversationsStore) {
     /** 发出一条消息；段数组由数据缝构建，这里只装帧 */
     function send(convId: string, text: string): void {
         if (pending) return
+        const frameUserId = userIdRef.current.trim() || DESKTOP_USER_ID
         const segments = storeRef.current.sendOutgoing(convId, text)
         pendingConv.current = convId
-        spaceMap.current.set(DESKTOP_USER_ID, convId)
+        spaceMap.current.set(frameUserId, convId)
         setPending(true)
         armTimeout()
         const frame: OutgoingMessageFrame = {
             type: 'message',
             messageId: crypto.randomUUID(),
-            userId: DESKTOP_USER_ID,
+            userId: frameUserId,
             segments,
         }
         void window.desktop
