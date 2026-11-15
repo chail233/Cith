@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { defaultSettings, type UiSettings } from '../settings'
 import type { BackendStatus } from '../../../preload/api.ts'
+import { CloseIcon } from './icons'
 import './Settings.css'
 
 const CATEGORIES = [
@@ -20,42 +21,49 @@ type Props = {
     onChange: (patch: Partial<UiSettings>) => void
     version: string
     backendStatus: BackendStatus
+    /** 关闭弹窗（× 按钮 / 遮罩点击由组件内处理，Esc 由 App 监听） */
+    onClose: () => void
 }
 
-export function SettingsView({ settings, onChange, version, backendStatus }: Props) {
+export function SettingsView({ settings, onChange, version, backendStatus, onClose }: Props) {
     const [active, setActive] = useState('interface')
     const cat = CATEGORIES.find((c) => c.id === active) ?? CATEGORIES[0]
 
     return (
-        <main className="settings">
-            <header className="settings-head">
-                <h1 className="settings-title">设置</h1>
-            </header>
-            <div className="settings-body">
-                <nav className="settings-nav">
-                    {CATEGORIES.map((c) => (
-                        <button
-                            key={c.id}
-                            className={`set-cat${c.id === active ? ' active' : ''}`}
-                            onClick={() => setActive(c.id)}
-                        >
-                            <span>{c.label}</span>
-                            {!OPEN_CATEGORIES.includes(c.id) && <span className="set-cat-soon">未开放</span>}
-                        </button>
-                    ))}
-                </nav>
+        <div className="settings-overlay" onClick={onClose}>
+            <main className="settings" role="dialog" aria-modal="true" aria-label="设置" onClick={(e) => e.stopPropagation()}>
+                <header className="settings-head">
+                    <h1 className="settings-title">设置</h1>
+                    <button className="settings-close" aria-label="关闭设置" onClick={onClose}>
+                        <CloseIcon />
+                    </button>
+                </header>
+                <div className="settings-body">
+                    <nav className="settings-nav">
+                        {CATEGORIES.map((c) => (
+                            <button
+                                key={c.id}
+                                className={`set-cat${c.id === active ? ' active' : ''}`}
+                                onClick={() => setActive(c.id)}
+                            >
+                                <span>{c.label}</span>
+                                {!OPEN_CATEGORIES.includes(c.id) && <span className="set-cat-soon">未开放</span>}
+                            </button>
+                        ))}
+                    </nav>
 
-                <section className="settings-pane" key={active}>
-                    {cat.id === 'interface' && <InterfacePane settings={settings} onChange={onChange} />}
-                    {cat.id === 'user' && <UserPane settings={settings} onChange={onChange} />}
-                    {cat.id === 'backend' && (
-                        <BackendPane settings={settings} onChange={onChange} status={backendStatus} />
-                    )}
-                    {cat.id === 'about' && <AboutPane version={version} />}
-                    {!OPEN_CATEGORIES.includes(cat.id) && <ReservedPane label={cat.label} hint={cat.hint} />}
-                </section>
-            </div>
-        </main>
+                    <section className="settings-pane" key={active}>
+                        {cat.id === 'interface' && <InterfacePane settings={settings} onChange={onChange} />}
+                        {cat.id === 'user' && <UserPane settings={settings} onChange={onChange} />}
+                        {cat.id === 'backend' && (
+                            <BackendPane settings={settings} onChange={onChange} status={backendStatus} />
+                        )}
+                        {cat.id === 'about' && <AboutPane version={version} />}
+                        {!OPEN_CATEGORIES.includes(cat.id) && <ReservedPane label={cat.label} hint={cat.hint} />}
+                    </section>
+                </div>
+            </main>
+        </div>
     )
 }
 

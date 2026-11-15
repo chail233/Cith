@@ -45,7 +45,7 @@ src/renderer/src/
     ├── Message.tsx/.css      段渲染器：文本段拆段落 + 行内 code；trace 段转交 ToolTrace
     ├── ToolTrace.tsx/.css    工具痕迹卡片（签名组件，grid-rows 平滑展开终端输出）
     ├── Composer.tsx/.css     自适应高度输入框（Enter 发送 / Shift+Enter 换行）
-    ├── Settings.tsx/.css     分类导航 + 界面滑组 + 用户（频道身份）+ 后端连接（地址 / token / 连接状态，状态文案与侧栏共用）+ 实时预览
+    ├── Settings.tsx/.css     设置弹窗（全屏遮罩 + 居中面板，Esc / 遮罩 / × 关闭）：分类导航 + 界面滑组 + 用户（频道身份）+ 后端连接（地址 / token / 连接状态，状态文案与侧栏共用）+ 实时预览
     └── icons.tsx             手写 SVG，不引图标库
 ```
 

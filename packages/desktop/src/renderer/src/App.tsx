@@ -57,6 +57,11 @@ export default function App() {
         setView('chat')
     }
 
+    /** 侧栏设置按钮：开着的弹窗再点即收起 */
+    function toggleSettings() {
+        setView((v) => (v === 'settings' ? 'chat' : 'settings'))
+    }
+
     function updateSettings(patch: Partial<UiSettings>) {
         setSettings((s) => {
             const next = { ...s, ...patch }
@@ -65,25 +70,33 @@ export default function App() {
         })
     }
 
+    // 设置弹窗开着时 Esc 收起（遮罩点击由组件内处理）
+    useEffect(() => {
+        if (view !== 'settings') return
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') setView('chat')
+        }
+        window.addEventListener('keydown', onKey)
+        return () => window.removeEventListener('keydown', onKey)
+    }, [view])
+
     return (
         <div className="app">
-                <Sidebar
-                    conversations={conv.conversations}
-                    archived={conv.archived}
-                    activeId={conv.active?.id ?? ''}
-                    version={version}
-                    settingsOpen={view === 'settings'}
-                    backendStatus={backendStatus}
-                    onSelect={handleSelect}
+            <Sidebar
+                conversations={conv.conversations}
+                archived={conv.archived}
+                activeId={conv.active?.id ?? ''}
+                version={version}
+                settingsOpen={view === 'settings'}
+                backendStatus={backendStatus}
+                onSelect={handleSelect}
                 onNew={handleNew}
-                onOpenSettings={() => setView('settings')}
+                onOpenSettings={toggleSettings}
                 onArchive={conv.archive}
                 onDelete={conv.remove}
                 onRestore={handleRestore}
             />
-            {view === 'settings' ? (
-                <SettingsView settings={settings} onChange={updateSettings} version={version} backendStatus={backendStatus} />
-            ) : conv.active ? (
+            {conv.active ? (
                 <ChatArea
                     key={conv.active.id}
                     conversation={conv.active}
@@ -99,6 +112,15 @@ export default function App() {
                         <p className="empty-sub">从左侧新建一个对话吧</p>
                     </div>
                 </main>
+            )}
+            {view === 'settings' && (
+                <SettingsView
+                    settings={settings}
+                    onChange={updateSettings}
+                    version={version}
+                    backendStatus={backendStatus}
+                    onClose={() => setView('chat')}
+                />
             )}
         </div>
     )
