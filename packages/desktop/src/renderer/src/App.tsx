@@ -57,9 +57,9 @@ export default function App() {
         setView('chat')
     }
 
-    /** 侧栏设置按钮：开着的弹窗再点即收起 */
+    /** 侧栏设置按钮：开着的弹窗再点即收起（用闭包值做纯更新，StrictMode 下函数式 toggle 会被双调归零） */
     function toggleSettings() {
-        setView((v) => (v === 'settings' ? 'chat' : 'settings'))
+        setView(view === 'settings' ? 'chat' : 'settings')
     }
 
     function updateSettings(patch: Partial<UiSettings>) {

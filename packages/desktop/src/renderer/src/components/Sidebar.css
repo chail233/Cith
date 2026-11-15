@@ -10,33 +10,7 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 2px 8px 18px;
-}
-
-.brand-mark {
-    width: 11px;
-    height: 11px;
-    flex-shrink: 0;
-    background: var(--accent);
-    border-radius: 3.5px;
-    transform: rotate(45deg);
-    animation: breathe 4s ease-in-out infinite alternate;
-}
-
-@keyframes breathe {
-    from {
-        box-shadow: 0 0 8px rgba(233, 162, 92, 0.35);
-    }
-    to {
-        box-shadow: 0 0 20px rgba(233, 162, 92, 0.75);
-    }
-}
-
-.brand-name {
-    font-family: var(--font-display);
-    font-size: 16px;
-    font-weight: 600;
-    letter-spacing: 0.4px;
+    padding: 2px 4px 18px;
 }
 
 .side-status {
@@ -49,20 +23,16 @@
     height: 7px;
     border-radius: 50%;
     background: var(--text-3);
-    box-shadow: 0 0 0 3px rgba(181, 168, 151, 0.18);
-    transition: background var(--speed) var(--ease), box-shadow var(--speed) var(--ease);
+    transition: background var(--speed) var(--ease);
 }
 
 .status-dot.connected {
     background: var(--ok);
-    box-shadow: 0 0 0 3px rgba(156, 196, 143, 0.2);
 }
 
 .status-dot.connecting,
 .status-dot.reconnecting {
     background: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-dim);
-    animation: breathe 1.6s var(--ease) infinite alternate;
 }
 
 .side-new {
@@ -70,7 +40,7 @@
     align-items: center;
     gap: 9px;
     padding: 10px 14px;
-    border-radius: 14px;
+    border-radius: 10px;
     background: var(--bg-2);
     color: var(--text-2);
     font-size: 13px;
@@ -105,7 +75,7 @@
     gap: 2px;
     text-align: left;
     padding: 10px 34px 10px 14px;
-    border-radius: 14px;
+    border-radius: 10px;
     cursor: pointer;
     transition: background var(--speed) var(--ease);
 }
@@ -130,7 +100,7 @@
     border-radius: 1.5px;
     transform: translateY(-50%) rotate(45deg) scale(0.4);
     opacity: 0;
-    transition: opacity var(--speed) var(--ease), transform var(--speed) var(--ease-spring);
+    transition: opacity var(--speed) var(--ease), transform var(--speed) var(--ease);
 }
 
 .conv.active::before {
@@ -201,11 +171,11 @@
     flex-direction: column;
     gap: 2px;
     background: var(--bg-2);
-    border-radius: 12px;
+    border-radius: 10px;
     padding: 5px;
     box-shadow: var(--shadow-m);
     transform-origin: top right;
-    animation: menu-in 160ms var(--ease-spring);
+    animation: menu-in 160ms var(--ease);
 }
 
 @keyframes menu-in {
@@ -288,7 +258,7 @@
 
 .side-version {
     margin-left: auto;
-    font-family: var(--font-display);
+    font-family: var(--font-body);
     font-size: 11px;
     color: var(--text-3);
     opacity: 0.8;

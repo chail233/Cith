@@ -1,7 +1,7 @@
 .msg {
     display: flex;
     flex-direction: column;
-    animation: rise 320ms var(--ease);
+    animation: rise var(--speed) var(--ease);
 }
 
 .msg.user {
@@ -11,9 +11,8 @@
 .msg.user .msg-segs {
     max-width: 72%;
     background: var(--bg-2);
-    border-radius: 20px 20px 6px 20px;
+    border-radius: 14px 14px 4px 14px;
     padding: 10px 16px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
 }
 
 .msg.agent .msg-segs {
@@ -42,7 +41,6 @@
 }
 
 .msg-time {
-    font-family: var(--font-display);
     font-size: 11px;
     color: var(--text-3);
     margin-top: 4px;

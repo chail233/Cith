@@ -4,7 +4,7 @@
     min-width: 0;
     min-height: 0;
     background: var(--bg-0);
-    animation: view-in 280ms var(--ease);
+    animation: view-in var(--speed) var(--ease);
 }
 
 .chat-head {
@@ -43,38 +43,10 @@
     gap: var(--msg-gap);
 }
 
-/* 思考中 */
+/* 思考中：品牌标公转 */
 .typing {
     display: flex;
-    gap: 6px;
     padding: 10px 2px;
-}
-
-.typing i {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--text-2);
-    animation: typing 1s var(--ease-spring) infinite;
-}
-
-.typing i:nth-child(2) {
-    animation-delay: 0.12s;
-}
-
-.typing i:nth-child(3) {
-    animation-delay: 0.24s;
-}
-
-@keyframes typing {
-    0%, 60%, 100% {
-        opacity: 0.35;
-        transform: translateY(0);
-    }
-    30% {
-        opacity: 1;
-        transform: translateY(-5px);
-    }
 }
 
 /* 空会话 */
@@ -87,70 +59,17 @@
     padding-bottom: 40px;
 }
 
-.empty-mark {
-    width: 14px;
-    height: 14px;
-    background: var(--accent);
-    border-radius: 4px;
-    transform: rotate(45deg);
-    animation: breathe 4s ease-in-out infinite alternate;
-}
-
 .empty-title {
-    font-family: var(--font-display);
-    font-size: 22px;
+    font-size: 15px;
     font-weight: 600;
-    letter-spacing: 0.3px;
-    margin-top: 20px;
-    animation: rise 400ms var(--ease) backwards;
+    color: var(--text-2);
+    margin-top: 18px;
+    animation: rise 240ms var(--ease) backwards;
 }
 
 .empty-sub {
     font-size: 12px;
     color: var(--text-3);
     margin-top: 4px;
-    animation: rise 400ms var(--ease) 80ms backwards;
-}
-
-.sugs {
-    display: flex;
-    gap: 10px;
-    margin-top: 24px;
-}
-
-.sug {
-    padding: 8px 16px;
-    border-radius: 999px;
-    background: var(--bg-2);
-    color: var(--text-2);
-    font-size: 12.5px;
-    transition:
-        background var(--speed) var(--ease),
-        color var(--speed) var(--ease),
-        transform 220ms var(--ease-spring),
-        box-shadow var(--speed) var(--ease);
-    animation: rise 400ms var(--ease) backwards;
-}
-
-.sug:nth-child(1) {
-    animation-delay: 140ms;
-}
-
-.sug:nth-child(2) {
-    animation-delay: 200ms;
-}
-
-.sug:nth-child(3) {
-    animation-delay: 260ms;
-}
-
-.sug:hover {
-    background: var(--bg-3);
-    color: var(--text-1);
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-s);
-}
-
-.sug:active {
-    transform: scale(0.96);
+    animation: rise 240ms var(--ease) backwards;
 }

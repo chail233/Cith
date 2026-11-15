@@ -2,6 +2,7 @@ import { useEffect, useState, type MouseEvent } from 'react'
 import type { Conversation } from '../types'
 import type { BackendStatus } from '../../../preload/api.ts'
 import { STATUS_LABEL } from './Settings'
+import { BrandMark } from './BrandMark'
 import { MoreIcon, PlusIcon, SlidersIcon } from './icons'
 import './Sidebar.css'
 
@@ -50,8 +51,7 @@ export function Sidebar({ conversations, archived, activeId, version, settingsOp
     return (
         <aside className="sidebar">
             <div className="side-brand">
-                <span className="brand-mark" />
-                <span className="brand-name">Cith</span>
+                <BrandMark size={26} label="Cith" />
                 <span
                     className="side-status"
                     title={`消息通道：${STATUS_LABEL[backendStatus.state]}${backendStatus.message ? `（${backendStatus.message}）` : ''}`}

@@ -1,0 +1,27 @@
+.brandmark-ith {
+    font-family: var(--font-display);
+    font-weight: 600;
+    fill: var(--text-1);
+}
+
+/* 加载态：C 沿 ith 公转（transform-box 使旋转中心落在 viewBox 中心，即 ith 处） */
+.brandmark-arc {
+    transform-box: view-box;
+    transform-origin: center;
+}
+
+.brandmark.orbit .brandmark-arc {
+    animation: brandmark-orbit 5s linear infinite;
+}
+
+@keyframes brandmark-orbit {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .brandmark.orbit .brandmark-arc {
+        animation: none;
+    }
+}

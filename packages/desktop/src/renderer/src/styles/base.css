@@ -79,27 +79,14 @@ a {
 @keyframes rise {
     from {
         opacity: 0;
-        transform: translateY(10px);
-        filter: blur(5px);
-    }
-    to {
-        filter: blur(0);
+        transform: translateY(7px);
     }
 }
 
 @keyframes view-in {
     from {
         opacity: 0;
-        transform: translateY(8px);
-    }
-}
-
-@keyframes breathe {
-    from {
-        box-shadow: 0 0 8px rgba(233, 162, 92, 0.35);
-    }
-    to {
-        box-shadow: 0 0 20px rgba(233, 162, 92, 0.75);
+        transform: translateY(6px);
     }
 }
 

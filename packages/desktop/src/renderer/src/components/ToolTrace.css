@@ -28,7 +28,7 @@
 .trace-name {
     font-family: var(--font-mono);
     font-size: 12px;
-    color: var(--accent-strong);
+    color: var(--text-1);
 }
 
 .trace-summary {
@@ -109,7 +109,7 @@
 }
 
 .trace-prompt {
-    color: var(--accent);
+    color: var(--text-3);
     user-select: none;
 }
 

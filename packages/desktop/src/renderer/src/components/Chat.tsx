@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { ChatMessage, Conversation } from '../types'
+import { BrandMark } from './BrandMark'
 import { Message } from './Message'
 import { Composer } from './Composer'
 import './Chat.css'
@@ -20,7 +21,7 @@ export function ChatArea({ conversation, pending, connected, onSend }: Props) {
             </header>
 
             {empty ? (
-                <EmptyState onPick={onSend} />
+                <EmptyState />
             ) : (
                 <MessageList messages={conversation.messages} pending={pending} />
             )}
@@ -58,27 +59,18 @@ function TypingRow() {
     return (
         <div className="msg agent">
             <div className="typing" aria-label="正在思考">
-                <i /><i /><i />
+                <BrandMark size={22} orbit />
             </div>
         </div>
     )
 }
 
-const SUGGESTIONS = ['看看今天的构建状态', '总结一下最近的记忆', '随便聊点什么']
-
-function EmptyState({ onPick }: { onPick: (text: string) => void }) {
+function EmptyState() {
     return (
         <div className="empty">
-            <span className="empty-mark" />
+            <BrandMark size={44} label="Cith" />
             <h2 className="empty-title">向 Cith 说点什么</h2>
-            <p className="empty-sub">消息直达 core 后端，回复按段送达</p>
-            <div className="sugs">
-                {SUGGESTIONS.map((s) => (
-                    <button key={s} className="sug" onClick={() => onPick(s)}>
-                        {s}
-                    </button>
-                ))}
-            </div>
+            <p className="empty-sub">在下方输入消息即可开始</p>
         </div>
     )
 }

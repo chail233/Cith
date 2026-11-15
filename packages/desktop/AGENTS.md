@@ -46,6 +46,7 @@ src/renderer/src/
     ├── ToolTrace.tsx/.css    工具痕迹卡片（签名组件，grid-rows 平滑展开终端输出）
     ├── Composer.tsx/.css     自适应高度输入框（Enter 发送 / Shift+Enter 换行）
     ├── Settings.tsx/.css     设置弹窗（全屏遮罩 + 居中面板，Esc / 遮罩 / × 关闭）：分类导航 + 界面滑组 + 用户（频道身份）+ 后端连接（地址 / token / 连接状态，状态文案与侧栏共用）+ 实时预览
+    ├── BrandMark.tsx/.css    品牌标组件：徽章双色调（C 罩 + ith 焰心）；`orbit` 变体即加载态（C 沿 ith 公转）；侧栏 / 空态 / 关于 / 思考指示共用
     └── icons.tsx             手写 SVG，不引图标库
 ```
 
@@ -57,6 +58,7 @@ src/renderer/src/
 
 - 注释一律中文；类型导入必须 `import type`
 - 颜色 / 圆角 / 缓动不写魔法值，进 `tokens.css`；组件私有样式与组件同名同目录，跨组件的动画帧进 `styles/base.css`；**不画边框线**，分层靠表面色阶和软阴影（用户审美红线：冷色、线条堆结构）
+- **视觉纪律（去 AI 味，用户红线）**：禁发光（任何彩色 box-shadow halo）、禁弹簧过冲（`--ease-spring` 已删，一律 `--ease`）、禁 blur 入场；动效只回应操作（`--speed` 180ms），进场帧全站只有 `rise` / `view-in`，不做 stagger；状态点一律实色无光环；琥珀只用于品牌标（BrandMark 徽章）、主发送按钮、range 轨道与 active 标记（菱形仅作列表标记语言）；Space Grotesk 仅品牌标使用；思考指示是品牌标公转（`orbit`），不是三点弹跳
 - 加消息段类型：`types.ts` 加类型 → `Message.tsx` 加分支 → 必要时新组件一个
 - 加界面设置项：`settings.ts` 加字段（类型 + 默认值 + apply 写变量）→ `Settings.tsx` 加一行 `SliderRow` → CSS 里用 `var(--xxx)` 做作用点
 - 加 `window.desktop` 能力：`preload/api.ts` 加方法 + `index.d.ts` 类型自动跟随，渲染层可选链调用

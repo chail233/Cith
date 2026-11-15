@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { defaultSettings, type UiSettings } from '../settings'
 import type { BackendStatus } from '../../../preload/api.ts'
+import { BrandMark } from './BrandMark'
 import { CloseIcon } from './icons'
 import './Settings.css'
 
@@ -298,11 +299,11 @@ function AboutPane({ version }: { version: string }) {
                 <h2 className="pane-title">关于</h2>
             </header>
             <div className="reserved about">
-                <span className="reserved-mark" />
+                <BrandMark size={38} label="Cith" />
                 <div>
                     <div className="about-name">Cith 桌面客户端</div>
                     <div className="about-line">v{version || '0.1.0'} · Electron + React</div>
-                    <div className="about-line">与 core 后端完全解耦，仅经 WS 协议通信——协议接入中，当前为演示构建。</div>
+                    <div className="about-line">与 packages/core/ 后端完全解耦，仅经 WS 协议通信（占位协议已接通）。</div>
                 </div>
             </div>
         </>
