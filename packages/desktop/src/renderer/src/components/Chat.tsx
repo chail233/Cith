@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { ChatMessage, Conversation } from '../types'
-import { BrandMark } from './BrandMark'
+import { BrandMark } from '@cith/ui'
 import { Message } from './Message'
 import { Composer } from './Composer'
 import './Chat.css'

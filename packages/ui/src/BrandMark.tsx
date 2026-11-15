@@ -13,6 +13,9 @@ type Props = {
  * 品牌标：C 罩（琥珀）罩住 ith 焰心（暖白）。
  * C 是罩、ith 是被罩住的灯——「壁炉的一盏灯」的字标化；
  * orbit 变体即加载指示：C 沿 ith 公转，不需要另造动画。
+ *
+ * 品牌色在这里是常量而非主题变量：徽章要可移植，不随消费端的配色体系漂移。
+ * 消费端需自行加载 Space Grotesk Variable（@fontsource-variable/space-grotesk）。
  */
 export function BrandMark({ size = 24, orbit = false, label }: Props) {
     return (
@@ -29,7 +32,7 @@ export function BrandMark({ size = 24, orbit = false, label }: Props) {
                 className="brandmark-arc"
                 d="M16.9 5.5 A10.5 10.5 0 1 0 26.1 13.3"
                 fill="none"
-                stroke="var(--accent)"
+                stroke="#e9a25c"
                 strokeWidth="3.2"
                 strokeLinecap="round"
             />

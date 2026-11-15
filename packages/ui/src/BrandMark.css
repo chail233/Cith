@@ -1,7 +1,8 @@
+/* 品牌色为常量（不挂消费端的主题变量），保证徽章可移植 */
 .brandmark-ith {
-    font-family: var(--font-display);
+    font-family: 'Space Grotesk Variable', system-ui, sans-serif;
     font-weight: 600;
-    fill: var(--text-1);
+    fill: #f3ede4;
 }
 
 /* 加载态：C 沿 ith 公转（transform-box 使旋转中心落在 viewBox 中心，即 ith 处） */

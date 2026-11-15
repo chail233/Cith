@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { defaultSettings, type UiSettings } from '../settings'
 import type { BackendStatus } from '../../../preload/api.ts'
-import { BrandMark } from './BrandMark'
+import { BrandMark } from '@cith/ui'
 import { CloseIcon } from './icons'
 import './Settings.css'
 

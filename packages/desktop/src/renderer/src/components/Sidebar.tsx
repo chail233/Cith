@@ -2,7 +2,7 @@ import { useEffect, useState, type MouseEvent } from 'react'
 import type { Conversation } from '../types'
 import type { BackendStatus } from '../../../preload/api.ts'
 import { STATUS_LABEL } from './Settings'
-import { BrandMark } from './BrandMark'
+import { BrandMark } from '@cith/ui'
 import { MoreIcon, PlusIcon, SlidersIcon } from './icons'
 import './Sidebar.css'
 

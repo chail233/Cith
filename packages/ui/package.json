@@ -1,0 +1,10 @@
+{
+    "name": "@cith/ui",
+    "version": "0.1.0",
+    "private": true,
+    "description": "Cith 共享 UI 组件（workspace 内源码直出，消费端 Vite 负责编译）",
+    "type": "module",
+    "exports": {
+        ".": "./src/index.ts"
+    }
+}
