@@ -1,0 +1,141 @@
+/* ============ 运行状态页：状态卡 / 用量瓦片 / 自检告警 / 事件速览 ============ */
+
+.stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 14px;
+}
+
+/* 顶层瓦片：page 层的磨砂玻璃小卡 */
+.stat-card {
+    background: var(--bg-2);
+    backdrop-filter: blur(var(--blur-m)) saturate(1.5);
+    -webkit-backdrop-filter: blur(var(--blur-m)) saturate(1.5);
+    border-radius: 14px;
+    box-shadow:
+        inset 0 1px 0 var(--glass-rim),
+        var(--shadow-s);
+    padding: 18px 20px;
+}
+
+/* 嵌在玻璃卡里的瓦片：底下的背景已被卡 blur 过，只叠半透明填充不叠 blur */
+.card .stat-card {
+    background: var(--bg-1);
+    box-shadow: inset 0 1px 0 var(--glass-rim);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+}
+
+.stat-label {
+    font-size: 0.8rem;
+    color: var(--text-2);
+    margin-bottom: 8px;
+}
+
+/* 大数字用展示字体，排得整齐 */
+.stat-value {
+    font-family: var(--font-display);
+    font-size: 1.55rem;
+    font-weight: 600;
+    line-height: 1.2;
+    color: var(--text-1);
+    font-variant-numeric: tabular-nums;
+}
+
+.stat-value-sm {
+    font-size: 1.1rem;
+}
+
+.stat-unit {
+    font-size: 0.9rem;
+    color: var(--text-2);
+    font-weight: 500;
+}
+
+.stat-sub {
+    margin-top: 8px;
+    font-size: 0.76rem;
+    color: var(--text-3);
+}
+
+/* ---- 最近事件速览 ---- */
+.mini-feed {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.mini-feed-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 2px;
+    border-bottom: 1px solid var(--hairline);
+    font-size: 0.86rem;
+    min-width: 0;
+}
+
+.mini-feed-item:last-child {
+    border-bottom: none;
+}
+
+.mini-feed-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+/* ---- 启动配置自检：warn 级琥珀 / error 级赤红，玻璃薄条 ---- */
+.config-warning-banner {
+    background: var(--warn-soft);
+    color: var(--warn-ink);
+    border-radius: 14px;
+    padding: 14px 18px;
+    font-size: 0.87rem;
+    backdrop-filter: blur(var(--blur-s)) saturate(1.4);
+    -webkit-backdrop-filter: blur(var(--blur-s)) saturate(1.4);
+}
+
+.config-warning-banner.is-fatal {
+    background: var(--err-soft);
+    color: var(--err-ink);
+}
+
+.config-warning-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.config-warning-hint {
+    font-size: 0.78rem;
+    color: var(--text-2);
+    white-space: nowrap;
+}
+
+.config-warning-list {
+    margin: 9px 0 0;
+    padding-left: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.config-warning-list li {
+    line-height: 1.55;
+}
+
+.config-warning-list .badge {
+    margin-right: 7px;
+    vertical-align: 1px;
+}
+
+.config-warning-fix {
+    display: block;
+    font-size: 0.82rem;
+    color: var(--text-2);
+}

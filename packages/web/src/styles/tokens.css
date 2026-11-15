@@ -1,0 +1,80 @@
+/* ============ 设计 token：磨砂毛玻璃 × 暖琥珀（桌面端暖炭琥珀的浅底变体） ============ */
+/* 分层不画线：暖纸底上铺环境光斑，卡片是磨砂玻璃贴片，输入是玻璃凹槽，侧栏是深咖玻璃 */
+:root {
+    /* 玻璃阶：半透明表面，靠 blur 与光斑成景深 */
+    --bg-0: #f0e5cf;             /* 页面底：暖纸，环境光斑铺在这层上 */
+    --bg-1: rgba(255, 250, 238, 0.48);    /* 浸染层：hover 填充 / 卡内瓷砖 */
+    --bg-2: rgba(253, 249, 238, 0.6);     /* 卡片表面：磨砂玻璃 */
+    --bg-inset: rgba(255, 253, 247, 0.4); /* 凹槽：输入框玻璃 */
+
+    /* 玻璃材质：上缘高光 + 极淡的四周玻璃边（材质语言，非结构线） */
+    --glass-rim: rgba(255, 255, 255, 0.5);
+    --glass-edge: rgba(255, 255, 255, 0.24);
+    --blur-m: 22px;
+    --blur-s: 14px;
+
+    /* 环境光斑（base.css 铺在 body::before，玻璃 blur 的景深来源） */
+    --blob-amber: rgba(233, 162, 92, 0.42);
+    --blob-gold: rgba(244, 188, 125, 0.32);
+    --blob-ember: rgba(221, 126, 84, 0.26);
+    --blob-coffee: rgba(84, 60, 36, 0.16);
+
+    --log-bg: rgba(34, 26, 17, 0.82);             /* 日志盒：深色玻璃终端 */
+
+    /* 墨色三阶（暖棕黑 → 暖灰褐 → 淡暖灰） */
+    --text-1: #33261a;
+    --text-2: #7d6b56;
+    --text-3: #a8977e;
+
+    /* 品牌：琥珀——玻璃后的一盏灯（实底沿用桌面端 #e9a25c，文字级加深到 4.5:1） */
+    --accent: #9c5a0c;
+    --accent-strong: #e9a25c;
+    --accent-bright: #f4bc7d;
+    --on-accent: #2b1a08;        /* 琥珀实底上的深咖字 */
+    --accent-dim: rgba(233, 162, 92, 0.35);   /* 聚焦光圈 */
+    --accent-soft: rgba(233, 162, 92, 0.16);  /* 浸染底 */
+    --row-hover: rgba(233, 162, 92, 0.12);    /* 表格行 hover 的琥珀浸染 */
+
+    /* 功能色（暖调）：soft 底配 ink 字，实底（状态灯/日志）用本色 */
+    --ok: #526e2c;
+    --ok-ink: #46601f;
+    --ok-soft: rgba(92, 122, 52, 0.16);
+    --warn: #8a5f10;
+    --warn-ink: #6e4c0a;
+    --warn-soft: rgba(138, 95, 16, 0.15);
+    --err: #b04a2e;
+    --err-ink: #9c3f26;
+    --err-soft: rgba(176, 74, 46, 0.14);
+    --neutral-soft: rgba(122, 95, 60, 0.12);
+
+    /* 暖色发丝线：只做表格行分隔，不做结构分层 */
+    --hairline: rgba(122, 95, 60, 0.18);
+
+    /* 日志盒内的暗底色阶 */
+    --log-text: #ede4d3;
+    --log-dim: #97856d;
+    --log-ok: #bcd496;
+    --log-warn: #ecc27f;
+    --log-err: #f0a48e;
+
+    /* 字体三轨：展示 Space Grotesk / 等宽 JetBrains Mono / 正文系统中文栈 */
+    --font-body: system-ui, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    --font-display: "Space Grotesk Variable", var(--font-body);
+    --font-mono: "JetBrains Mono Variable", ui-monospace, "Cascadia Mono", Consolas, monospace;
+
+    /* 圆角与暖棕调投影：玻璃浮起，投影略深于扁平版 */
+    --radius-s: 10px;
+    --radius-m: 16px;
+    --shadow-s: 0 8px 28px rgba(94, 66, 36, 0.12);
+    --shadow-m: 0 16px 44px rgba(94, 66, 36, 0.18);
+
+    /* 动效：过冲回弹曲线与桌面端同款 */
+    --speed: 180ms;
+    --ease: cubic-bezier(0.25, 0.8, 0.4, 1);
+    --ease-spring: cubic-bezier(0.34, 1.45, 0.64, 1);
+
+    font-family: var(--font-body);
+    line-height: 1.55;
+    color: var(--text-1);
+    background: var(--bg-0);
+}

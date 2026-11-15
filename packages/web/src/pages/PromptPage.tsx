@@ -8,6 +8,7 @@ import { Card, ErrorBanner, Loading } from "../components/ui";
 import { usePolling } from "../hooks/usePolling";
 import { rpc } from "../api/client";
 import type { PromptDoc } from "../types";
+import "./PromptPage.css";
 
 interface Notice {
     tone: "ok" | "err";

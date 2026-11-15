@@ -1,5 +1,6 @@
 /** 面板通用 UI 原子组件 */
 import type { ReactNode } from "react";
+import "./ui.css";
 
 /** 连接状态圆点 + 文本 */
 export function StatusDot({ ok, label }: { ok: boolean; label: string }) {

@@ -9,6 +9,7 @@ import { Badge, Card, EmptyState, StatusDot } from "../components/ui";
 import { useEventStream } from "../hooks/event-stream";
 import { rpc } from "../api/client";
 import { LOG_LEVELS, type EventFrame, type LogEventData } from "../types";
+import "./LogsPage.css";
 
 const LEVEL_TONE: Record<string, "ok" | "warn" | "err" | "muted"> = {
     INFO: "ok",

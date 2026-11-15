@@ -7,6 +7,7 @@ import { Badge, Card, EmptyState, ErrorBanner, Loading } from "../components/ui"
 import { usePolling } from "../hooks/usePolling";
 import { rpc } from "../api/client";
 import type { ModelPrice, ModelPricingInfo, TokenUsageSummary } from "../types";
+import "./PricingPage.css";
 
 /** 一行草稿：价格按字符串编辑，保存时再转数字（空串表示未填） */
 interface PriceRow {

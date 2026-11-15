@@ -1,5 +1,6 @@
 /** 面板登录页：仅在 BFF 设置了 WEB_PASSWORD 时出现 */
 import { useState, type FormEvent } from "react";
+import { BrandMark } from "@cith/ui";
 import { login } from "../api/client";
 
 export default function Login({ onLogin }: { onLogin: () => void }) {
@@ -25,7 +26,7 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
         <div className="login-wrap">
             <form className="login-card" onSubmit={(e) => void submit(e)}>
                 <div className="brand">
-                    <span className="brand-dot" />
+                    <BrandMark size={24} />
                     Cith
                 </div>
                 <h1 className="login-title">面板登录</h1>

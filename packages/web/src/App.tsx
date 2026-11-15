@@ -3,7 +3,7 @@
  * - 会话探测：BFF 启用密码登录时先进入登录页，登录后挂载全局事件流；
  * - 顶栏状态灯：Bot 连接（/api/health 轮询）与 SSE 事件流连接。
  */
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Dashboard from "./pages/Dashboard";
 import PricingPage from "./pages/PricingPage";
 import ConfigPage from "./pages/ConfigPage";
@@ -12,6 +12,8 @@ import LogsPage from "./pages/LogsPage";
 import ActionsPage from "./pages/ActionsPage";
 import Login from "./components/Login";
 import { StatusDot } from "./components/ui";
+import { BrandMark } from "@cith/ui";
+import { IconCoins, IconList, IconPulse, IconQuill, IconTune, IconZap } from "./components/icons";
 import { EventStreamProvider, useEventStream } from "./hooks/event-stream";
 import { usePolling } from "./hooks/usePolling";
 import { fetchHealth, fetchSession } from "./api/client";
@@ -19,13 +21,13 @@ import type { HealthInfo, SessionInfo } from "./types";
 
 type Route = "dashboard" | "pricing" | "prompt" | "config" | "logs" | "actions";
 
-const NAV: { id: Route; label: string; icon: string }[] = [
-    { id: "dashboard", label: "运行状态", icon: "◉" },
-    { id: "pricing", label: "模型价格", icon: "¥" },
-    { id: "prompt", label: "系统提示词", icon: "✎" },
-    { id: "config", label: "配置管理", icon: "⚙" },
-    { id: "logs", label: "事件日志", icon: "☰" },
-    { id: "actions", label: "能力清单", icon: "⚡" },
+const NAV: { id: Route; label: string; icon: ReactNode }[] = [
+    { id: "dashboard", label: "运行状态", icon: <IconPulse /> },
+    { id: "pricing", label: "模型价格", icon: <IconCoins /> },
+    { id: "prompt", label: "系统提示词", icon: <IconQuill /> },
+    { id: "config", label: "配置管理", icon: <IconTune /> },
+    { id: "logs", label: "事件日志", icon: <IconList /> },
+    { id: "actions", label: "能力清单", icon: <IconZap /> },
 ];
 
 const PAGE_TITLES: Record<Route, string> = {
@@ -89,26 +91,24 @@ function Shell() {
 
     return (
         <div className="shell">
-            <aside className="sidebar">
+            <nav className="dock">
                 <div className="brand">
-                    <span className="brand-dot" />
+                    <BrandMark size={26} />
                     Cith
                 </div>
-                <nav className="nav">
-                    {NAV.map((item) => (
-                        <button
-                            key={item.id}
-                            type="button"
-                            className={`nav-item ${route === item.id ? "is-active" : ""}`}
-                            onClick={() => navigate(item.id)}
-                        >
-                            <span className="nav-icon">{item.icon}</span>
-                            {item.label}
-                        </button>
-                    ))}
-                </nav>
-                <div className="sidebar-foot text-muted">面板 · 本地模式</div>
-            </aside>
+                {NAV.map((item) => (
+                    <button
+                        key={item.id}
+                        type="button"
+                        className={`dock-item ${route === item.id ? "is-active" : ""}`}
+                        aria-label={item.label}
+                        onClick={() => navigate(item.id)}
+                    >
+                        <span className="dock-icon">{item.icon}</span>
+                        <span className="dock-label">{item.label}</span>
+                    </button>
+                ))}
+            </nav>
 
             <div className="main">
                 <header className="topbar">

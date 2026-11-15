@@ -1,0 +1,44 @@
+/* ============ 能力清单页：action 瓷砖网格 ============ */
+
+.action-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 14px;
+}
+
+/* 卡内瓷砖：沉一档底色，hover 时浮出纸面 */
+.action-card {
+    background: var(--bg-1);
+    border-radius: 14px;
+    padding: 16px 18px;
+    transition:
+        background var(--speed) var(--ease),
+        transform var(--speed) var(--ease-spring),
+        box-shadow var(--speed) var(--ease);
+}
+
+.action-card:hover {
+    background: var(--bg-2);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-s);
+}
+
+.action-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.action-name {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--accent);
+}
+
+.action-desc {
+    margin: 0;
+    font-size: 0.82rem;
+    color: var(--text-2);
+}

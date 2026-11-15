@@ -14,6 +14,9 @@
     },
     "author": "alinger158",
     "dependencies": {
+        "@cith/ui": "*",
+        "@fontsource-variable/jetbrains-mono": "^5.3.0",
+        "@fontsource-variable/space-grotesk": "^5.3.0",
         "express": "^5.3.0",
         "react": "^18.3.1",
         "react-dom": "^18.3.1",

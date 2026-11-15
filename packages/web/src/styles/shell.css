@@ -1,0 +1,279 @@
+/* ============ 壳层：悬浮导航坞 / 顶栏 / 内容区 / 启动屏 / 登录页 ============ */
+.shell {
+    display: flex;
+    min-height: 100vh;
+}
+
+/* 悬浮玻璃导航坞：标签卡片铺满侧边，从顶到底垂直分布。
+   间距全靠卡片间 gap（明显大于外框 padding），缝里透出光斑 */
+.dock {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 24px;
+    width: 208px;
+    padding: 12px 14px;
+    overflow-y: auto;
+    scrollbar-width: none;
+}
+
+.dock::-webkit-scrollbar {
+    display: none;
+}
+
+/* 品牌浮标（登录卡等处的基础形态） */
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 1.06rem;
+    color: var(--text-1);
+    letter-spacing: 0.03em;
+}
+
+/* 坞顶品牌行：主题署名，不是导航卡片——不铺玻璃底，与下方卡堆靠 gap 分隔 */
+.dock .brand {
+    padding: 2px 10px 4px;
+    font-size: 1.15rem;
+}
+
+/* 导航标签卡片：紧凑自然高度，hover 上浮，active 琥珀浸染 */
+.dock-item {
+    position: relative;
+    min-height: 58px;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 0 16px;
+    border: none;
+    border-radius: 14px;
+    background: var(--bg-2);
+    backdrop-filter: blur(var(--blur-m)) saturate(1.5);
+    -webkit-backdrop-filter: blur(var(--blur-m)) saturate(1.5);
+    color: var(--text-2);
+    font-size: 0.95rem;
+    font-family: inherit;
+    cursor: pointer;
+    text-align: left;
+    box-shadow:
+        inset 0 1px 0 var(--glass-rim),
+        var(--shadow-s);
+    transition:
+        background var(--speed) var(--ease),
+        color var(--speed) var(--ease),
+        transform var(--speed) var(--ease-spring),
+        box-shadow var(--speed) var(--ease);
+}
+
+.dock-item:hover {
+    color: var(--text-1);
+    transform: translateY(-1px);
+}
+
+.dock-item:active {
+    transform: scale(0.97);
+}
+
+.dock-item.is-active {
+    background: var(--accent-soft);
+    color: var(--text-1);
+}
+
+/* 激活卡左缘弹出的琥珀小菱形，品牌符号的回声 */
+.dock-item::before {
+    content: "";
+    position: absolute;
+    left: -8px;
+    top: 50%;
+    width: 6px;
+    height: 6px;
+    background: var(--accent-strong);
+    border-radius: 1.5px;
+    transform: translateY(-50%) rotate(45deg) scale(0.4);
+    opacity: 0;
+    transition:
+        opacity var(--speed) var(--ease),
+        transform var(--speed) var(--ease-spring);
+}
+
+.dock-item.is-active::before {
+    opacity: 1;
+    transform: translateY(-50%) rotate(45deg) scale(1);
+}
+
+.dock-icon {
+    width: 20px;
+    height: 20px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.8;
+    flex-shrink: 0;
+}
+
+.dock-icon svg {
+    width: 20px;
+    height: 20px;
+}
+
+.dock-item.is-active .dock-icon {
+    opacity: 1;
+    color: var(--accent);
+}
+
+.dock-label {
+    white-space: nowrap;
+}
+
+/* ---- 主区：让出导航坞的空间 ---- */
+.main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    margin-left: 232px;
+}
+
+/* 顶栏：磨砂玻璃横条，光斑从它底下透过来 */
+.topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 28px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: rgba(240, 229, 207, 0.45);
+    backdrop-filter: blur(var(--blur-m)) saturate(1.5);
+    -webkit-backdrop-filter: blur(var(--blur-m)) saturate(1.5);
+}
+
+.topbar-title {
+    font-family: var(--font-display);
+    font-size: 1.18rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    margin: 0;
+    color: var(--text-1);
+}
+
+.topbar-status {
+    display: flex;
+    gap: 18px;
+}
+
+.content {
+    padding: 26px 28px 56px;
+    max-width: 1100px;
+    width: 100%;
+    margin: 0 auto;
+}
+
+.page {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    animation: view-in 280ms var(--ease);
+}
+
+/* ---- 启动屏 ---- */
+.boot {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-2);
+    animation: pulse 1.4s ease-in-out infinite;
+}
+
+/* ---- 登录页：光斑直接铺在视口上，玻璃卡是唯一的前景 ---- */
+.login-wrap {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    padding: 20px;
+}
+
+.login-card {
+    background: var(--bg-2);
+    backdrop-filter: blur(var(--blur-m)) saturate(1.5);
+    -webkit-backdrop-filter: blur(var(--blur-m)) saturate(1.5);
+    border-radius: 20px;
+    box-shadow:
+        inset 0 1px 0 var(--glass-rim),
+        inset 0 0 0 1px var(--glass-edge),
+        var(--shadow-m);
+    padding: 38px 34px;
+    width: 100%;
+    max-width: 360px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    animation: rise 420ms var(--ease);
+}
+
+.login-card .brand {
+    padding: 0 0 4px;
+}
+
+.login-title {
+    font-size: 1.25rem;
+    font-weight: 650;
+    margin: 0 0 6px;
+    color: var(--text-1);
+}
+
+/* ---- 响应式：导航坞沉底，横排玻璃药丸 ---- */
+@media (max-width: 860px) {
+    .main {
+        margin-left: 0;
+    }
+    .dock {
+        top: auto;
+        bottom: 14px;
+        left: 50%;
+        transform: translateX(-50%);
+        flex-direction: row;
+        width: auto;
+        max-width: calc(100vw - 28px);
+        padding: 0;
+        gap: 8px;
+        overflow-x: auto;
+        overflow-y: hidden;
+    }
+    .dock .brand {
+        display: none;
+    }
+    .dock-item {
+        flex: 0 0 auto;
+        min-height: 44px;
+        height: 44px;
+        padding: 0 14px;
+    }
+    /* 横排没有左缘可钉菱形，激活靠琥珀浸染 */
+    .dock-item::before {
+        display: none;
+    }
+    .dock-label {
+        display: none;
+    }
+    .content {
+        padding-left: 16px;
+        padding-right: 16px;
+        padding-bottom: 92px;
+    }
+    .topbar {
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+}

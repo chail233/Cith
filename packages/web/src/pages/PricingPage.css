@@ -1,0 +1,21 @@
+/* ============ 模型价格页：表格内嵌输入框 + 底部工具条 ============ */
+
+/* 表格内输入框占满单元格，新增条目一行铺满 */
+.pricing-table .input {
+    width: 100%;
+    min-width: 110px;
+    box-sizing: border-box;
+}
+
+.pricing-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 14px;
+}
+
+.pricing-toolbar .input {
+    flex: 1;
+    min-width: 220px;
+}

@@ -1,0 +1,330 @@
+/* ============ 原子组件：状态灯 / 徽标 / 卡片 / 按钮 / 表单 / 提示 / 表格 ============ */
+
+/* ---- 状态灯：同色光环，不描边 ---- */
+.status-dot {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 0.84rem;
+    color: var(--text-2);
+    white-space: nowrap;
+}
+
+.status-dot-light {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--err);
+    transition: background var(--speed) var(--ease);
+}
+
+.status-dot.is-ok .status-dot-light {
+    background: var(--ok);
+    box-shadow: 0 0 0 3px var(--ok-soft);
+}
+
+.status-dot.is-bad .status-dot-light {
+    background: var(--err);
+    box-shadow: 0 0 0 3px var(--err-soft);
+}
+
+/* ---- 徽标：soft 底配 ink 字的小方 chip，不做糖果药丸 ---- */
+.badge {
+    display: inline-block;
+    padding: 2.5px 8px;
+    border-radius: 6px;
+    font-size: 0.74rem;
+    font-weight: 600;
+    line-height: 1.5;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+}
+
+.badge-ok {
+    background: var(--ok-soft);
+    color: var(--ok-ink);
+}
+
+.badge-warn {
+    background: var(--warn-soft);
+    color: var(--warn-ink);
+}
+
+.badge-err {
+    background: var(--err-soft);
+    color: var(--err-ink);
+}
+
+.badge-info {
+    background: var(--accent-soft);
+    color: var(--accent);
+}
+
+.badge-muted {
+    background: var(--neutral-soft);
+    color: var(--text-2);
+}
+
+/* ---- 卡片：磨砂玻璃贴片，blur 吃光斑，上缘高光给厚度 ---- */
+.card {
+    background: var(--bg-2);
+    backdrop-filter: blur(var(--blur-m)) saturate(1.5);
+    -webkit-backdrop-filter: blur(var(--blur-m)) saturate(1.5);
+    border-radius: var(--radius-m);
+    box-shadow:
+        inset 0 1px 0 var(--glass-rim),
+        inset 0 0 0 1px var(--glass-edge),
+        var(--shadow-s);
+    padding: 20px 22px;
+}
+
+.card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.card-title {
+    font-size: 1rem;
+    font-weight: 650;
+    margin: 0;
+    color: var(--text-1);
+}
+
+.card-extra {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* ---- 按钮：hover 升阶上浮，active 按压回弹 ---- */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border: none;
+    border-radius: 10px;
+    padding: 8px 16px;
+    font-size: 0.88rem;
+    font-family: inherit;
+    font-weight: 500;
+    cursor: pointer;
+    color: var(--text-1);
+    background: transparent;
+    transition:
+        background var(--speed) var(--ease),
+        color var(--speed) var(--ease),
+        transform var(--speed) var(--ease-spring),
+        box-shadow var(--speed) var(--ease);
+}
+
+.btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+}
+
+.btn:active:not(:disabled) {
+    transform: scale(0.96);
+}
+
+.btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+/* 主 CTA：全站唯一的琥珀实底 */
+.btn-primary {
+    background: var(--accent-strong);
+    color: var(--on-accent);
+    font-weight: 600;
+}
+
+.btn-primary:hover:not(:disabled) {
+    background: var(--accent-bright);
+    box-shadow: 0 6px 16px rgba(233, 162, 92, 0.35);
+}
+
+.btn-ghost {
+    color: var(--text-2);
+}
+
+.btn-ghost:hover:not(:disabled) {
+    background: var(--bg-1);
+    color: var(--text-1);
+}
+
+.btn-sm {
+    padding: 4.5px 11px;
+    font-size: 0.8rem;
+    border-radius: 8px;
+}
+
+.btn-block {
+    width: 100%;
+}
+
+.btn-row {
+    display: flex;
+    gap: 8px;
+}
+
+/* ---- 表单：玻璃凹槽，聚焦 = 提起 + 琥珀光圈 ---- */
+.input {
+    border: none;
+    border-radius: 10px;
+    padding: 8px 12px;
+    font-size: 0.88rem;
+    color: var(--text-1);
+    background: var(--bg-inset);
+    box-shadow: inset 0 1px 2px rgba(94, 66, 36, 0.08);
+    outline: none;
+    transition:
+        background var(--speed) var(--ease),
+        box-shadow var(--speed) var(--ease);
+    font-family: inherit;
+    min-width: 0;
+}
+
+.input::placeholder {
+    color: var(--text-3);
+}
+
+.input:focus {
+    background: var(--bg-2);
+    box-shadow: 0 0 0 3px var(--accent-dim);
+}
+
+.select {
+    padding-right: 28px;
+}
+
+.checkbox {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.84rem;
+    color: var(--text-2);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.checkbox input {
+    accent-color: var(--accent);
+    width: 15px;
+    height: 15px;
+    cursor: pointer;
+}
+
+/* ---- 提示条：page 层的玻璃薄条，也吃 blur ---- */
+.notice {
+    border-radius: 12px;
+    padding: 11px 16px;
+    font-size: 0.87rem;
+    backdrop-filter: blur(var(--blur-s)) saturate(1.4);
+    -webkit-backdrop-filter: blur(var(--blur-s)) saturate(1.4);
+}
+
+.notice-ok {
+    background: var(--ok-soft);
+    color: var(--ok-ink);
+}
+
+.notice-err {
+    background: var(--err-soft);
+    color: var(--err-ink);
+}
+
+.error-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    background: var(--err-soft);
+    color: var(--err-ink);
+    border-radius: 12px;
+    padding: 12px 16px;
+    font-size: 0.88rem;
+    backdrop-filter: blur(var(--blur-s)) saturate(1.4);
+    -webkit-backdrop-filter: blur(var(--blur-s)) saturate(1.4);
+}
+
+/* ---- 空状态 / 加载 ---- */
+.empty-state {
+    padding: 36px 16px;
+    text-align: center;
+    /* page 层空态直接坐在光斑上，用 text-2 保对比度 */
+    color: var(--text-2);
+    font-size: 0.88rem;
+}
+
+.empty-state.is-loading {
+    animation: pulse 1.4s ease-in-out infinite;
+    color: var(--text-2);
+}
+
+/* ---- 表格：跨页面共用（配置 / 价格 / 用量明细） ---- */
+.config-hint {
+    margin: 0 0 14px;
+}
+
+.table-wrap {
+    overflow-x: auto;
+}
+
+.config-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.87rem;
+}
+
+.config-table th {
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.78rem;
+    color: var(--text-3);
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--hairline);
+    white-space: nowrap;
+}
+
+.config-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--hairline);
+    vertical-align: middle;
+    color: var(--text-1);
+}
+
+.config-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.config-table tbody tr {
+    transition: background var(--speed) var(--ease);
+}
+
+.config-table tbody tr:hover td {
+    background: var(--row-hover);
+}
+
+.config-key {
+    font-size: 0.84rem;
+    font-weight: 600;
+    white-space: nowrap;
+    color: var(--text-1);
+}
+
+.config-value {
+    word-break: break-all;
+    min-width: 200px;
+}
+
+.col-actions {
+    width: 150px;
+    text-align: right;
+}
+
+td.col-actions {
+    white-space: nowrap;
+}

@@ -1,0 +1,119 @@
+/* ============ 基底：reset / 滚动条 / 工具类 / 共享动画帧 ============ */
+* {
+    box-sizing: border-box;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(122, 95, 60, 0.35) transparent;
+}
+
+body {
+    margin: 0;
+    min-width: 320px;
+    min-height: 100vh;
+}
+
+/* 环境光斑：磨砂玻璃的景深来源。大而少、静止不动画，玻璃 blur 吃的就是这层 */
+body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background:
+        radial-gradient(44rem 44rem at 38% 22%, var(--blob-amber), transparent 66%),
+        radial-gradient(40rem 40rem at 72% 8%, var(--blob-gold), transparent 66%),
+        radial-gradient(48rem 48rem at 82% 82%, var(--blob-ember), transparent 66%),
+        radial-gradient(34rem 34rem at 10% 92%, var(--blob-coffee), transparent 70%);
+    background-color: var(--bg-0);
+}
+
+::selection {
+    background: rgba(233, 162, 92, 0.4);
+}
+
+::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+/* 半透明暖色圆角条，留透明边不顶格 */
+::-webkit-scrollbar-thumb {
+    background: rgba(122, 95, 60, 0.35);
+    background-clip: content-box;
+    border: 3px solid transparent;
+    border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(122, 95, 60, 0.55);
+}
+
+/* 键盘焦点：琥珀光圈，不用 outline 线 */
+:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--accent-dim);
+}
+
+/* ---- 工具类 ---- */
+.mono {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+}
+
+.text-muted {
+    color: var(--text-2);
+    font-size: 0.85rem;
+}
+
+.grow {
+    flex: 1;
+}
+
+/* ---- 共享动画帧 ---- */
+/* 视图切换：上浮淡入（每页一次的编排时刻） */
+@keyframes view-in {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+/* 雾化入场：blur 消散（登录卡等一次性出场） */
+@keyframes rise {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+        filter: blur(5px);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+        filter: blur(0);
+    }
+}
+
+@keyframes pulse {
+    0%,
+    100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.45;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}

@@ -3,6 +3,7 @@ import { Badge, Card, EmptyState, ErrorBanner, Loading } from "../components/ui"
 import { usePolling } from "../hooks/usePolling";
 import { rpc } from "../api/client";
 import { ACTION_DESCRIPTIONS, type ActionsInfo } from "../types";
+import "./ActionsPage.css";
 
 export default function ActionsPage() {
     const { data, error, loading, refresh } = usePolling(() => rpc<ActionsInfo>("list_actions"), 30_000);

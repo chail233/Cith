@@ -1,0 +1,43 @@
+/* ============ 系统提示词页：meta 行 + 大编辑器 + 工具条 ============ */
+
+.prompt-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 14px;
+    margin-bottom: 12px;
+    font-size: 0.82rem;
+    color: var(--text-2);
+}
+
+/* 编辑器与输入框同一凹槽质感，聚焦 = 墨迹提起 + 琥珀光圈 */
+.prompt-editor {
+    width: 100%;
+    min-height: 460px;
+    padding: 14px 16px;
+    border: none;
+    border-radius: 12px;
+    background: var(--bg-inset);
+    color: var(--text-1);
+    font-family: var(--font-mono);
+    font-size: 0.86rem;
+    line-height: 1.7;
+    tab-size: 4;
+    resize: vertical;
+    outline: none;
+    transition:
+        background var(--speed) var(--ease),
+        box-shadow var(--speed) var(--ease);
+}
+
+.prompt-editor:focus {
+    background: var(--bg-2);
+    box-shadow: 0 0 0 3px var(--accent-dim);
+}
+
+.prompt-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 12px;
+}

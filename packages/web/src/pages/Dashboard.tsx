@@ -5,6 +5,7 @@ import { usePolling } from "../hooks/usePolling";
 import { rpc } from "../api/client";
 import type { BotStatus, ConfigWarning, TokenUsageBucket, TokenUsageSummary } from "../types";
 import { formatCacheRate, formatCost, formatTime, formatTokens, formatUptime } from "../utils/format";
+import "./Dashboard.css";
 
 export default function Dashboard() {
     const { data: status, error, loading, refresh } = usePolling(() => rpc<BotStatus>("get_status"), 5000);
