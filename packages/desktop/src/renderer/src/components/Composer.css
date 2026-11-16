@@ -2,6 +2,91 @@
     padding: 14px 24px 18px;
 }
 
+/* 待发送附件条：soft chip 一枚一枚排开 */
+.composer-atts {
+    max-width: var(--content-width);
+    margin: 0 auto 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.att-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 260px;
+    padding: 6px 10px 6px 14px;
+    border-radius: 10px;
+    background: var(--bg-2);
+    box-shadow: var(--shadow-s);
+    animation: rise var(--speed) var(--ease);
+}
+
+.att-name {
+    font-size: 12px;
+    color: var(--text-1);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.att-size {
+    flex-shrink: 0;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-3);
+}
+
+.att-remove {
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 6px;
+    color: var(--text-3);
+    transition: background var(--speed) var(--ease), color var(--speed) var(--ease);
+}
+
+.att-remove:hover {
+    background: var(--bg-3);
+    color: var(--text-1);
+}
+
+/* 附件入口：输入框左侧的两枚小工具钮 */
+.composer-tools {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding-bottom: 3px;
+}
+
+.composer-tool {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    color: var(--text-3);
+    transition: background var(--speed) var(--ease), color var(--speed) var(--ease), transform var(--speed) var(--ease);
+}
+
+.composer-tool:hover:not(:disabled) {
+    background: var(--bg-3);
+    color: var(--text-1);
+}
+
+.composer-tool:active:not(:disabled) {
+    transform: scale(0.92);
+}
+
+.composer-tool:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
 .composer-box {
     max-width: var(--content-width);
     margin: 0 auto;
@@ -10,7 +95,7 @@
     gap: 12px;
     background: var(--bg-2);
     border-radius: 16px;
-    padding: 11px 12px 11px 20px;
+    padding: 11px 12px 11px 12px;
     transition: background var(--speed) var(--ease);
 }
 

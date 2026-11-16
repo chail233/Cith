@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import type { ChatMessage, Conversation } from '../types'
+import type { ChatMessage, Conversation, Segment } from '../types'
 import { BrandMark } from '@cith/ui'
 import { Message } from './Message'
 import { Composer } from './Composer'
@@ -9,7 +9,7 @@ type Props = {
     conversation: Conversation
     pending: boolean
     connected: boolean
-    onSend: (text: string) => void
+    onSend: (text: string, extras: Segment[]) => void
 }
 
 export function ChatArea({ conversation, pending, connected, onSend }: Props) {

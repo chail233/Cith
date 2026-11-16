@@ -12,10 +12,21 @@ export type TraceData = {
 
 /**
  * 协议消息段：与 core 统一段同构（{type, data}），只在数据缝内构建，渲染层按 type 分支。
- * 目前只有 text（用户输入与模型回复）；trace 是桌面本地展示段，不进传输协议。
+ * trace 是桌面本地展示段，不进传输协议；image/file 的 base64 只存在于传输与渲染态，
+ * core 落地后会重写成 media 引用。
  */
+export type MediaSegmentData = {
+    media?: { uri?: string; localPath?: string }
+    base64?: string
+    mime?: string
+    name?: string
+    size?: number
+}
+
 export type Segment =
     | { type: 'text'; data: { text: string } }
+    | { type: 'image'; data: MediaSegmentData }
+    | { type: 'file'; data: MediaSegmentData }
     | { type: 'trace'; data: TraceData }
 
 export type ChatMessage = {

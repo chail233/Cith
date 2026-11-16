@@ -39,13 +39,19 @@ export function useConversations() {
         return conv.id
     }
 
-    /** 发出的消息进列表并返回构建好的协议段（传输层直接搬运）；新对话的第一句话升级为标题 */
-    function sendOutgoing(convId: string, text: string): Segment[] {
-        const segments: Segment[] = [{ type: 'text', data: { text } }]
+    /**
+     * 发出的消息进列表并返回构建好的协议段（传输层直接搬运）；extras 是 Composer 构建的附件段，
+     * 跟在文本后不做二次转换。纯附件消息允许没有文本；新对话的第一句话升级为标题。
+     */
+    function sendOutgoing(convId: string, text: string, extras: Segment[] = []): Segment[] {
+        const segments: Segment[] = []
+        if (text !== '') segments.push({ type: 'text', data: { text } })
+        segments.push(...extras)
         setConversations((list) =>
             list.map((c) => {
                 if (c.id !== convId) return c
-                const title = c.title === '新对话' ? (text.length > 18 ? `${text.slice(0, 18)}…` : text) : c.title
+                const title =
+                    text !== '' && c.title === '新对话' ? (text.length > 18 ? `${text.slice(0, 18)}…` : text) : c.title
                 return {
                     ...c,
                     title,

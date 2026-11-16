@@ -50,3 +50,80 @@
 .msg.user .msg-time {
     text-align: right;
 }
+
+/* 图片段：随内容等比缩放，轻圆角与气泡语言一致 */
+.msg-img {
+    display: block;
+    max-width: min(320px, 100%);
+    max-height: 320px;
+    border-radius: 12px;
+    box-shadow: var(--shadow-s);
+}
+
+/* 文件段卡片：图标 + 名字/大小 + 动作按钮 */
+.msg-file {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--bg-2);
+    border-radius: 12px;
+    padding: 10px 14px;
+    box-shadow: var(--shadow-s);
+    max-width: min(340px, 100%);
+}
+
+.msg-file-icon {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background: var(--accent-dim);
+    color: var(--accent);
+}
+
+.msg-file-info {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.msg-file-name {
+    font-size: 12.5px;
+    color: var(--text-1);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.msg-file-size {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-3);
+}
+
+.msg-file-act {
+    flex-shrink: 0;
+    padding: 6px 14px;
+    border-radius: 9px;
+    background: var(--accent);
+    color: #221408;
+    font-size: 12px;
+    font-weight: 600;
+    transition: background var(--speed) var(--ease), transform var(--speed) var(--ease);
+}
+
+.msg-file-act:hover:not(:disabled) {
+    background: var(--accent-strong);
+}
+
+.msg-file-act:active:not(:disabled) {
+    transform: scale(0.95);
+}
+
+.msg-file-act:disabled {
+    background: var(--bg-3);
+    color: var(--text-3);
+}

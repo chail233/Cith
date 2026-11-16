@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { applySettings } from './settings'
 import { defaultSettings, mergeSettings, type UiSettings } from '../../shared/settings.ts'
+import type { Segment } from './types'
 import type { BackendStatus } from '../../preload/api.ts'
 import { useConversations } from './useConversations'
 import { useBackendChat } from './useBackendChat'
@@ -65,9 +66,9 @@ export default function App() {
             .catch(() => {})
     }, [])
 
-    function handleSend(text: string) {
+    function handleSend(text: string, extras: Segment[]) {
         if (!conv.active || chat.pending || backendStatus.state !== 'connected') return
-        chat.send(conv.active.id, text)
+        chat.send(conv.active.id, text, extras)
     }
 
     function handleNew() {

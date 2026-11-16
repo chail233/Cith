@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { nextId, nowTime, type ConversationsStore } from './useConversations'
-import type { Segment } from './types'
+import type { MediaSegmentData, Segment } from './types'
 import type { IncomingMessageFrame, OutgoingMessageFrame } from '../../preload/api.ts'
 
 /** 桌面频道身份的缺省值（设置留空时回退） */
@@ -34,11 +34,12 @@ export function useBackendChat(store: ConversationsStore, userId: string) {
         // 订阅只挂一次；会话数据一律经 storeRef 取最新
     }, [])
 
-    /** 发出一条消息；段数组由数据缝构建，这里只装帧 */
-    function send(convId: string, text: string): void {
+    /** 发出一条消息；段数组由数据缝构建（extras 为附件段），这里只装帧 */
+    function send(convId: string, text: string, extras: Segment[] = []): void {
         if (pending) return
         const frameUserId = userIdRef.current.trim() || DESKTOP_USER_ID
-        const segments = storeRef.current.sendOutgoing(convId, text)
+        const segments = storeRef.current.sendOutgoing(convId, text, extras)
+        if (segments.length === 0) return
         pendingConv.current = convId
         spaceMap.current.set(frameUserId, convId)
         setPending(true)
@@ -93,12 +94,19 @@ export function useBackendChat(store: ConversationsStore, userId: string) {
         // 回复是按段拆帧连发的，第一帧即解锁输入，后续帧靠 spaceMap 归位
         if (pendingConv.current) releasePending()
     }
-
+    
     function toRenderSegments(raw: IncomingMessageFrame['segments']): Segment[] {
         return raw.flatMap((seg): Segment[] => {
-            if (seg.type !== 'text') return []
-            const text = typeof seg.data?.text === 'string' ? seg.data.text : ''
-            return text ? [{ type: 'text', data: { text } }] : []
+            if (seg.type === 'text') {
+                const text = typeof seg.data?.text === 'string' ? seg.data.text : ''
+                return text ? [{ type: 'text', data: { text } }] : []
+            }
+            if (seg.type === 'image' || seg.type === 'file') {
+                return seg.data && typeof seg.data === 'object'
+                    ? [{ type: seg.type, data: seg.data as MediaSegmentData }]
+                    : []
+            }
+            return []
         })
     }
 

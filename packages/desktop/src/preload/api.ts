@@ -11,6 +11,16 @@ export type BackendStatus = {
 /** 消息通道连接配置 */
 export type BackendConfig = { url: string; token: string }
 
+/** 选取的本地文件：内容已读成 base64，kind 标记它来自哪个选择对话框 */
+export type PickedFile = {
+    kind: 'image' | 'file'
+    name: string
+    path: string
+    mime: string
+    size: number
+    base64: string
+}
+
 /** 占位协议帧段：统一段直传，正式协议定型后替换 */
 export type FrameSegment = { type: string; data: Record<string, unknown> }
 
@@ -58,6 +68,13 @@ export const desktopApi = {
             ipcRenderer.removeListener('backend:message', listener)
         }
     },
+    /** 弹出文件/图片选择对话框，选中内容读成 base64 返回 */
+    pickFiles: (kind: 'image' | 'file'): Promise<PickedFile[]> => ipcRenderer.invoke('dialog:pick', kind),
+    /** 保存收到的文件：弹保存对话框，返回最终路径；取消为 null */
+    saveFile: (name: string, base64: string): Promise<string | null> =>
+        ipcRenderer.invoke('file:save', { name, base64 }),
+    /** 用系统默认程序打开 http(s) 链接 */
+    openExternal: (uri: string): Promise<void> => ipcRenderer.invoke('file:open-external', uri),
 }
 
 export type DesktopApi = typeof desktopApi

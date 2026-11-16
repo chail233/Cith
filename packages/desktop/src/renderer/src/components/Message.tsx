@@ -1,4 +1,7 @@
-import type { ChatMessage } from '../types'
+import { useState } from 'react'
+import type { ChatMessage, MediaSegmentData } from '../types'
+import { fmtSize } from '../format'
+import { FileIcon } from './icons'
 import { ToolTrace } from './ToolTrace'
 import './Message.css'
 
@@ -15,21 +18,64 @@ export function Message({ msg }: { msg: ChatMessage }) {
     return (
         <div className={`msg ${msg.role}`}>
             <div className="msg-segs">
-                {msg.segments.map((seg, i) =>
-                    seg.type === 'text' ? (
-                        <div key={i} className="msg-text">
-                            {seg.data.text
-                                .split(/\n{2,}/)
-                                .map((para, j) => (
-                                    <p key={j} className="msg-para">{renderText(para)}</p>
-                                ))}
-                        </div>
-                    ) : (
-                        <ToolTrace key={i} data={seg.data} />
-                    ),
-                )}
+                {msg.segments.map((seg, i) => {
+                    if (seg.type === 'text') {
+                        return (
+                            <div key={i} className="msg-text">
+                                {seg.data.text
+                                    .split(/\n{2,}/)
+                                    .map((para, j) => (
+                                        <p key={j} className="msg-para">{renderText(para)}</p>
+                                    ))}
+                            </div>
+                        )
+                    }
+                    if (seg.type === 'image') return <ImageSegment key={i} data={seg.data} />
+                    if (seg.type === 'file') return <FileSegment key={i} data={seg.data} />
+                    return <ToolTrace key={i} data={seg.data} />
+                })}
             </div>
             <span className="msg-time">{msg.time}</span>
+        </div>
+    )
+}
+
+/** 图片段：base64 优先（本机产生的或随帧携带的），否则回退 http 引用 */
+function ImageSegment({ data }: { data: MediaSegmentData }) {
+    const src = data.base64
+        ? `data:${data.mime ?? 'image/png'};base64,${data.base64}`
+        : data.media?.uri
+    if (!src) return null
+    return <img className="msg-img" src={src} alt={data.name ?? '图片'} />
+}
+
+/** 文件段：base64 可直接保存到本地；纯链接交给系统打开 */
+function FileSegment({ data }: { data: MediaSegmentData }) {
+    const [saved, setSaved] = useState(false)
+    const name = data.name ?? '文件'
+
+    async function save() {
+        if (!data.base64) return
+        const path = await window.desktop?.saveFile?.(name, data.base64)
+        if (path) setSaved(true)
+    }
+
+    return (
+        <div className="msg-file">
+            <span className="msg-file-icon"><FileIcon size={17} /></span>
+            <span className="msg-file-info">
+                <span className="msg-file-name">{name}</span>
+                {data.size ? <span className="msg-file-size">{fmtSize(data.size)}</span> : null}
+            </span>
+            {data.base64 ? (
+                <button className="msg-file-act" onClick={save} disabled={saved}>
+                    {saved ? '已保存' : '保存'}
+                </button>
+            ) : data.media?.uri ? (
+                <button className="msg-file-act" onClick={() => void window.desktop?.openExternal?.(data.media!.uri!)}>
+                    打开链接
+                </button>
+            ) : null}
         </div>
     )
 }

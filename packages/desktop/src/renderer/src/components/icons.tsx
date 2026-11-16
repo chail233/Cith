@@ -65,3 +65,30 @@ export function CloseIcon({ size = 14 }: IconProps) {
         </svg>
     )
 }
+
+export function ImageIcon({ size = 15 }: IconProps) {
+    return (
+        <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <rect x="2.5" y="2.5" width="11" height="11" rx="2.5" />
+            <circle cx="6" cy="6.2" r="1.3" />
+            <path d="M13.5 10.6l-3.3-3.3-5.6 5.2" />
+        </svg>
+    )
+}
+
+export function PaperclipIcon({ size = 15 }: IconProps) {
+    return (
+        <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M13.2 7.4 8.1 12.5a3.4 3.4 0 0 1-4.8-4.8l6-6a2.26 2.26 0 0 1 3.2 3.2l-5.8 5.8a1.13 1.13 0 0 1-1.6-1.6l5-5" />
+        </svg>
+    )
+}
+
+export function FileIcon({ size = 15 }: IconProps) {
+    return (
+        <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M9.2 2.5H4.5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V5.8z" />
+            <path d="M9.2 2.5v3.3h3.3" />
+        </svg>
+    )
+}
