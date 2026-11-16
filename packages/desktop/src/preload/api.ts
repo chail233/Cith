@@ -1,4 +1,5 @@
 import { ipcRenderer, type IpcRendererEvent } from 'electron'
+import type { UiSettings } from '../shared/settings.ts'
 
 /** 消息通道连接状态（主进程 → 渲染层广播） */
 export type BackendStatus = {
@@ -31,6 +32,10 @@ export type IncomingMessageFrame = {
 /** 渲染层可用的主进程桥接 API，类型经 index.d.ts 暴露给 renderer */
 export const desktopApi = {
     getVersion: (): Promise<string> => ipcRenderer.invoke('app:get-version'),
+    /** 当前生效的设置；主进程从配置文件懒加载 */
+    getSettings: (): Promise<UiSettings> => ipcRenderer.invoke('settings:get'),
+    /** 保存设置并落盘配置文件，返回合并默认值后的生效状态 */
+    saveSettings: (s: UiSettings): Promise<UiSettings> => ipcRenderer.invoke('settings:save', s),
     /** 当前消息通道连接状态 */
     getBackendStatus: (): Promise<BackendStatus> => ipcRenderer.invoke('backend:get-status'),
     /** 下发连接配置；主进程防抖后按需重连 */

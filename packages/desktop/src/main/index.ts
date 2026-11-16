@@ -1,6 +1,7 @@
 import { join } from 'path'
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { BackendConnection } from './backend'
+import { loadSettings, saveSettings } from './settings'
 import type { BackendConfig } from '../preload/api.ts'
 
 // 消息通道连接客户端：常驻主进程，状态与消息帧广播给所有窗口
@@ -49,6 +50,8 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
     ipcMain.handle('app:get-version', () => app.getVersion())
+    ipcMain.handle('settings:get', () => loadSettings())
+    ipcMain.handle('settings:save', (_e, raw: unknown) => saveSettings(raw))
     ipcMain.handle('backend:get-status', () => backend.current())
     ipcMain.handle('backend:apply', (_e, raw: unknown) => {
         const config = asBackendConfig(raw)

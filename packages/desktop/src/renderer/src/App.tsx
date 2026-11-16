@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { applySettings, loadSettings, saveSettings, type UiSettings } from './settings'
+import { applySettings } from './settings'
+import { defaultSettings, mergeSettings, type UiSettings } from '../../shared/settings.ts'
 import type { BackendStatus } from '../../preload/api.ts'
 import { useConversations } from './useConversations'
 import { useBackendChat } from './useBackendChat'
@@ -9,15 +10,31 @@ import { SettingsView } from './components/Settings'
 import './styles/tokens.css'
 import './styles/base.css'
 
-/** 连接配置下发给主进程；主进程不读 localStorage，启动同步与保存后下发都走这里 */
+/** 连接配置下发给主进程；设置加载完成与保存后都走这里 */
 function pushBackend(s: UiSettings): void {
     window.desktop?.setBackend?.({ url: s.backendUrl, token: s.backendToken }).catch(() => {})
+}
+
+/** 旧版设置存在 renderer localStorage，文件仍是默认值时迁移一次进配置文件，随后清掉旧键 */
+function migrateLegacy(stored: UiSettings): UiSettings {
+    try {
+        const legacy = JSON.parse(localStorage.getItem('cith-ui-settings') ?? '')
+        if (typeof legacy !== 'object' || legacy === null) return stored
+        if (JSON.stringify(stored) !== JSON.stringify(defaultSettings)) return stored
+        localStorage.removeItem('cith-ui-settings')
+        const merged = mergeSettings(legacy)
+        window.desktop?.saveSettings?.(merged).catch(() => {})
+        return merged
+    }
+    catch {
+        return stored
+    }
 }
 
 export default function App() {
     const [view, setView] = useState<'chat' | 'settings'>('chat')
     const [version, setVersion] = useState('')
-    const [settings, setSettings] = useState<UiSettings>(loadSettings)
+    const [settings, setSettings] = useState<UiSettings>(defaultSettings)
     const [backendStatus, setBackendStatus] = useState<BackendStatus>({ state: 'idle' })
     const conv = useConversations()
     const chat = useBackendChat(conv, settings.backendUserId)
@@ -37,8 +54,15 @@ export default function App() {
         return () => unsub?.()
     }, [])
 
+    // 设置从主进程取（配置文件在那里懒加载），加载完成后顺带同步连接配置
     useEffect(() => {
-        pushBackend(settings)
+        window.desktop?.getSettings?.()
+            .then((stored) => {
+                const s = migrateLegacy(stored)
+                setSettings(s)
+                pushBackend(s)
+            })
+            .catch(() => {})
     }, [])
 
     function handleSend(text: string) {
@@ -65,10 +89,14 @@ export default function App() {
         setView(view === 'settings' ? 'chat' : 'settings')
     }
 
-    function handleSaveSettings(next: UiSettings) {
-        setSettings(next)
-        saveSettings(next)
-        pushBackend(next)
+    async function handleSaveSettings(next: UiSettings) {
+        let saved = next
+        try {
+            saved = (await window.desktop?.saveSettings?.(next)) ?? next
+        }
+        catch { /* 落盘失败也先让本会话生效 */ }
+        setSettings(saved)
+        pushBackend(saved)
     }
 
     useEffect(() => {
