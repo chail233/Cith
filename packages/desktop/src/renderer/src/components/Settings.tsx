@@ -37,8 +37,8 @@ export function SettingsView({ settings, onSave, version, backendStatus, onClose
     }
 
     function save() {
+        // 保存后弹窗留着：设置随 props 更新，dirty 归零、按钮自动置灰
         onSave(draft)
-        onClose()
     }
 
     return (
