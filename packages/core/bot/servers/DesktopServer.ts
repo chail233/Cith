@@ -5,10 +5,12 @@ import { extractToken, tokenMatches } from "../../utils/ws-auth.ts";
 import BaseServer from "./BaseServer.ts";
 import type { PlatformEventMeta } from "./BaseServer.ts";
 import DesktopAdapter from "../adapters/DesktopAdapter.ts";
+import { saveMediaFile } from "../../utils/media-store.ts";
 import { registerAdapter, unregisterAdapter } from "../../services/adapter-registry.js";
 import { runtimeState } from "../../api/runtime-state.ts";
 import { isPlaceholder } from "../../services/preflight.ts";
 import type { CtxEvent, MessageSegment } from "../../types/index.ts";
+import type { MediaRef } from "../../types/segment.ts";
 
 /**
  * 占位协议帧：统一段直传，正式协议（握手版本号、chat.* 事件集）定型后替换
@@ -24,6 +26,18 @@ interface DesktopFrame {
 /** 鉴权与 OneBot 接入共用 config.token；未配置（空 / your_xxx 模板）时不校验，由启动自检提示风险 */
 const expectedToken = typeof config.token === "string" ? config.token.trim() : "";
 const authEnabled = !isPlaceholder(expectedToken);
+
+const UPLOAD_DIR = "data/desktop";
+/** 单个上传媒体的体积上限（base64 随帧携带，别撑爆 WS） */
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+
+
+function extFromName(name: string, mime: string): string {
+    const ext = name.includes(".") ? (name.split(".").pop() ?? "") : "";
+    if (/^[a-z0-9]{1,8}$/i.test(ext)) return ext.toLowerCase();
+    const sub = mime.split("/")[1] ?? "";
+    return /^[a-z0-9]{1,8}$/i.test(sub) ? sub.replace(/[^a-z0-9]/g, "") : "bin";
+}
 
 /** 桌面客户端接入服务器：自开 WS，桌面端主进程持客户端连接 */
 class DesktopServer extends BaseServer<DesktopFrame> {
@@ -110,12 +124,51 @@ class DesktopServer extends BaseServer<DesktopFrame> {
         // 统一段直传：客户端按 {type,data} 形状发，非法形状丢弃
         const raw = frame.segments;
         if (!Array.isArray(raw)) return [];
-        return raw.flatMap((seg): MessageSegment[] => {
-            if (!seg || typeof seg !== "object") return [];
-            const { type, data } = seg as { type?: unknown; data?: unknown };
-            if (typeof type !== "string" || type === "") return [];
-            return [{ type, data: (data ?? {}) as MessageSegment["data"] }];
-        });
+        const landed = await Promise.all(raw.map((seg) => this.landSegment(seg)));
+        return landed.flatMap((seg) => seg ?? []);
+    }
+
+    /**
+     * 客户端传来的媒体段（base64 随帧携带）就地落地成本地文件，改写成带 media.localPath 的统一段——
+     * 之后的识图、shell、记忆链路都按本地路径取用；base64 不进上下文
+     */
+    private async landSegment(seg: unknown): Promise<MessageSegment | null> {
+        if (!seg || typeof seg !== "object") return null;
+        const { type, data } = seg as { type?: unknown; data?: unknown };
+        if (typeof type !== "string" || type === "") return null;
+        const segData = (data ?? {}) as { base64?: unknown; name?: unknown; mime?: unknown };
+        if (type !== "image" && type !== "file") {
+            return { type, data: segData as MessageSegment["data"] };
+        }
+        if (typeof segData.base64 !== "string" || segData.base64 === "") {
+            // 没有 base64 的媒体段（http 引用等）原样放行
+            return { type, data: segData as MessageSegment["data"] };
+        }
+        const buf = Buffer.from(segData.base64, "base64");
+        if (buf.length === 0 || buf.length > MAX_UPLOAD_BYTES) {
+            logger.warn(`桌面端上传媒体为空或超出上限，已丢弃 (${buf.length} 字节)`);
+            return null;
+        }
+        const ext = extFromName(
+            typeof segData.name === "string" ? segData.name : "",
+            typeof segData.mime === "string" ? segData.mime : "",
+        );
+        try {
+            const localPath = await saveMediaFile(UPLOAD_DIR, buf, type, ext);
+            const media: MediaRef = { uri: "", localPath };
+            return {
+                type,
+                data: {
+                    media,
+                    ...(typeof segData.name === "string" && segData.name !== "" ? { name: segData.name } : {}),
+                    ...(typeof segData.mime === "string" && segData.mime !== "" ? { mime: segData.mime } : {}),
+                } as MessageSegment["data"],
+            };
+        }
+        catch (err) {
+            logger.error("桌面端上传媒体落地失败:", err);
+            return null;
+        }
     }
 
     protected toEventMeta(frame: DesktopFrame): PlatformEventMeta {
