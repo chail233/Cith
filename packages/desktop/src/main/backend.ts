@@ -4,7 +4,7 @@ import type { BackendConfig, BackendStatus, IncomingMessageFrame } from '../prel
 const RECONNECT_MAX_MS = 15_000
 /** 建连超时：对端只建 TCP 不完成 WS 升级时也能回到重连节奏 */
 const CONNECT_TIMEOUT_MS = 10_000
-/** 配置变更的防抖窗口（设置页逐字输入不触发重连风暴） */
+/** 配置变更的防抖窗口（连续下发合并为一次收敛） */
 const APPLY_DEBOUNCE_MS = 400
 
 /** 连接客户端的事件出口：状态变化与入站消息帧 */
@@ -87,7 +87,16 @@ export class BackendConnection {
             return
         }
         const token = this.config.token.trim()
-        const ws = new WebSocket(url, token ? { headers: { Authorization: `Bearer ${token}` } } : undefined)
+        let ws: WebSocket
+        try {
+            ws = new WebSocket(url, token ? { headers: { Authorization: `Bearer ${token}` } } : undefined)
+        }
+        catch {
+            // 地址语法无效（残缺冒号/越界端口等）时构造器同步抛错，不接住会炸掉主进程
+            this.lastError = '地址格式无效——检查服务器地址'
+            this.setStatus({ state: 'idle', message: this.lastError })
+            return
+        }
         this.ws = ws
         this.setStatus(this.attempt === 0 ? { state: 'connecting' } : { state: 'reconnecting', message: this.lastError })
 

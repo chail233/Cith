@@ -3,7 +3,7 @@ import { ipcRenderer, type IpcRendererEvent } from 'electron'
 /** 消息通道连接状态（主进程 → 渲染层广播） */
 export type BackendStatus = {
     state: 'idle' | 'connecting' | 'connected' | 'reconnecting'
-    /** 最近一次失败的原因（重连中显示） */
+    /** 最近一次失败的原因（重连中或地址无效时显示） */
     message?: string
 }
 

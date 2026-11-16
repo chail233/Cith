@@ -9,6 +9,11 @@ import { SettingsView } from './components/Settings'
 import './styles/tokens.css'
 import './styles/base.css'
 
+/** 连接配置下发给主进程；主进程不读 localStorage，启动同步与保存后下发都走这里 */
+function pushBackend(s: UiSettings): void {
+    window.desktop?.setBackend?.({ url: s.backendUrl, token: s.backendToken }).catch(() => {})
+}
+
 export default function App() {
     const [view, setView] = useState<'chat' | 'settings'>('chat')
     const [version, setVersion] = useState('')
@@ -32,10 +37,9 @@ export default function App() {
         return () => unsub?.()
     }, [])
 
-    // 连接配置随设置实时下发，主进程防抖重连
     useEffect(() => {
-        window.desktop?.setBackend?.({ url: settings.backendUrl, token: settings.backendToken }).catch(() => {})
-    }, [settings.backendUrl, settings.backendToken])
+        pushBackend(settings)
+    }, [])
 
     function handleSend(text: string) {
         if (!conv.active || chat.pending || backendStatus.state !== 'connected') return
@@ -57,20 +61,16 @@ export default function App() {
         setView('chat')
     }
 
-    /** 侧栏设置按钮：开着的弹窗再点即收起（用闭包值做纯更新，StrictMode 下函数式 toggle 会被双调归零） */
     function toggleSettings() {
         setView(view === 'settings' ? 'chat' : 'settings')
     }
 
-    function updateSettings(patch: Partial<UiSettings>) {
-        setSettings((s) => {
-            const next = { ...s, ...patch }
-            saveSettings(next)
-            return next
-        })
+    function handleSaveSettings(next: UiSettings) {
+        setSettings(next)
+        saveSettings(next)
+        pushBackend(next)
     }
 
-    // 设置弹窗开着时 Esc 收起（遮罩点击由组件内处理）
     useEffect(() => {
         if (view !== 'settings') return
         const onKey = (e: KeyboardEvent) => {
@@ -116,7 +116,7 @@ export default function App() {
             {view === 'settings' && (
                 <SettingsView
                     settings={settings}
-                    onChange={updateSettings}
+                    onSave={handleSaveSettings}
                     version={version}
                     backendStatus={backendStatus}
                     onClose={() => setView('chat')}

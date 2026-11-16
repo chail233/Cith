@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useState, type CSSProperties, type ReactNode } from 'react'
 import { defaultSettings, type UiSettings } from '../settings'
 import type { BackendStatus } from '../../../preload/api.ts'
 import { BrandMark } from '@cith/ui'
@@ -19,25 +19,41 @@ const OPEN_CATEGORIES = ['interface', 'user', 'backend', 'about']
 
 type Props = {
     settings: UiSettings
-    onChange: (patch: Partial<UiSettings>) => void
+    onSave: (next: UiSettings) => void
     version: string
     backendStatus: BackendStatus
     /** 关闭弹窗（× 按钮 / 遮罩点击由组件内处理，Esc 由 App 监听） */
     onClose: () => void
 }
 
-export function SettingsView({ settings, onChange, version, backendStatus, onClose }: Props) {
+export function SettingsView({ settings, onSave, version, backendStatus, onClose }: Props) {
     const [active, setActive] = useState('interface')
+    const [draft, setDraft] = useState<UiSettings>(() => ({ ...settings }))
+    const dirty = JSON.stringify(draft) !== JSON.stringify(settings)
     const cat = CATEGORIES.find((c) => c.id === active) ?? CATEGORIES[0]
+
+    function edit(patch: Partial<UiSettings>) {
+        setDraft((d) => ({ ...d, ...patch }))
+    }
+
+    function save() {
+        onSave(draft)
+        onClose()
+    }
 
     return (
         <div className="settings-overlay" onClick={onClose}>
             <main className="settings" role="dialog" aria-modal="true" aria-label="设置" onClick={(e) => e.stopPropagation()}>
                 <header className="settings-head">
                     <h1 className="settings-title">设置</h1>
-                    <button className="settings-close" aria-label="关闭设置" onClick={onClose}>
-                        <CloseIcon />
-                    </button>
+                    <div className="settings-head-actions">
+                        <button className="settings-save" disabled={!dirty} onClick={save}>
+                            保存
+                        </button>
+                        <button className="settings-close" aria-label="关闭设置" onClick={onClose}>
+                            <CloseIcon />
+                        </button>
+                    </div>
                 </header>
                 <div className="settings-body">
                     <nav className="settings-nav">
@@ -54,10 +70,10 @@ export function SettingsView({ settings, onChange, version, backendStatus, onClo
                     </nav>
 
                     <section className="settings-pane" key={active}>
-                        {cat.id === 'interface' && <InterfacePane settings={settings} onChange={onChange} />}
-                        {cat.id === 'user' && <UserPane settings={settings} onChange={onChange} />}
+                        {cat.id === 'interface' && <InterfacePane settings={draft} onChange={edit} />}
+                        {cat.id === 'user' && <UserPane settings={draft} onChange={edit} />}
                         {cat.id === 'backend' && (
-                            <BackendPane settings={settings} onChange={onChange} status={backendStatus} />
+                            <BackendPane settings={draft} onChange={edit} status={backendStatus} />
                         )}
                         {cat.id === 'about' && <AboutPane version={version} />}
                         {!OPEN_CATEGORIES.includes(cat.id) && <ReservedPane label={cat.label} hint={cat.hint} />}
@@ -73,7 +89,7 @@ function InterfacePane({ settings, onChange }: { settings: UiSettings; onChange:
         <>
             <header className="pane-head">
                 <h2 className="pane-title">界面</h2>
-                <p className="pane-desc">阅读体验即时生效，保存在本机。</p>
+                <p className="pane-desc">阅读体验，保存后生效并保存在本机；预览随拖动即时变化。</p>
             </header>
 
             <div className="pane-card">
@@ -124,7 +140,16 @@ function InterfacePane({ settings, onChange }: { settings: UiSettings; onChange:
                 />
             </div>
 
-            <div className="preview-card">
+            {/* 预览卡内就地覆写草稿值（CSS 变量随子树继承），全局仍用已保存的设置 */}
+            <div
+                className="preview-card"
+                style={{
+                    '--font-msg': `${settings.fontSize}px`,
+                    '--leading': String(settings.lineHeight),
+                    '--para-gap': `${settings.paraGap}px`,
+                    '--msg-gap': `${settings.msgGap}px`,
+                } as CSSProperties}
+            >
                 <div className="preview-label">实时预览</div>
                 <div className="preview-col">
                     <div className="msg user">
@@ -253,14 +278,17 @@ function BackendPane({ settings, onChange, status }: {
                         <span className={`status-dot ${status.state}`} />
                         <span className={`status-text ${status.state}`}>{STATUS_LABEL[status.state]}</span>
                     </div>
-                    {status.state === 'reconnecting' && status.message && (
-                        <div className="status-hint">{status.message}——正在自动重连</div>
+                    {status.message && (status.state === 'reconnecting' || status.state === 'idle') && (
+                        <div className="status-hint">
+                            {status.message}
+                            {status.state === 'reconnecting' ? '——正在自动重连' : ''}
+                        </div>
                     )}
                 </div>
             </div>
 
             <div className="pane-foot">
-                <p className="pane-desc">改动即时生效；连接由主进程常驻持有，关窗重开后自动恢复。</p>
+                <p className="pane-desc">点「保存」应用并重连；连接由主进程常驻持有，关窗重开后自动恢复。</p>
             </div>
         </>
     )
