@@ -24,7 +24,7 @@
 | `bash update.sh` | 拉取更新 + 按需装依赖 + 编译（`--web` / `--stash` / `--force`；不会重启服务） |
 
 - **没有 linter**，没有根级 `typecheck` 脚本。`tsconfig.json` 是 IDE 类型检查基准（strict + noEmit）；如需 CLI 检查手动跑 `node node_modules/typescript/lib/tsc.js -p tsconfig.json`。
-- **测试现状（写作时）**：8 个测试文件、46 个用例，43 过 3 失败 —— `config-store.test.mjs` 整体失败（import 的 `packages/core/config/store.ts`/`schema.ts` 尚不存在，是先行于配置重构的测试）；`thresholds.test.mjs` 有 2 个断言失败。修复前先弄清失败是“测试先行”还是“真实回归”，不要盲目改代码凑绿。
+- **测试现状（写作时）**：9 个测试文件、56 个用例，53 过 3 失败 —— `config-store.test.mjs` 整体失败（import 的 `packages/core/config/store.ts`/`schema.ts` 尚不存在，是先行于配置重构的测试）；`thresholds.test.mjs` 有 2 个断言失败。修复前先弄清失败是“测试先行”还是“真实回归”，不要盲目改代码凑绿。
 - 需要连接 NapCat（反向 WS，默认 `ws://127.0.0.1:8080/onebot/v11/ws`）才能真正收发消息；无 NapCat 时可只验证启动自检与面板 API。
 
 ## 配置系统
@@ -120,4 +120,3 @@ NapCat(反向WS) / 微信(长轮询) / 桌面客户端(自开WS, DesktopServer)
 
 - gitignored 的本地路径：`packages/core/config.json`、`packages/core/app.pem`、`mcp/`（本地 MCP server，如 `mcp/github-server`）、`packages/core/data/rememori/`（长期记忆）、`packages/core/data/images/`（微信图片落地缓存）、`packages/core/data/voices/`（QQ 语音转码落地）、`packages/core/data/wechatbot*/`（微信登录凭证）、`packages/core/stickers/manifest.dev.json`、`packages/core/prompts/*.bak`、`packages/web/.env`、`dist/`。sticker manifest 有 `manifest.example.json` 模板。
 - 表情包素材：`packages/core/stickers/`（manifest + images/），根目录 `homura/`、`imgs/` 是未跟踪的原始素材，等待 `npm run add-stickers` 处理。
-- `docs/` 只收录了 rememori 库的中文文档（原理与用法）。

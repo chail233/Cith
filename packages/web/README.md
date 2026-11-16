@@ -9,12 +9,12 @@ Bot 的 Web 管理面板：React 18 + TypeScript + Vite 前端 + 轻量 Node BFF
    │  HTTP(S): /api/rpc、/api/health、/api/login   SSE: /api/events
    ▼
 BFF (web/server, :2146, http 或 https 自签名)  ← token(BOT_API_TOKEN) 只保存在这里
-   │  WebSocket（bot-api-integration.md 定义的协议）
+   │  WebSocket（协议帧形状见 packages/core/api/types.ts）
    ▼
 Bot 面板 API Server (packages/core/api/server.ts, ws://127.0.0.1:2145/api/v1/ws)
 ```
 
-设计要点（与 `bot-api-integration.md` 对齐）：
+设计要点：
 
 - **浏览器不直连 Bot**：面板 token 只存在于 BFF 进程；浏览器与 BFF 之间用密码会话（可选）。
 - **请求-响应按 id 关联**：BFF 的 `BotApiClient` 为每个请求生成唯一 id，超时 10s 清理；非法 JSON 的空 id error 帧按无主帧丢弃。
@@ -26,7 +26,7 @@ Bot 面板 API Server (packages/core/api/server.ts, ws://127.0.0.1:2145/api/v1/w
 ## 快速开始
 
 ```powershell
-cd web
+cd packages/web
 npm install
 
 # 终端 1：启动 BFF
@@ -75,7 +75,7 @@ npm run dev             # http://localhost:5173，/api 自动代理到 BFF
 ## 目录结构
 
 ```
-web/
+packages/web/
 ├── server/              # BFF（Node + Express + ws）
 │   ├── bot-client.mjs   #   BotApiClient：鉴权、id 关联、重连、补拉
 │   └── index.mjs        #   HTTP 路由：rpc / events(SSE) / health / login / 静态托管
@@ -89,7 +89,6 @@ web/
 │   ├── types.ts         # 协议与领域类型（对应 packages/core/api/types.ts）
 │   ├── utils/format.ts  # 展示格式化
 │   └── App.tsx          # 布局 + hash 路由
-├── bot-api-integration.md  # Bot 端协议文档（对接依据，勿随意修改）
 └── README.md            # 本文档
 ```
 

@@ -154,9 +154,9 @@ Agent 本身不持有任何聊天通道，所有输出以事件广播；同一�
 | 中期概括 | 内存 | 滚动保留最近 60 条事实 | 一轮 Agent 结束后上下文超聊天阈值 |
 | 长期记忆 | 本地 rememori 文件（`memoryStorePath`） | 最多 `memoryMaxRecords` 条（默认 2000） | 摘要产出的每条事实逐条存入（一条事实 = 一条记忆）；AI 通过 `get_memory` 自主检索 |
 
-长期记忆由 `enableLongTermMemory` 控制，**默认开启**；embedding 二选一：本地 [Ollama](https://ollama.com)（`ollama pull bge-m3`，配 `memoryOllamaUrl`），或任意 OpenAI 兼容接口（`memoryEmbedProvider: "openai"`，配 `memoryEmbedBaseUrl` + `memoryEmbedApiKey`，如阿里云百炼 `text-embedding-v4`）。**换 embedding 提供方或模型 = 旧向量全部失效**，需删除 `memoryStorePath` 文件重新积累。记忆文件是 append-only JSONL，**只支持单进程读写**，不要同时用别的进程打开同一个文件。启动时会做一次维护（`prune` → 容量淘汰 → `compact` 折叠），运行期间每成功写入 `memoryMaintainEveryWrites` 条（默认 100，设 0 关闭）再执行一次；条数超出 `memoryMaxRecords`（默认 2000，设 0 不限）时按 importance 升序、创建时间升序淘汰最弱最旧的记录（写入不足 24 小时的不参与）。实现细节见 [docs/rememori/使用说明.md](docs/rememori/使用说明.md)。
+长期记忆由 `enableLongTermMemory` 控制，**默认开启**；embedding 二选一：本地 [Ollama](https://ollama.com)（`ollama pull bge-m3`，配 `memoryOllamaUrl`），或任意 OpenAI 兼容接口（`memoryEmbedProvider: "openai"`，配 `memoryEmbedBaseUrl` + `memoryEmbedApiKey`，如阿里云百炼 `text-embedding-v4`）。**换 embedding 提供方或模型 = 旧向量全部失效**，需删除 `memoryStorePath` 文件重新积累。记忆文件是 append-only JSONL，**只支持单进程读写**，不要同时用别的进程打开同一个文件。启动时会做一次维护（`prune` → 容量淘汰 → `compact` 折叠），运行期间每成功写入 `memoryMaintainEveryWrites` 条（默认 100，设 0 关闭）再执行一次；条数超出 `memoryMaxRecords`（默认 2000，设 0 不限）时按 importance 升序、创建时间升序淘汰最弱最旧的记录（写入不足 24 小时的不参与）。
 
-记忆按会话隔离（`AgentManager` 会话池懒创建）：空闲 30 分钟自动回收（回收前摘要归档），会话数超上限（50）时按最久未活跃淘汰。可用 `#sessions` 查看各会话记忆状态。注意：短期/中期记忆按会话隔离，长期记忆**不分会话**（不使用 tag，所有会话共用一个检索空间）。
+记忆按会话隔离（`AgentManager` 会话池懒创建）：空闲 24 小时自动回收（回收前摘要归档），会话数超上限（50）时按最久未活跃淘汰。可用 `#sessions` 查看各会话记忆状态。注意：短期/中期记忆按会话隔离，长期记忆**不分会话**（不使用 tag，所有会话共用一个检索空间）。
 
 **上下文两级阈值**：
 
@@ -245,12 +245,12 @@ Bot 侧 API 内嵌于 Bot 主进程：独立 token 鉴权（5s 握手超时）�
 
 ```bash
 # 开发模式（两个终端）
-cd web && npm install
+cd packages/web && npm install
 npm run server   # 终端 1：BFF，http://127.0.0.1:2146
 npm run dev      # 终端 2：Vite，http://localhost:5173
 
 # 生产模式（单进程，BFF 同时托管 dist/ 页面）
-cd web && npm run build && npm run server
+cd packages/web && npm run build && npm run server
 ```
 
 环境变量（复制 `packages/web/.env.example` 为 `packages/web/.env`）：`WEB_PORT`（默认 2146）、`BOT_API_URL`（默认 `ws://127.0.0.1:2145/api/v1/ws`）、`BOT_API_TOKEN`（与 Bot `config.web.token` 一致）、`WEB_PASSWORD`（设置后打开面板需先登录）、`WEB_SSL_ENABLED`（设为 `true` 时 BFF 以自签名证书提供 https，无域名也能 HTTPS 访问）、`WEB_SERVER_IP`（写入证书 SAN 的公网 IP，留空则仅含 `localhost`/`127.0.0.1`）。
@@ -365,10 +365,9 @@ packages/core/
 │   └── handlers/               # user-commands / ai-chat / proactive-chat
 │
 ├── agent/                      # Agent 核心（AI 相关代码全部内聚于此）
-│   ├── Agent.ts                # 循环主体，只产出事件不碰通道
+│   ├── Agent.ts                # 循环主体与上下文组装（buildMessages），只产出事件不碰通道
 │   ├── plan.ts                 # 任务计划存储与渲染（PlanBoard）
 │   ├── AgentManager.ts         # 会话池：空闲回收 / 数量上限
-│   ├── contextBuilder.ts       # LLM 请求上下文组装
 │   ├── client.ts               # LLM API 客户端（文本 / 视觉 / guard）
 │   ├── tools.js                # 工具注册表与唯一入口 callTool（含 run_shell 门禁）
 │   ├── tools/                  # 细粒度工具模块（一个工具一个文件）
@@ -389,10 +388,10 @@ packages/core/
 ├── workspace/                  # 工作区（AI 可读写）
 └── utils/                      # logger / file-security（路径防护）/ media-store（媒体落地）/ image-compress（识图压缩）/ extractText 等
 
-packages/desktop/                       # Electron 桌面客户端（workspace 子包，与 core 完全解耦；详见 packages/desktop/README.md）
-scripts/copy-assets.js          # 构建后把 skills / workspace / stickers / prompts 与 config.json 同步到 dist
-packages/web/                            # Web 管理面板（workspace 子包，详见 packages/web/README.md）
-mcp/                            # 本地 MCP Server（gitignore；mcp/github-server 为示例）
+packages/desktop/                # Electron 桌面客户端（workspace 子包，与 core 完全解耦；详见 packages/desktop/README.md）
+packages/web/                    # Web 管理面板（workspace 子包，详见 packages/web/README.md）
+scripts/copy-assets.js           # 构建后把 skills / workspace / stickers / prompts 与 config.json 同步到 dist
+mcp/                             # 本地 MCP Server（gitignore；mcp/github-server 为示例）
 ```
 
 根目录：`tsconfig.json` 为 IDE 类型检查基准（strict + noEmit）；`tsconfig.build.json` 为构建配置（noCheck 只转译）。
