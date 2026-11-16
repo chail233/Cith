@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { resolveSrcPath } from "../../utils/file-security.js";
 import type { ToolDefinition, ToolModule } from "../types.ts";
 
@@ -14,7 +14,7 @@ const OUTPUT_CAP = 1_000_000; // 采集阶段的内存保护上限（字符数�
 
 const SHELL_HINT = IS_WIN
     ? "当前系统 Windows，命令为 PowerShell 语法（Get-ChildItem、Select-String 等），支持管道"
-    : "当前系统 Linux，命令为 bash 语法";
+    : "当前系统 Linux，命令为 bash 语法（bash 缺失时自动降级 sh，bash 特有语法可能不被支持）";
 
 export const definition: ToolDefinition = {
     type: "function",
@@ -50,26 +50,9 @@ function cleanPsStderr(text: string): string {
         .replace(/_x([0-9A-Fa-f]{4})_/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
 }
 
-/**
- * 执行 shell 命令
- */
-export async function execute(param: RunShellParams): Promise<string> {
-    const command = typeof param?.command === "string" ? param.command.trim() : "";
-    if (!command) return "缺少命令";
-
-    const cwdInput = typeof param?.cwd === "string" && param.cwd.trim() ? param.cwd : "workspace";
-    const resolved = resolveSrcPath(cwdInput);
-    if (resolved.error !== undefined) return resolved.error;
-
-    return await new Promise((resolve) => {
-        const child = IS_WIN
-            ? spawn(
-                "powershell.exe",
-                ["-NoProfile", "-EncodedCommand", Buffer.from(`$ProgressPreference='SilentlyContinue'; ${command}`, "utf16le").toString("base64")],
-                { cwd: resolved.fullPath },
-            )
-            : spawn("bash", ["-c", command], { cwd: resolved.fullPath });
-
+/** 等待子进程退出并采集输出；进程没能拉起（如 bash 不存在）时以 spawnError 返回 */
+function capture(child: ChildProcessWithoutNullStreams): Promise<{ text: string; spawnError?: NodeJS.ErrnoException }> {
+    return new Promise((resolve) => {
         const outBuf = { v: "" };
         const errBuf = { v: "" };
         let dropped = false;
@@ -84,16 +67,42 @@ export async function execute(param: RunShellParams): Promise<string> {
         child.stderr.on("data", collect(errBuf));
         child.stdin?.end(); // 立即关闭 stdin，避免 read 类命令等待输入挂死
 
-        child.on("error", (spawnErr) => {
-            resolve(`启动 shell 失败: ${spawnErr.message}`);
-        });
+        child.on("error", (spawnErr) => resolve({ text: "", spawnError: spawnErr }));
         child.on("close", (code) => {
             if (dropped) outBuf.v += "\n[...输出过大，后续已丢弃...]";
             const errText = IS_WIN ? cleanPsStderr(errBuf.v) : errBuf.v;
             const output = [outBuf.v.trimEnd(), errText.trim()].filter(Boolean).join("\n");
-            resolve(`退出码 ${code ?? "—"}\n${truncate(output) || "（无输出）"}`);
+            resolve({ text: `退出码 ${code ?? "—"}\n${truncate(output) || "（无输出）"}` });
         });
     });
+}
+
+/**
+ * 执行 shell 命令；Linux 下 bash 不在 PATH 时降级用 sh 再试一次
+ */
+export async function execute(param: RunShellParams): Promise<string> {
+    const command = typeof param?.command === "string" ? param.command.trim() : "";
+    if (!command) return "缺少命令";
+
+    const cwdInput = typeof param?.cwd === "string" && param.cwd.trim() ? param.cwd : "workspace";
+    const resolved = resolveSrcPath(cwdInput);
+    if (resolved.error !== undefined) return resolved.error;
+
+    const child = IS_WIN
+        ? spawn(
+            "powershell.exe",
+            ["-NoProfile", "-EncodedCommand", Buffer.from(`$ProgressPreference='SilentlyContinue'; ${command}`, "utf16le").toString("base64")],
+            { cwd: resolved.fullPath },
+        )
+        : spawn("bash", ["-c", command], { cwd: resolved.fullPath });
+
+    const result = await capture(child);
+    if (!result.spawnError) return result.text;
+    if (IS_WIN || result.spawnError.code !== "ENOENT") return `启动 shell 失败: ${result.spawnError.message}`;
+
+    const fallback = await capture(spawn("sh", ["-c", command], { cwd: resolved.fullPath }));
+    if (fallback.spawnError) return `启动 shell 失败: ${fallback.spawnError.message}`;
+    return `（bash 不可用，本次经 sh 执行）\n${fallback.text}`;
 }
 
 export default { definition, execute } satisfies ToolModule<RunShellParams>;
