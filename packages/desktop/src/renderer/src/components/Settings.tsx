@@ -119,7 +119,6 @@ function InterfacePane({ settings, onChange }: { settings: UiSettings; onChange:
         <>
             <header className="pane-head">
                 <h2 className="pane-title">界面</h2>
-                <p className="pane-desc">阅读体验，保存后生效并保存在本机；预览随拖动即时变化。</p>
             </header>
 
             <div className="pane-card">
@@ -253,7 +252,7 @@ function UserPane({ settings, onChange }: {
         <>
             <header className="pane-head">
                 <h2 className="pane-title">用户</h2>
-                <p className="pane-desc">桌面频道身份，随每条消息发送到后端；后端的会话与记忆按它归属。</p>
+                <p className="pane-desc">随消息发送到后端的桌面频道身份。</p>
             </header>
 
             <div className="pane-card">
@@ -276,19 +275,16 @@ function GeneralPane({ settings, onChange }: { settings: UiSettings; onChange: (
         <>
             <header className="pane-head">
                 <h2 className="pane-title">通用</h2>
-                <p className="pane-desc">启动与输入行为，跟着配置文件走，重开后依然生效。</p>
             </header>
 
             <div className="pane-card">
                 <SwitchRow
                     label="开机自启"
-                    hint="登录系统后自动启动客户端；开发态注册的是 electron 本体，打包版才真正有意义"
                     checked={settings.startAtLogin}
                     onChange={(v) => onChange({ startAtLogin: v })}
                 />
                 <OptionRow
                     label="发送快捷键"
-                    hint="选 Ctrl+Enter 时单独回车只换行，适合写长句"
                     value={settings.sendKey}
                     options={[
                         { value: 'enter', label: 'Enter' },
@@ -311,7 +307,6 @@ function ChatsPane({ settings, onChange, onClearLocal, onOpenDataDir }: {
         <>
             <header className="pane-head">
                 <h2 className="pane-title">会话</h2>
-                <p className="pane-desc">本机历史只是缓存：真源在 core 的记忆里，清掉它不会影响后端与会话本身。</p>
             </header>
 
             <div className="pane-card">
@@ -329,14 +324,13 @@ function ChatsPane({ settings, onChange, onClearLocal, onOpenDataDir }: {
             <div className="pane-card">
                 <ActionRow
                     label="打开数据目录"
-                    hint="会话快照、设置文件与日志都在这里"
                     actionLabel="打开"
                     doneLabel="已打开"
                     onAction={onOpenDataDir}
                 />
                 <ActionRow
                     label="清空本地记录"
-                    hint="删除本机快照，列表与消息一并清空；不可恢复"
+                    hint="清空后不可恢复"
                     actionLabel="清空"
                     doneLabel="已清空"
                     danger
@@ -356,19 +350,19 @@ function NotificationsPane({ settings, onChange, onTestNotify }: {
         <>
             <header className="pane-head">
                 <h2 className="pane-title">通知</h2>
-                <p className="pane-desc">只在窗口不在前台时打扰；正看着对话时不会弹。</p>
+                <p className="pane-desc">只在窗口不在前台时打扰。</p>
             </header>
 
             <div className="pane-card">
                 <SwitchRow
                     label="回复到达时弹系统通知"
-                    hint="系统层面关掉了应用通知权限时不会生效（Windows 设置 → 通知）"
+                    hint="系统通知权限被关时不会生效"
                     checked={settings.notifyOnReply}
                     onChange={(v) => onChange({ notifyOnReply: v })}
                 />
                 <ActionRow
                     label="发送测试通知"
-                    hint="窗口在前台也会弹，用来确认系统通知权限没被关掉"
+                    hint="前台也会弹，用于验证权限"
                     actionLabel="测试"
                     doneLabel="已发送"
                     onAction={onTestNotify}
@@ -516,7 +510,7 @@ function BackendPane({ settings, onChange, status }: {
         <>
             <header className="pane-head">
                 <h2 className="pane-title">后端连接</h2>
-                <p className="pane-desc">桌面端与 core 的消息通道。协议握手接入前，这里只反映通道是否可达。</p>
+                <p className="pane-desc">与远程 core 的消息通道。</p>
             </header>
 
             <div className="pane-card">
@@ -554,7 +548,7 @@ function BackendPane({ settings, onChange, status }: {
             </div>
 
             <div className="pane-foot">
-                <p className="pane-desc">点「保存」应用并重连；连接由主进程常驻持有，关窗重开后自动恢复。</p>
+                <p className="pane-desc">保存后应用并重连。</p>
             </div>
         </>
     )
@@ -752,15 +746,13 @@ function LocalCorePane({ settings, onChange }: {
         <>
             <header className="pane-head">
                 <h2 className="pane-title">本地核心</h2>
-                <p className="pane-desc">
-                    在客户端里直接运行一个内置的 core：配置、启停、看日志都在这里。切到本地模式后连接参数自动接线，无需手填。
-                </p>
+                <p className="pane-desc">在客户端里直接运行内置 core；本地模式下连接参数自动接线。</p>
             </header>
 
             <div className="pane-card">
                 <OptionRow
                     label="消息通道"
-                    hint="远程模式使用下方「后端连接」里手填的地址与 token"
+                    hint="远程模式连接「后端连接」里填的地址"
                     value={settings.coreMode}
                     options={[
                         { value: 'remote', label: '远程后端' },
@@ -770,7 +762,7 @@ function LocalCorePane({ settings, onChange }: {
                 />
                 <SwitchRow
                     label="随应用启动本地核心"
-                    hint="客户端启动时自动拉起核心；仅本地模式生效"
+                    hint="仅本地模式生效"
                     checked={settings.coreAutoStart}
                     onChange={(v) => onChange({ coreAutoStart: v })}
                 />
@@ -787,7 +779,6 @@ function LocalCorePane({ settings, onChange }: {
             <div className="pane-card">
                 <ActionRow
                     label="启动核心"
-                    hint="以内置 Node 运行编译产物，系统无需安装 Node"
                     actionLabel="启动"
                     doneLabel="已启动"
                     onAction={async () => {
@@ -797,7 +788,6 @@ function LocalCorePane({ settings, onChange }: {
                 />
                 <ActionRow
                     label="重启核心"
-                    hint="配置保存后需要重启才能生效"
                     actionLabel="重启"
                     doneLabel="已重启"
                     onAction={async () => {
@@ -807,7 +797,6 @@ function LocalCorePane({ settings, onChange }: {
                 />
                 <ActionRow
                     label="停止核心"
-                    hint="走面板 API 优雅退出，超时才强杀"
                     actionLabel="停止"
                     doneLabel="已停止"
                     danger
@@ -818,7 +807,6 @@ function LocalCorePane({ settings, onChange }: {
                 />
                 <ActionRow
                     label="打开核心配置目录"
-                    hint="config.json、提示词、技能、表情包与微信凭证都在这里"
                     actionLabel="打开"
                     doneLabel="已打开"
                     onAction={async () => {
@@ -834,7 +822,7 @@ function LocalCorePane({ settings, onChange }: {
                     <div className="core-qr">
                         <img src={qrImage} alt="微信登录二维码" />
                     </div>
-                    <span className="field-hint">用微信扫码登录机器人账号；二维码过期后日志里会出现新的，本卡自动更新，登录成功后消失</span>
+                    <span className="field-hint">过期自动刷新，登录成功后消失</span>
                 </div>
             )}
 
@@ -888,13 +876,13 @@ function LocalCorePane({ settings, onChange }: {
                     </FieldRow>
                     <SwitchRow
                         label="长期记忆"
-                        hint="需要本地 Ollama 或 OpenAI 兼容 embedding 接口"
+                        hint="需 Ollama 或兼容 embedding 接口"
                         checked={draft.enableLongTermMemory}
                         onChange={(v) => editCore({ enableLongTermMemory: v })}
                     />
                     <SwitchRow
                         label="QQ 接入 (OneBot)"
-                        hint="NapCat 反向 WS 填 ws://本机IP:端口/onebot/v11/ws，token 与桌面连接共用"
+                        hint="NapCat 反向 WS 填 ws://本机IP:<端口>/onebot/v11/ws"
                         checked={draft.enableOnebot}
                         onChange={(v) => editCore({ enableOnebot: v })}
                     />
@@ -908,7 +896,7 @@ function LocalCorePane({ settings, onChange }: {
                     </FieldRow>
                     <SwitchRow
                         label="微信接入"
-                        hint="首次登录在下方日志卡扫码；凭证落在数据目录的 wechatbot/ 下"
+                        hint="首次启动在下方扫码登录"
                         checked={draft.enableWechat}
                         onChange={(v) => editCore({ enableWechat: v })}
                     />
@@ -947,7 +935,7 @@ function LocalCorePane({ settings, onChange }: {
                     </div>
                     <div className="core-log" ref={logBoxRef}>
                         {logs.length === 0
-                            ? <span className="field-hint">暂无日志——启动核心后这里会实时滚动输出</span>
+                            ? <span className="field-hint">暂无日志</span>
                             : logs.map((line, i) => (
                                 <div className="core-log-line" key={`${line.ts}-${i}`}>{line.text}</div>
                             ))}
