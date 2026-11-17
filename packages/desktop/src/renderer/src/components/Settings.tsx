@@ -6,11 +6,22 @@ import {
     HISTORY_LIMIT_MIN,
     type UiSettings,
 } from '../../../shared/settings.ts'
-import type { BackendStatus } from '../../../preload/api.ts'
+import type { BackendStatus, DesktopApi } from '../../../preload/api.ts'
 import type { CoreConfig, CoreLogLine, CoreStatus } from '../../../shared/core-types.ts'
 import { BrandMark } from '@cith/ui'
 import { CloseIcon } from './icons'
 import './Settings.css'
+
+/**
+ * 桌面桥缺失的统一报错，区分两种成因：
+ * dev:web（浏览器预览，整个 window.desktop 都不存在）与旧版客户端（桥还在但没有新方法，需重启/重建）
+ */
+function bridgeMissing(method: keyof DesktopApi): Error {
+    if (!window.desktop) {
+        return new Error('桌面桥不可用——浏览器预览模式没有主进程，请在 Electron 客户端里操作')
+    }
+    return new Error(`客户端缺少 ${method} 能力——请重启客户端或重新构建后再试`)
+}
 
 const CATEGORIES = [
     { id: 'interface', label: '界面' },
@@ -658,8 +669,8 @@ function LocalCorePane({ settings, onChange }: {
     // 状态与日志：面板只在分类激活时挂载，挂载时从主进程缓冲补齐历史
     useEffect(() => {
         let alive = true
-        window.desktop.getCoreStatus().then((s) => { if (alive) setStatus(s) })
-        window.desktop.getCoreLogs().then((lines) => {
+        window.desktop?.getCoreStatus?.().then((s) => { if (alive) setStatus(s) })
+        window.desktop?.getCoreLogs?.().then((lines) => {
             if (!alive) return
             setLogs(lines)
             // 从缓冲尾部往回找最近一次二维码：先遇到「已登录」说明已扫码，不再展示旧码
@@ -672,15 +683,15 @@ function LocalCorePane({ settings, onChange }: {
                 if (/WechatBot已登录/.test(line.text)) break
             }
         })
-        const offStatus = window.desktop.onCoreStatus(setStatus)
-        const offLog = window.desktop.onCoreLog((line) => {
+        const offStatus = window.desktop?.onCoreStatus?.(setStatus)
+        const offLog = window.desktop?.onCoreLog?.((line) => {
             setLogs((prev) => [...prev.slice(-499), line])
             extractWechatQr(line.text, setQrUrl)
         })
         return () => {
             alive = false
-            offStatus()
-            offLog()
+            offStatus?.()
+            offLog?.()
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
@@ -688,7 +699,7 @@ function LocalCorePane({ settings, onChange }: {
     // 配置草稿只加载一次（保存后由返回的合并结果刷新）
     useEffect(() => {
         let alive = true
-        window.desktop.getCoreConfig().then((cfg) => { if (alive) setDraft(loadCoreDraft(cfg)) })
+        window.desktop?.getCoreConfig?.().then((cfg) => { if (alive) setDraft(loadCoreDraft(cfg)) })
         return () => { alive = false }
     }, [])
 
@@ -725,6 +736,7 @@ function LocalCorePane({ settings, onChange }: {
             return
         }
         try {
+            if (!window.desktop?.saveCoreConfig) throw bridgeMissing('saveCoreConfig')
             const merged = await window.desktop.saveCoreConfig(parsed.patch)
             setDraft(loadCoreDraft(merged))
             setSavedHint(status.state === 'running' || status.state === 'starting' ? '已保存——重启核心后生效' : '已保存')
@@ -778,14 +790,20 @@ function LocalCorePane({ settings, onChange }: {
                     hint="以内置 Node 运行编译产物，系统无需安装 Node"
                     actionLabel="启动"
                     doneLabel="已启动"
-                    onAction={async () => setStatus(await window.desktop.startCore())}
+                    onAction={async () => {
+                        if (!window.desktop?.startCore) throw bridgeMissing('startCore')
+                        setStatus(await window.desktop.startCore())
+                    }}
                 />
                 <ActionRow
                     label="重启核心"
                     hint="配置保存后需要重启才能生效"
                     actionLabel="重启"
                     doneLabel="已重启"
-                    onAction={async () => setStatus(await window.desktop.restartCore())}
+                    onAction={async () => {
+                        if (!window.desktop?.restartCore) throw bridgeMissing('restartCore')
+                        setStatus(await window.desktop.restartCore())
+                    }}
                 />
                 <ActionRow
                     label="停止核心"
@@ -793,7 +811,20 @@ function LocalCorePane({ settings, onChange }: {
                     actionLabel="停止"
                     doneLabel="已停止"
                     danger
-                    onAction={async () => setStatus(await window.desktop.stopCore())}
+                    onAction={async () => {
+                        if (!window.desktop?.stopCore) throw bridgeMissing('stopCore')
+                        setStatus(await window.desktop.stopCore())
+                    }}
+                />
+                <ActionRow
+                    label="打开核心配置目录"
+                    hint="config.json、提示词、技能、表情包与微信凭证都在这里"
+                    actionLabel="打开"
+                    doneLabel="已打开"
+                    onAction={async () => {
+                        if (!window.desktop?.openCoreConfigDir) throw bridgeMissing('openCoreConfigDir')
+                        await window.desktop.openCoreConfigDir()
+                    }}
                 />
             </div>
 

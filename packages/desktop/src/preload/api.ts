@@ -118,6 +118,8 @@ export const desktopApi = {
     getCoreConfig: (): Promise<CoreConfig> => ipcRenderer.invoke('core:config:get'),
     /** 保存本地核心配置补丁（深合并落盘；运行中需重启核心生效） */
     saveCoreConfig: (patch: CoreConfig): Promise<CoreConfig> => ipcRenderer.invoke('core:config:save', patch),
+    /** 用系统文件管理器打开本地核心的配置目录（config.json、提示词、技能、微信凭证都在这下面） */
+    openCoreConfigDir: (): Promise<void> => ipcRenderer.invoke('core:open-config-dir'),
     /** 订阅本地核心状态变化；返回退订函数 */
     onCoreStatus: (cb: (status: CoreStatus) => void): (() => void) => {
         const listener = (_e: IpcRendererEvent, status: CoreStatus): void => cb(status)

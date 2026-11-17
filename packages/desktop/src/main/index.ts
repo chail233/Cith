@@ -155,6 +155,18 @@ app.whenReady().then(() => {
         }
         return saveCoreConfig(coreDataDir, raw as CoreConfig)
     })
+    ipcMain.handle('core:open-config-dir', async () => {
+        try {
+            mkdirSync(coreDataDir, { recursive: true })
+        }
+        catch { /* 建不出来就让下面的 openPath 去报错 */ }
+        const error = await shell.openPath(coreDataDir)
+        if (!error) return
+        console.warn('打开核心配置目录失败，改用在文件夹中显示:', error)
+        const anchor = join(coreDataDir, 'config.json')
+        if (!existsSync(anchor)) throw new Error(error)
+        shell.showItemInFolder(anchor)
+    })
     // 随应用启动本地核心（仅本地模式）
     if (loadSettings().coreMode === 'local' && loadSettings().coreAutoStart) {
         try {
