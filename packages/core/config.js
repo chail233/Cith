@@ -202,24 +202,6 @@ const baseConfig = {
     githubToken: null,
 };
 
-/**
- * 把旧键名就地替换为新键名
- * @param {Record<string, unknown>} target 待归一化的配置对象（会被修改）
- * @returns {string[]} 命中的「旧键 → 新键」描述，用于提示用户
- */
-function normalizeLegacyKeys(target) {
-    const renamed = [];
-    for (const [legacyKey, newKey] of Object.entries(LEGACY_KEY_MAP)) {
-        if (!Object.prototype.hasOwnProperty.call(target, legacyKey)) continue;
-        // 新键已显式配置时以新键为准，避免旧键覆盖用户的新写法
-        if (!Object.prototype.hasOwnProperty.call(target, newKey)) {
-            target[newKey] = target[legacyKey];
-        }
-        delete target[legacyKey];
-        renamed.push(`${legacyKey} → ${newKey}`);
-    }
-    return renamed;
-}
 
 /** 普通对象判断（排除 Map 等内置类型）：决定是否做一层合并 */
 function isPlainObject(value) {
@@ -344,13 +326,6 @@ if (existsSync(userConfigPath)) {
 `);
         process.exit(1);
     }
-
-    const renamed = normalizeLegacyKeys(userConfig);
-    if (renamed.length > 0) {
-        writeUserConfigFile(userConfig);
-        console.warn(`[config] config.json 中的旧键名已自动迁移：\n  ${renamed.join("\n  ")}`);
-    }
-
     mergeUserConfig(baseConfig, userConfig);
 }
 else {
