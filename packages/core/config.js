@@ -144,6 +144,9 @@ const baseConfig = {
     /** 是否在播报工具调用 */
     toolOutput: false,
 
+    /** 工具调用超时（毫秒，默认 3 分钟）：到点放弃等待，run_shell 会强制终止子进程树；0 表示不限 */
+    toolTimeout: 180000,
+
     /** Agent 工具链最大轮数 */
     toolChainMaxLength: 30,
 

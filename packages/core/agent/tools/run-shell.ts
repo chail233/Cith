@@ -1,5 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { resolveSrcPath } from "../../utils/file-security.js";
+import config from "../../config.js";
 import type { ToolDefinition, ToolModule } from "../types.ts";
 
 /** run_shell 工具入参 */
@@ -11,6 +12,8 @@ export interface RunShellParams {
 const IS_WIN = process.platform === "win32";
 const OUTPUT_KEEP = 4 * 1024; // 展示给模型时头尾各保留的字符数
 const OUTPUT_CAP = 1_000_000; // 采集阶段的内存保护上限（字符数）
+/** 超时强杀后的宽限期：杀不掉就放弃等待，避免工具链被永久挂住 */
+const KILL_GRACE_MS = 5_000;
 
 const SHELL_HINT = IS_WIN
     ? "当前系统 Windows，命令为 PowerShell 语法（Get-ChildItem、Select-String 等），支持管道"
@@ -20,7 +23,7 @@ export const definition: ToolDefinition = {
     type: "function",
     function: {
         name: "run_shell",
-        description: `执行 shell 命令并返回输出与退出码。${SHELL_HINT}。命令会经安全审查（open 模式下管理员豁免），可疑命令需管理员确认`,
+        description: `执行 shell 命令并返回输出与退出码。${SHELL_HINT}。${config.toolTimeout > 0 ? `超过 ${Math.round(config.toolTimeout / 1000)} 秒的命令会被强制终止；` : ""}命令会经安全审查（open 模式下管理员豁免），可疑命令需管理员确认`,
         parameters: {
             type: "object",
             properties: {
@@ -50,12 +53,46 @@ function cleanPsStderr(text: string): string {
         .replace(/_x([0-9A-Fa-f]{4})_/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
 }
 
-/** 等待子进程退出并采集输出；进程没能拉起（如 bash 不存在）时以 spawnError 返回 */
-function capture(child: ChildProcessWithoutNullStreams): Promise<{ text: string; spawnError?: NodeJS.ErrnoException }> {
+/** 终止子进程树：Windows 用 taskkill /T，POSIX 直接 SIGKILL */
+function killTree(child: ChildProcessWithoutNullStreams): void {
+    if (child.exitCode !== null || child.signalCode !== null) return;
+    if (IS_WIN && child.pid) {
+        spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"], { stdio: "ignore" });
+        return;
+    }
+    child.kill("SIGKILL");
+}
+
+/**
+ * 等待子进程退出并采集输出；进程没能拉起（如 bash 不存在）时以 spawnError 返回
+ * 超过 timeoutMs 强制终止进程树，宽限期内仍未退出则不再等待
+ */
+function capture(child: ChildProcessWithoutNullStreams, timeoutMs: number): Promise<{ text: string; spawnError?: NodeJS.ErrnoException }> {
     return new Promise((resolve) => {
         const outBuf = { v: "" };
         const errBuf = { v: "" };
         let dropped = false;
+        let timedOut = false;
+        let settled = false;
+        let timer: NodeJS.Timeout | null = null;
+        let graceTimer: NodeJS.Timeout | null = null;
+
+        const finish = (result: { text: string; spawnError?: NodeJS.ErrnoException }) => {
+            if (settled) return;
+            settled = true;
+            if (timer) clearTimeout(timer);
+            if (graceTimer) clearTimeout(graceTimer);
+            resolve(result);
+        };
+        const build = (code: number | null) => {
+            if (dropped) outBuf.v += "\n[...输出过大，后续已丢弃...]";
+            const errText = IS_WIN ? cleanPsStderr(errBuf.v) : errBuf.v;
+            const output = [outBuf.v.trimEnd(), errText.trim()].filter(Boolean).join("\n");
+            const head = timedOut
+                ? `退出码 ${code ?? "—"}（超过 ${Math.round(timeoutMs / 1000)} 秒超时，已强制终止）`
+                : `退出码 ${code ?? "—"}`;
+            return `${head}\n${truncate(output) || "（无输出）"}`;
+        };
         const collect = (buf: { v: string }) => (chunk: Buffer | string) => {
             if (buf.v.length > OUTPUT_CAP) {
                 dropped = true;
@@ -67,13 +104,20 @@ function capture(child: ChildProcessWithoutNullStreams): Promise<{ text: string;
         child.stderr.on("data", collect(errBuf));
         child.stdin?.end(); // 立即关闭 stdin，避免 read 类命令等待输入挂死
 
-        child.on("error", (spawnErr) => resolve({ text: "", spawnError: spawnErr }));
-        child.on("close", (code) => {
-            if (dropped) outBuf.v += "\n[...输出过大，后续已丢弃...]";
-            const errText = IS_WIN ? cleanPsStderr(errBuf.v) : errBuf.v;
-            const output = [outBuf.v.trimEnd(), errText.trim()].filter(Boolean).join("\n");
-            resolve({ text: `退出码 ${code ?? "—"}\n${truncate(output) || "（无输出）"}` });
-        });
+        // 超时则强杀整棵进程树
+        if (Number.isFinite(timeoutMs) && timeoutMs > 0) {
+            timer = setTimeout(() => {
+                timedOut = true;
+                killTree(child);
+                // 兜底：进程树杀不掉时不再永久等待，带着已采集的输出返回
+                graceTimer = setTimeout(() => finish({ text: build(child.exitCode) }), KILL_GRACE_MS);
+                graceTimer.unref?.();
+            }, timeoutMs);
+            timer.unref?.();
+        }
+
+        child.on("error", (spawnErr) => finish({ text: "", spawnError: spawnErr }));
+        child.on("close", (code) => finish({ text: build(code) }));
     });
 }
 
@@ -96,11 +140,12 @@ export async function execute(param: RunShellParams): Promise<string> {
         )
         : spawn("bash", ["-c", command], { cwd: resolved.fullPath });
 
-    const result = await capture(child);
+    const timeoutMs = config.toolTimeout;
+    const result = await capture(child, timeoutMs);
     if (!result.spawnError) return result.text;
     if (IS_WIN || result.spawnError.code !== "ENOENT") return `启动 shell 失败: ${result.spawnError.message}`;
 
-    const fallback = await capture(spawn("sh", ["-c", command], { cwd: resolved.fullPath }));
+    const fallback = await capture(spawn("sh", ["-c", command], { cwd: resolved.fullPath }), timeoutMs);
     if (fallback.spawnError) return `启动 shell 失败: ${fallback.spawnError.message}`;
     return `（bash 不可用，本次经 sh 执行）\n${fallback.text}`;
 }

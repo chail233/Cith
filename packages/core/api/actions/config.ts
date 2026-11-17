@@ -32,6 +32,7 @@ const WRITABLE_KEYS = new Set<string>([
     "memoryEmbedProvider",
     "memoryEmbedBaseUrl",
     "toolChainMaxLength",
+    "toolTimeout",
     "contextBudgetTokens",
     "chatSummaryThresholdTokens",
     "toolOutput",

@@ -37,6 +37,30 @@ const toolMap = new Map(
     toolRegistry.map((t) => [t.definition.function.name, t.execute]),
 );
 
+const TIMEOUT_GRACE_MS = 10_000;
+
+/**
+ * 给一次工具执行加超时：到点放弃等待并回填说明文本，避免一次挂死把整个会话锁住
+ * 执行自身抛错时原样透传，不改变调用方的错误语义
+ * @param {string} name 工具名
+ * @param {Promise<unknown>} task 工具执行
+ * @param {number} budgetMs 超时（毫秒），非正数表示不限
+ * @returns {Promise<unknown>}
+ */
+function withToolTimeout(name, task, budgetMs) {
+    if (!Number.isFinite(budgetMs) || budgetMs <= 0) return task;
+    return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+            resolve(`${name} 执行超时（${Math.round(budgetMs / 1000)} 秒），已放弃等待；命令可能仍在后台运行，需要结果时请稍后用其它工具确认`);
+        }, budgetMs);
+        timer.unref?.();
+        task.then(
+            (value) => { clearTimeout(timer); resolve(value); },
+            (err) => { clearTimeout(timer); reject(err); },
+        );
+    });
+}
+
 /**
  * 模型可调用的工具定义：本地工具 + 已激活 MCP 服务器的工具
  * @returns {import("./types.ts").ToolDefinition[]}
@@ -82,7 +106,7 @@ export async function callTool(tool_call, ctx, confirmed = false){
 
     if (name.startsWith("mcp_")) {
         const originalName = name.slice(4);
-        const result = await mcpClient.callTool(originalName, parameter);
+        const result = await withToolTimeout(name, mcpClient.callTool(originalName, parameter), config.toolTimeout);
         return `${name}调用结果:\n${result}`;
     }
 
@@ -90,5 +114,7 @@ export async function callTool(tool_call, ctx, confirmed = false){
     if (!tool) {
         throw new Error(`未知工具: ${name}`);
     }
-    return `${name}调用结果:\n${await tool(parameter, ctx)}`;
+    const budget = name === "run_shell" ? config.toolTimeout + TIMEOUT_GRACE_MS : config.toolTimeout;
+    const output = await withToolTimeout(name, Promise.resolve().then(() => tool(parameter, ctx)), budget);
+    return `${name}调用结果:\n${output}`;
 }
