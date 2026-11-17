@@ -20,6 +20,8 @@ interface DesktopFrame {
     type?: string;
     messageId?: string;
     userId?: string;
+    /** 桌面端内部的对话 id：同一用户的多条对话各自一份后端会话 */
+    conversationId?: string;
     nickName?: string;
     segments?: unknown;
 }
@@ -187,8 +189,9 @@ class DesktopServer extends BaseServer<DesktopFrame> {
     protected toEventMeta(frame: DesktopFrame): PlatformEventMeta {
         // 桌面端是单用户通道：身份由客户端随消息携带，缺省给占位身份
         const userId = typeof frame.userId === "string" && frame.userId !== "" ? frame.userId : "desktop";
+        const conversationId = typeof frame.conversationId === "string" && frame.conversationId !== "" ? frame.conversationId : undefined;
         return {
-            space: { from: "user", id: userId, channel: "desktop" },
+            space: { from: "user", id: userId, channel: "desktop", ...(conversationId ? { conversationId } : {}) },
             userId,
             nickName: typeof frame.nickName === "string" && frame.nickName !== "" ? frame.nickName : "桌面用户",
             messageId: typeof frame.messageId === "string" ? frame.messageId : "",

@@ -61,10 +61,13 @@ app.whenReady().then(() => {
         if (config) backend.apply(config)
     })
     ipcMain.handle('backend:send', (_e, raw: unknown) => backend.send(raw))
-    // 中断帧：不走消息管道，只让 core 停掉该会话进行中的一轮
+    // 中断帧：不走消息管道，只让 core 停掉该对话进行中的一轮
     ipcMain.handle('backend:abort', (_e, raw: unknown) => {
-        const userId = typeof raw === 'string' && raw.trim() !== '' ? raw.trim() : 'desktop'
-        return backend.send({ type: 'abort', userId })
+        const req = (raw ?? {}) as { userId?: unknown; conversationId?: unknown }
+        const userId = typeof req.userId === 'string' && req.userId.trim() !== '' ? req.userId.trim() : 'desktop'
+        const conversationId =
+            typeof req.conversationId === 'string' && req.conversationId !== '' ? req.conversationId : undefined
+        return backend.send({ type: 'abort', userId, ...(conversationId ? { conversationId } : {}) })
     })
     ipcMain.handle('sessions:get', () => loadSessions())
     ipcMain.handle('sessions:save', (_e, raw: unknown) => saveSessions(raw))

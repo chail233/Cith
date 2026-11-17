@@ -53,7 +53,7 @@ NapCat(反向WS) / 微信(长轮询) / 桌面客户端(自开WS, DesktopServer)
   ← bot/adapters/*（BaseAdapter 子类）                 对外动作：仅 sendMsg() 发送
 ```
 
-- `ctx` 字段：`{ adapter, messageId, message(统一消息段数组), space{from,id,channel}, senderName, userId, isAdmin, isTarget, handled }`。@、图片、链接等一律从 `ctx.message` 消息段取。
+- `ctx` 字段：`{ adapter, messageId, message(统一消息段数组), space{from,id,channel,conversationId?}, senderName, userId, isAdmin, isTarget, handled }`。@、图片、链接等一律从 `ctx.message` 消息段取。`conversationId` 只在通道内部再分会话时出现（当前仅桌面端）：会话 id 为 `from:id`，带它时变为 `from:id#conversationId`；`space.id` 始终是用户/群本体，白名单与管理员判定都按它。
 - 目标过滤：`targetGroupId` / `targetUserId` 均为**数组白名单**，空数组视为全放行；未授权会话中管理员发 `#bind` 可放行（bootstrap）。
 - 处理器（**首个返回 true 即停止**）：`user-commands`（`#` 命令真表）→ `ai-chat` → `proactive-chat`。加新行为 = 插入处理器，不改管道循环。
 - 图片是**懒识别**：消息里的图片段只带 `media.localPath` 进上下文，不自动调视觉模型；模型需要看图时用 `recognize_image` 工具按需识别（工具内做魔数校验，仅 jpg/png/webp）。送模型前会先过 `utils/image-compress.ts`：最长边超 1568px 或体积超 1.5MB 才等比缩小/重编码（png 保透明、jpg quality 85），小图与 webp（jimp 不解码）原样发送，解码失败也回退原图。
@@ -93,7 +93,7 @@ NapCat(反向WS) / 微信(长轮询) / 桌面客户端(自开WS, DesktopServer)
 - `packages/core/api/`：独立 WS 服务（默认 `ws://127.0.0.1:2145/api/v1/ws`，token 鉴权、心跳、action 白名单路由 `router.ts`、事件总线/环形日志缓冲）。各动件在 `api/actions/`。
 - **npm workspaces**：根 `package.json` 声明 `workspaces: ["packages/*"]`，统一 lockfile、依赖提升到根 `node_modules`；`packages/core/` 是 `@cith/core` 子包（运行依赖在其 package.json），`packages/ui/` 是 `@cith/ui`（共享 UI 组件源码直出、无构建步骤，消费端 Vite 负责编译；品牌色内联不挂主题变量），根上只留编排脚本与 TypeScript。`.npmrc`（Electron / electron-builder 镜像）在根。跨包脚本用 `npm run xxx -w packages/web`（-w 收路径，包名亦可）。
 - `packages/web/`：workspace 子包——React 18 + TS + Vite 前端 + Express BFF（`packages/web/server/index.mjs`，:2146，持 `BOT_API_TOKEN`，可选 `WEB_PASSWORD` 登录与自签 HTTPS，SSE `/api/events`）。开发在 `packages/web/` 内 `npm run dev` + `npm run server`；详见 `packages/web/README.md`。
-- `packages/desktop/`：workspace 子包——Electron 桌面客户端（electron-vite：main/preload/renderer 三段，React 18 + TS 渲染层，全 ESM；electron 依赖钉精确版本）。与 core 完全解耦，仅经 WS 协议通信（占位协议已接通：消息帧 + `abort` 中断帧，中断直通 `AgentManager.abortSession()`）；工程级指南见 `packages/desktop/AGENTS.md`。
+- `packages/desktop/`：workspace 子包——Electron 桌面客户端（electron-vite：main/preload/renderer 三段，React 18 + TS 渲染层，全 ESM；electron 依赖钉精确版本）。与 core 完全解耦，仅经 WS 协议通信（占位协议已接通：消息帧带 `conversationId` + `abort` 中断帧，中断直通 `AgentManager.abortSession()`）；桌面端每条对话在后端是独立会话（`Space.conversationId`，会话 id 为 `user:<userId>#<conversationId>`）；工程级指南见 `packages/desktop/AGENTS.md`。
 
 ## 开发约定
 

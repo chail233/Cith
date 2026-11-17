@@ -30,15 +30,19 @@ export type OutgoingMessageFrame = {
     type: 'message'
     messageId: string
     userId: string
+    conversationId: string
     segments: FrameSegment[]
 }
 
 /** 入站消息帧：core → 客户端，agent 回复按段逐帧推送 */
 export type IncomingMessageFrame = {
     type: 'message'
-    space: { from: string; id: string }
+    space: { from: string; id: string; conversationId?: string }
     segments: FrameSegment[]
 }
+
+/** 中断请求：会话归属与消息帧同一套规则 */
+export type AbortRequest = { userId: string; conversationId?: string }
 
 /** 渲染层可用的主进程桥接 API，类型经 index.d.ts 暴露给 renderer */
 export const desktopApi = {
@@ -61,8 +65,8 @@ export const desktopApi = {
     },
     /** 发送一条消息帧；返回是否已交付传输层（未连接时为 false） */
     sendMessage: (frame: OutgoingMessageFrame): Promise<boolean> => ipcRenderer.invoke('backend:send', frame),
-    /** 中断该会话进行中的一轮（发 abort 帧，不产生用户消息）；返回是否已交付传输层 */
-    abort: (userId: string): Promise<boolean> => ipcRenderer.invoke('backend:abort', userId),
+    /** 中断该对话进行中的一轮；返回是否已交付传输层 */
+    abort: (request: AbortRequest): Promise<boolean> => ipcRenderer.invoke('backend:abort', request),
     /** 读取落盘的会话快照；无文件或文件损坏时为 null */
     getSessions: (): Promise<PersistedSessions | null> => ipcRenderer.invoke('sessions:get'),
     /** 写入会话快照；形状不合或超出体积上限时主进程直接丢弃 */

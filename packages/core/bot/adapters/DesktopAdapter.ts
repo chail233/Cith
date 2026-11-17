@@ -63,7 +63,9 @@ export default class DesktopAdapter extends BaseAdapter {
         const segments = (await Promise.all((Array.isArray(message) ? message : [message]).map((seg) => this.toFrameSegment(seg))))
             .flatMap((segs) => segs ?? []);
         if (segments.length === 0) return;
-        this.ws.send(JSON.stringify({ type: "message", space: { from: space.from, id: space.id }, segments }));
+        const frameSpace: { from: string; id: string; conversationId?: string } = { from: space.from, id: space.id };
+        if (space.conversationId) frameSpace.conversationId = space.conversationId;
+        this.ws.send(JSON.stringify({ type: "message", space: frameSpace, segments }));
     }
 
     private async toFrameSegment(message: string | MessageSegment): Promise<MessageSegment[] | null> {

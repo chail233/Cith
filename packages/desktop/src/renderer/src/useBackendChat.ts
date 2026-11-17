@@ -10,7 +10,8 @@ const REPLY_TIMEOUT_MS = 120_000
 
 /**
  * 消息通道会话桥：出站帧由缝里构建的段数组直装，入站帧转成渲染段进会话。
- * 会话归属：优先回复最近一次发送的会话，其次按 space.id 记忆映射，都没有落到当前会话。
+ * 会话归属：后端把 conversationId 随帧回传，直接落回对应对话；
+ * 没带（主动消息 / 旧后端）时回落到最近一次发送的对话，再回落到当前对话。
  * @param userId 桌面频道身份（设置页可配），随消息帧携带；留空回退 'desktop'
  */
 export function useBackendChat(store: ConversationsStore, userId: string) {
@@ -19,10 +20,8 @@ export function useBackendChat(store: ConversationsStore, userId: string) {
     storeRef.current = store
     const userIdRef = useRef(userId)
     userIdRef.current = userId
-    /** 等回复期间记住发出的会话，回复优先落回那里 */
+    /** 等回复期间记住发出的对话：中断与无归属帧都优先回到这里 */
     const pendingConv = useRef<string | null>(null)
-    /** space.id → 会话 id：主动消息（定时苏醒）也按它归位 */
-    const spaceMap = useRef(new Map<string, string>())
     const timeoutRef = useRef<number | null>(null)
 
     useEffect(() => {
@@ -40,13 +39,13 @@ export function useBackendChat(store: ConversationsStore, userId: string) {
         const segments = storeRef.current.sendOutgoing(convId, text, extras)
         if (segments.length === 0) return
         pendingConv.current = convId
-        spaceMap.current.set(frameUserId, convId)
         setPending(true)
         armTimeout()
         const frame: OutgoingMessageFrame = {
             type: 'message',
             messageId: crypto.randomUUID(),
             userId: frameUserId,
+            conversationId: convId,
             segments,
         }
         void window.desktop
@@ -65,11 +64,13 @@ export function useBackendChat(store: ConversationsStore, userId: string) {
 
     /**
      * 中断后端正在跑的那一轮：只发 abort 帧，不占会话消息、不进模型记忆。
+     * 目标是正在等回复的那个对话（没在等时退回到当前对话）。
      * 被中断的轮次不会再投递回复，所以思考指示当场收掉，不等帧。
      */
     function stop(): void {
         const frameUserId = userIdRef.current.trim() || DESKTOP_USER_ID
-        void window.desktop?.abort?.(frameUserId)?.catch(() => {})
+        const conversationId = pendingConv.current ?? storeRef.current.active?.id
+        void window.desktop?.abort?.({ userId: frameUserId, conversationId })?.catch(() => {})
         releasePending()
     }
 
@@ -94,14 +95,17 @@ export function useBackendChat(store: ConversationsStore, userId: string) {
         const segments = toRenderSegments(frame.segments)
         if (segments.length === 0) return
         const cur = storeRef.current
-        const convId = pendingConv.current
-            ?? spaceMap.current.get(frame.space.id)
-            ?? cur.active?.id
-            ?? cur.create()
+        const convId = resolveConversation(cur, frame)
         cur.appendMessage(convId, { id: nextId(), role: 'agent', time: nowTime(), segments })
-        spaceMap.current.set(frame.space.id, convId)
         // 回复是按段拆帧连发的，第一帧即收掉思考指示（pending 只管指示，不锁输入）
         if (pendingConv.current) releasePending()
+    }
+
+    /** 帧归属：优先按后端回传的对话 id，退回到等的那个对话，再退回到当前对话 */
+    function resolveConversation(cur: ConversationsStore, frame: IncomingMessageFrame): string {
+        const target = frame.space.conversationId
+        if (target && cur.conversations.some((c) => c.id === target)) return target
+        return pendingConv.current ?? cur.active?.id ?? cur.create()
     }
     
     function toRenderSegments(raw: IncomingMessageFrame['segments']): Segment[] {

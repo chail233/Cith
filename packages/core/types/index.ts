@@ -5,6 +5,7 @@ export interface Space {
     from: "user" | "group";
     id: string;
     channel: "onebot" | "wechat" | "desktop";
+    conversationId?: string;
 }
 
 export interface MessageSegment {

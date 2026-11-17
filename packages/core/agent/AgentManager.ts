@@ -33,7 +33,8 @@ const agents = new Map<string, AgentEntry>();
  * 由消息空间生成会话 ID
  */
 export function sessionIdOf(space: Space): string {
-    return `${space.from}:${space.id}`;
+    const base = `${space.from}:${space.id}`;
+    return space.conversationId ? `${base}#${space.conversationId}` : base;
 }
 
 

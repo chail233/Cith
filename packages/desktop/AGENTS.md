@@ -68,10 +68,11 @@ src/renderer/src/
 ## 协议（占位已接通）
 
 - core 侧 `DesktopServer` 已落地（`desktopPort`，默认 2147；token 与 NapCat 共用，握手阶段校验 `Authorization: Bearer`）；审批桥（`#do-yes` 按钮化）仍走 core/api（2145）的 action
-- 占位帧契约（正式协议定型后替换）：出站 `{type:'message', messageId, userId, segments}`，入站 `{type:'message', space:{from,id}, segments}`，段一律 `{type, data}` 统一段直传；帧类型单一真源在 `preload/api.ts`
+- 占位帧契约（正式协议定型后替换）：出站 `{type:'message', messageId, userId, conversationId, segments}`，入站 `{type:'message', space:{from,id,conversationId?}, segments}`，段一律 `{type, data}` 统一段直传；帧类型单一真源在 `preload/api.ts`
+- **会话粒度**：`conversationId` 是桌面端每条对话的 id，core 侧 `DesktopServer` 把它放上 `space.conversationId`，会话 id 变成 `user:<userId>#<conversationId>`——每条对话一份 Agent、一份短期记忆；`space.id` 仍是用户身份，故 `targetUserId` / `owner` 判定不受影响
 - **连接客户端**：`src/main/backend.ts` 常驻持有传输层（Bearer 握手、自动指数重连、建连超时兜底、入站帧经 `backend:message` 广播给渲染层）；地址 / token 在设置页「后端连接」配置并实时经 `desktopApi.setBackend` 下发
-- **中断**：等回复期间发送键左侧多一个方块中断键（输入与发送都不锁，连发即可——新消息进记忆后正在跑的那轮循环下一轮请求就会带上），客户端发 `{type:'abort', userId}` 帧（不走消息管道）；core 侧 `DesktopServer` 按 `toEventMeta` 推出 `user:<userId>` 会话直接调 `abortSession()`，只查不建——不产生用户消息、不进模型记忆，被中断的轮次也不会再推送回复，所以思考指示当场收掉
-- **会话桥**：`useBackendChat` 装帧/收帧；agent 回复按段拆帧连发（段间 3~4s 拟人间隔），客户端逐帧追加即保节奏，第一帧收掉思考指示、后续帧按 space.id 归位；发送不做互斥（会话内并发请求由 core 的 Agent 自己处理）；桌面频道身份 `userId` 在「用户」设置页可配（缺省 `desktop`，留空回退），随消息帧发送到后端并决定会话归属；主动消息（定时苏醒）无 pending 时按映射落到对应会话
+- **中断**：等回复期间发送键左侧多一个方块中断键（输入与发送都不锁，连发即可——新消息进记忆后正在跑的那轮循环下一轮请求就会带上），客户端发 `{type:'abort', userId, conversationId}` 帧（不走消息管道），目标取「正在等回复的那条对话」；core 侧 `DesktopServer` 按 `toEventMeta` 推出会话后直接调 `abortSession()`，只查不建——不产生用户消息、不进模型记忆，被中断的轮次也不会再推送回复，所以思考指示当场收掉
+- **会话桥**：`useBackendChat` 装帧/收帧；agent 回复按段拆帧连发（段间 3~4s 拟人间隔），客户端逐帧追加即保节奏；**归属按帧里回传的 `space.conversationId` 直接落回对话**，没带时（主动消息 / 旧后端）才回落到「最近一次发送的对话 → 当前对话」；第一帧收掉思考指示；发送不做互斥（会话内并发请求由 core 的 Agent 自己处理）；桌面频道身份 `userId` 在「用户」设置页可配（缺省 `desktop`，留空回退），随消息帧发送到后端并决定管理员/白名单判定
 - **段建模**：出站段在 `useConversations.sendOutgoing` 缝内构建（text + Composer 传来的 image/file 附件段），返回值直接装帧、不做二次转换；trace 是桌面本地展示段，将来由 `tool-*` 事件在缝里转换生成，不进传输协议
 - **媒体段**（占位协议扩展，与统一段同构）：image/file 段的 `data` 携带 `{media?, base64?, mime?, name?, size?}`。出站方向 core 侧 `DesktopAdapter` 把 localPath 读成 base64 随帧携带（http 引用原样透传）；入站方向客户端随帧带 base64，core 侧 `DesktopServer` 落地进 `data/desktop/` 并改写成 `media.localPath`（base64 不进上下文，识图等链路照常按路径取用）。体积上限：发送 50MB / 上传 25MB，超出跳过
 - 待办：正式协议握手版本号与 `chat.*` 事件集、trace / 审批卡片事件、跨端历史同步、voice 段
@@ -82,7 +83,7 @@ src/renderer/src/
 - 会话快照走 `userData/sessions.json`（主进程 `src/main/sessions.ts`）：渲染层去抖 500ms 写一次，`beforeunload` / `pagehide` 再单向补写一次；主进程先写 `.tmp` 再改名，超过 16MB 直接丢弃
 - 层级分工：`src/shared/session.ts` 只约定外层形状（`version` / `conversations` / `archived` / `activeId`），段级校验在渲染层 `sessionSnapshot.ts`——快照可能来自旧版本或被外部改坏，坏段整条丢弃
 - 截断规则：会话各 200 条、单会话保留尾部 400 条消息、单段 base64 超 1.5MB 只留元信息（图片变成「本地未缓存」文件卡，文件卡仍显示名字与体积）
-- 快照只是**本机缓存**：真源仍在 core 的记忆里，跨设备/跨端不共享；`dev:web` 无主进程时不落盘，只在内存里跑
+- 快照只是**本机缓存**：真源仍在 core 的记忆里，跨设备/跨端不共享；用 `conversationId` 与后端会话一一对应（定时苏醒任务也随 `space.conversationId` 落回原对话）；`dev:web` 无主进程时不落盘，只在内存里跑
 
 ## 已知坑
 
