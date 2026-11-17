@@ -17,6 +17,7 @@
 | `npm run start:dist` | 运行构建产物 `dist/index.js`（部署用；需先 build） |
 | `npm run build:web` | 编译 Web 面板（`packages/web/` 内 tsc -b + Vite → `packages/web/dist/`） |
 | `npm run build:desktop` | 编译桌面客户端（`packages/desktop/` 内 tsc -b + electron-vite → `out/`；开发进 `packages/desktop/` 跑 `npm run dev`） |
+| `npm run bundle:desktop` | 打带内置 core 的桌面安装包：`npm run build` → `scripts/stage-desktop-core.js` 装配 `core-bundle/`（排除密钥与运行数据，按生产依赖闭包复制 node_modules）→ electron-builder |
 | `npm test` | `node --experimental-test-module-mocks --test "tests/**/*.test.mjs"` |
 | `npm run setup` | 交互式初始化（写 `packages/core/config.json` 与 `packages/web/.env`；`--check` 只读检查 / `--no-start` / `--force`） |
 | `npm run add-stickers` | 用视觉模型批量给表情包图片生成描述/标签，写入 sticker manifest |
@@ -36,6 +37,8 @@
 合并规则：标量与数组整体覆盖；普通对象只覆盖写了的字段；`mcpServers` 是唯一**按 `name` 增量合并**的数组（同 `name` 整项代替；`{"name": ..., "disabled": true}` 剔除默认项）；`members` 写成 `{"QQ号": "昵称"}` 对象，加载时转 Map；`$` / `_` 开头的键是注释，加载时忽略；`command: "$NODE"` 重写为当前 node 可执行文件。解析失败直接中止启动，不静默降级。旧版大写键（`TOOLCHAIN_MAX_LENGTH` 等）自动迁移为新 camelCase 键。
 
 运行期细节：`config` 被 Proxy 包裹，顶层键赋值自动读改写回 `config.json`（`members`/`mcpServers` 不落盘；密钥类键只警告需重启）。跑 `dist/` 时配置在 `dist/config.json`，`npm run build` 会用 `packages/core/config.json` 覆盖它。
+
+**数据根与数据目录**：数据（data/）、提示词（prompts/）、技能（skills/）、表情包（stickers/）与 run_shell 的 cwd 全部锚在 `utils/file-security.js` 的 baseDir 上（默认= 包目录自身）；设 `CITH_DATA` 环境变量可把整个数据根搬到包外——桌面客户端内置 core 即用它把可变数据落进 userData（config.json 仍走 `CITH_CONFIG`，两者独立）。`enableOnebot` / `enableWechat` 开关控制 QQ / 微信接入服务是否启动（默认开；微信无凭证会无限重试登录，内置 core 的本地模式按需关）。
 
 **系统提示词不是配置项**：固定路径 `packages/core/prompts/system.md`，每轮重读，改完即生效；缺失时不注入任何 system 消息。面板通过 prompt 接口写入（带 `.bak` 备份），`set_config` 刻意无法触碰它。
 
@@ -90,10 +93,10 @@ NapCat(反向WS) / 微信(长轮询) / 桌面客户端(自开WS, DesktopServer)
 
 ### 面板 API 与 Web 面板
 
-- `packages/core/api/`：独立 WS 服务（默认 `ws://127.0.0.1:2145/api/v1/ws`，token 鉴权、心跳、action 白名单路由 `router.ts`、事件总线/环形日志缓冲）。各动件在 `api/actions/`。
+- `packages/core/api/`：独立 WS 服务（默认 `ws://127.0.0.1:2145/api/v1/ws`，token 鉴权、心跳、action 白名单路由 `router.ts`、事件总线/环形日志缓冲）。各动件在 `api/actions/`；`shutdown` 动作触发主循环 cleanup 优雅退出（桌面客户端停止内置 core 用；不进 web BFF 的转发白名单）。
 - **npm workspaces**：根 `package.json` 声明 `workspaces: ["packages/*"]`，统一 lockfile、依赖提升到根 `node_modules`；`packages/core/` 是 `@cith/core` 子包（运行依赖在其 package.json），`packages/ui/` 是 `@cith/ui`（共享 UI 组件源码直出、无构建步骤，消费端 Vite 负责编译；品牌色内联不挂主题变量），根上只留编排脚本与 TypeScript。`.npmrc`（Electron / electron-builder 镜像）在根。跨包脚本用 `npm run xxx -w packages/web`（-w 收路径，包名亦可）。
 - `packages/web/`：workspace 子包——React 18 + TS + Vite 前端 + Express BFF（`packages/web/server/index.mjs`，:2146，持 `BOT_API_TOKEN`，可选 `WEB_PASSWORD` 登录与自签 HTTPS，SSE `/api/events`）。开发在 `packages/web/` 内 `npm run dev` + `npm run server`；详见 `packages/web/README.md`。
-- `packages/desktop/`：workspace 子包——Electron 桌面客户端（electron-vite：main/preload/renderer 三段，React 18 + TS 渲染层，全 ESM；electron 依赖钉精确版本）。与 core 完全解耦，仅经 WS 协议通信（占位协议已接通：消息帧带 `conversationId` + `abort` 中断帧，中断直通 `AgentManager.abortSession()`）；桌面端每条对话在后端是独立会话（`Space.conversationId`，会话 id 为 `user:<userId>#<conversationId>`）；工程级指南见 `packages/desktop/AGENTS.md`；设置页全部分类已落地（开机自启 / 发送快捷键 / 本地保留条数 / 系统通知均落到真实行为，无占位项）。
+- `packages/desktop/`：workspace 子包——Electron 桌面客户端（electron-vite：main/preload/renderer 三段，React 18 + TS 渲染层，全 ESM；electron 依赖钉精确版本）。与 core 的消息通道完全解耦，仅经 WS 协议通信（占位协议已接通：消息帧带 `conversationId` + `abort` 中断帧，中断直通 `AgentManager.abortSession()`）；桌面端每条对话在后端是独立会话（`Space.conversationId`，会话 id 为 `user:<userId>#<conversationId>`）；另支持**内置本地 core 模式**——extraResources 携带 `core-bundle/`（装配脚本排除密钥与数据），主进程以 `ELECTRON_RUN_AS_NODE` 子进程拉起，配置与数据经 `CITH_CONFIG` / `CITH_DATA` 落 `userData/core/`，GUI 内配置、启停、看日志；工程级指南见 `packages/desktop/AGENTS.md`；设置页全部分类已落地（开机自启 / 发送快捷键 / 本地保留条数 / 系统通知均落到真实行为，无占位项）。
 
 ## 开发约定
 

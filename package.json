@@ -10,6 +10,7 @@
     "build:watch": "tsc -p tsconfig.build.json --watch",
     "build:web": "npm run build -w packages/web",
     "build:desktop": "npm run build -w packages/desktop",
+    "bundle:desktop": "npm run build && node scripts/stage-desktop-core.js && npm run dist -w packages/desktop",
     "build:all": "npm run build && npm run build:web",
     "start:dist": "node dist/index.js",
     "test": "node --experimental-test-module-mocks --test \"tests/**/*.test.mjs\"",

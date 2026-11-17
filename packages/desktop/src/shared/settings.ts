@@ -12,6 +12,8 @@ export type UiSettings = {
     backendUrl: string
     backendToken: string
     backendUserId: string
+    coreMode: 'remote' | 'local'
+    coreAutoStart: boolean
 }
 
 export const defaultSettings: UiSettings = {
@@ -27,6 +29,8 @@ export const defaultSettings: UiSettings = {
     backendUrl: '',
     backendToken: '',
     backendUserId: 'desktop',
+    coreMode: 'remote',
+    coreAutoStart: false,
 }
 
 export const HISTORY_LIMIT_MIN = 60
@@ -41,6 +45,7 @@ export function mergeSettings(raw: unknown): UiSettings {
         if (typeof value === typeof defaultSettings[key]) merged[key] = value
     }
     if (merged.sendKey !== 'enter' && merged.sendKey !== 'ctrlEnter') merged.sendKey = defaultSettings.sendKey
+    if (merged.coreMode !== 'remote' && merged.coreMode !== 'local') merged.coreMode = defaultSettings.coreMode
     const limit = Number(merged.historyLimit)
     merged.historyLimit = Number.isFinite(limit)
         ? Math.min(HISTORY_LIMIT_MAX, Math.max(HISTORY_LIMIT_MIN, Math.round(limit)))

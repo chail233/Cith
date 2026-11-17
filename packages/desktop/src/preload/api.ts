@@ -1,6 +1,7 @@
 import { ipcRenderer, type IpcRendererEvent } from 'electron'
 import type { UiSettings } from '../shared/settings.ts'
 import type { PersistedSessions } from '../shared/session.ts'
+import type { CoreConfig, CoreLogLine, CoreStatus } from '../shared/core-types.ts'
 
 /** 消息通道连接状态（主进程 → 渲染层广播） */
 export type BackendStatus = {
@@ -102,6 +103,37 @@ export const desktopApi = {
         ipcRenderer.invoke('file:save', { name, base64 }),
     /** 用系统默认程序打开 http(s) 链接 */
     openExternal: (uri: string): Promise<void> => ipcRenderer.invoke('file:open-external', uri),
+    // ===== 本地内置核心 =====
+    /** 本地核心当前状态 */
+    getCoreStatus: (): Promise<CoreStatus> => ipcRenderer.invoke('core:get-status'),
+    /** 取启动日志缓冲（尾部 500 行） */
+    getCoreLogs: (): Promise<CoreLogLine[]> => ipcRenderer.invoke('core:get-logs'),
+    /** 启动本地核心；已在运行时主进程抛错 */
+    startCore: (): Promise<CoreStatus> => ipcRenderer.invoke('core:start'),
+    /** 停止本地核心（API 优雅退出 + 超时强杀），等待退出后返回 */
+    stopCore: (): Promise<CoreStatus> => ipcRenderer.invoke('core:stop'),
+    /** 重启本地核心 */
+    restartCore: (): Promise<CoreStatus> => ipcRenderer.invoke('core:restart'),
+    /** 读取本地核心的 config.json */
+    getCoreConfig: (): Promise<CoreConfig> => ipcRenderer.invoke('core:config:get'),
+    /** 保存本地核心配置补丁（深合并落盘；运行中需重启核心生效） */
+    saveCoreConfig: (patch: CoreConfig): Promise<CoreConfig> => ipcRenderer.invoke('core:config:save', patch),
+    /** 订阅本地核心状态变化；返回退订函数 */
+    onCoreStatus: (cb: (status: CoreStatus) => void): (() => void) => {
+        const listener = (_e: IpcRendererEvent, status: CoreStatus): void => cb(status)
+        ipcRenderer.on('core:status', listener)
+        return () => {
+            ipcRenderer.removeListener('core:status', listener)
+        }
+    },
+    /** 订阅本地核心日志行；返回退订函数 */
+    onCoreLog: (cb: (line: CoreLogLine) => void): (() => void) => {
+        const listener = (_e: IpcRendererEvent, line: CoreLogLine): void => cb(line)
+        ipcRenderer.on('core:log', listener)
+        return () => {
+            ipcRenderer.removeListener('core:log', listener)
+        }
+    },
 }
 
 export type DesktopApi = typeof desktopApi

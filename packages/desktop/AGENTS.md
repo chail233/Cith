@@ -4,7 +4,7 @@
 
 ## 定位
 
-- Cith 的桌面客户端：Electron + React 18 + TS + electron-vite，workspace 子包（`packages/desktop/`，根 `workspaces: ["packages/*"]`，统一 lockfile），**与 core 完全解耦**，仅经 WS 协议通信（占位协议已接通，详见下文「协议」）
+- Cith 的桌面客户端：Electron + React 18 + TS + electron-vite，workspace 子包（`packages/desktop/`，根 `workspaces: ["packages/*"]`，统一 lockfile），消息通道**与 core 完全解耦**，仅经 WS 协议通信（占位协议已接通，详见下文「协议」）；另支持**本地内置 core 模式**——主进程管理一个 core 子进程，消息通道仍走同一 WS 协议，见下文「本地内置核心」
 - 桌面端只承接**桌面频道**：不做跨平台收件箱，不消费 QQ / 微信的会话数据
 - 状态边界：core 拥有全部权威状态（会话、记忆、审批），desktop 只拥有表现层；本地存储（localStorage）只放 UI 偏好，不做第二真源
 
@@ -19,10 +19,11 @@
 | `npm run preview` | 运行 `out/` 编译产物 |
 | `npm run dist` | 打包分发产物 → `release/`（NSIS 安装包 + portable 单文件，先 build 再 electron-builder） |
 | `npm run dist:dir` | 只出未打包目录（`release/win-unpacked/`），调试打包结果用 |
+| `npm run bundle:desktop`（仓库根） | 打**带内置 core** 的安装包：根 build → 装配 `core-bundle/` → electron-builder；不含 `dist/` 时 dev 模式内置核心不可启动 |
 
 ## 进程模型（Electron 三段）
 
-- `src/main/` —— 主进程（Node 环境，每个 App 一个）：窗口生命周期、IPC handler。**后端 WS 客户端在 `backend.ts`**——主进程不随窗口关闭而死，常驻连接是托盘 / 系统通知的前提；`settings.ts` 持久化用户设置（userData/settings.json，懒加载懒创建）；`sessions.ts` 会话快照读写与清空；`files.ts` 文件对话框与落盘（选取/保存/打开链接）。**设置的副作用只在主进程生效**：`index.ts` 的 `applyLoginItem()` 管开机自启（保存时与启动时各对齐一次），`showReplyNotice()` 管系统通知（读设置 + `BrowserWindow.getFocusedWindow()` 双重判定）
+- `src/main/` —— 主进程（Node 环境，每个 App 一个）：窗口生命周期、IPC handler。**后端 WS 客户端在 `backend.ts`**——主进程不随窗口关闭而死，常驻连接是托盘 / 系统通知的前提；`settings.ts` 持久化用户设置（userData/settings.json，懒加载懒创建）；`sessions.ts` 会话快照读写与清空；`files.ts` 文件对话框与落盘（选取/保存/打开链接）；`local-config.ts` 与 `local-core.ts` 管内置本地 core（见「本地内置核心」）。**设置的副作用只在主进程生效**：`index.ts` 的 `applyLoginItem()` 管开机自启（保存时与启动时各对齐一次），`showReplyNotice()` 管系统通知（读设置 + `BrowserWindow.getFocusedWindow()` 双重判定）
 - `src/preload/` —— 预加载桥：`api.ts` 定义 `desktopApi`（单一真源），经 `contextBridge` 暴露为 `window.desktop`，类型通过 `index.d.ts` 给渲染层。**能力收口**：渲染层永远不直接碰 Node，新能力逐个显式加进 `desktopApi`
 - `src/renderer/` —— React 界面（结构与数据流见下）
 
@@ -46,7 +47,7 @@ src/renderer/src/
     ├── Message.tsx/.css      段渲染器：文本段拆段落 + 行内 code；image 段气泡内图片；file 段文件卡（保存 / 打开链接）；trace 段转交 ToolTrace
     ├── ToolTrace.tsx/.css    工具痕迹卡片（签名组件，grid-rows 平滑展开终端输出）
     ├── Composer.tsx/.css     自适应高度输入框（键位随 sendKey 设置：Enter 发送 / Shift+Enter 换行，或 Ctrl+Enter 发送 / Enter 换行）+ 附件入口（图片 / 文件）与待发附件条；等回复期间右侧额外多一个中断键，输入与发送都不锁
-    ├── Settings.tsx/.css     设置弹窗（全屏遮罩 + 居中面板，Esc / 遮罩 / × 关闭）：分类导航 + 界面滑组 + 通用（开机自启 / 发送快捷键）+ 会话（保留条数 / 打开数据目录 / 清空本地记录）+ 通知（系统通知开关）+ 用户（频道身份）+ 后端连接（地址 / token / 连接状态，状态文案与侧栏共用）+ 实时预览；行组件三种：`SliderRow` / `SwitchRow` / `OptionRow`，带按钮的行另有 `ActionRow`（danger 需点两次，4s 自动复位）
+    ├── Settings.tsx/.css     设置弹窗（全屏遮罩 + 居中面板，Esc / 遮罩 / × 关闭）：分类导航 + 界面滑组 + 通用（开机自启 / 发送快捷键）+ 会话（保留条数 / 打开数据目录 / 清空本地记录）+ 通知（系统通知开关）+ 用户（频道身份）+ 本地核心（模式切换 / 启停 / 配置表单 / 启动日志 / 微信扫码卡）+ 后端连接（地址 / token / 连接状态，状态文案与侧栏共用）+ 实时预览；行组件三种：`SliderRow` / `SwitchRow` / `OptionRow`，带按钮的行另有 `ActionRow`（danger 需点两次，4s 自动复位）
     ├── BrandMark.tsx/.css    品牌标组件：徽章双色调（C 罩 + ith 焰心）；`orbit` 变体即加载态（C 沿 ith 公转）；侧栏 / 空态 / 关于 / 思考指示共用
     └── icons.tsx             手写 SVG，不引图标库
 ```
@@ -78,6 +79,17 @@ src/renderer/src/
 - 待办：正式协议握手版本号与 `chat.*` 事件集、trace / 审批卡片事件、跨端历史同步、voice 段
 - **设置项已全部开放**（无占位分类），每一项都落到真实行为：`startAtLogin` → 主进程 `app.setLoginItemSettings`；`sendKey` → `Composer` 的键位与提示文案；`historyLimit` → `snapshotOf` 存盘截断（60~600，`HISTORY_LIMIT_MIN/MAX` 单一真源在 `shared/settings.ts`）；`notifyOnReply` → 主进程 `Notification`。其余为视觉项（字号 / 行高 / 段间距 / 消息间距 / 内容宽度）与后端连接（地址 / token）、频道身份（`userId`）
 
+## 本地内置核心
+
+设置页「本地核心」分类：客户端可以自带一个编译好的 core 在本机跑，GUI 完成配置、启停、看日志；`coreMode: 'remote' | 'local'`（`shared/settings.ts`）决定消息通道指向，默认 remote 行为不变。
+
+- **进程**：`src/main/local-core.ts` 的 `LocalCoreManager` 用 `spawn(process.execPath, [core入口], { ELECTRON_RUN_AS_NODE: '1' })` 复用 Electron 自带 Node 跑 `dist/` 产物（系统无需装 Node）；状态机 `stopped / starting / running / stopping / crashed`（稳定存活 1.5s 才报 running），stdio 按行收 2000 行环形缓冲，经 `core:status` / `core:log` 广播给渲染层；停止走面板 API `shutdown` 动作（Windows 的 `child.kill()` 是强杀，不走 core 的 SIGTERM 清理），4s 超时才强杀；app `before-quit` 有兜底停止
+- **配置与数据**：`src/main/local-config.ts`（不 import electron，根 `tests/local-config.test.mjs` 直接测）管 `userData/core/` 布局——`ensureCoreData()` 首次播种 config.json（随机生成 `token` 与 `web.token`、`wechatStorageDir` 写绝对路径）并从 bundle 复制 prompts / skills / stickers（**幂等，存在即跳过**）；`saveCoreConfig()` 深合并 + 原子写（tmp+rename）。core 子进程以 `CITH_CONFIG=<userData>/core/config.json`、`CITH_DATA=<userData>/core` 启动（`CITH_DATA` 是 core 侧的包外数据根逃生口）
+- **GUI 配置写文件而非走 set_config**：`core:config:get/save` 直接读写 config.json（save 后 core 在跑则提示「重启生效」）——统一覆盖所有键（含 `mcpServers` / `members` / 端口），单一写入路径，避免与 core 的 set_config 白名单两套语义并存
+- **连接自动接线**：`coreMode === 'local'` 时主进程忽略渲染层推来的手填地址，改用 `ws://127.0.0.1:<desktopPort>` + `config.token` 自动连接（`index.ts` 的 `backend:apply` 覆盖 + core running 事件重推）；QQ / 微信通道由 core 配置的 `enableOnebot` / `enableWechat` 开关控制，微信首次登录在日志里捞 `WechatBot二维码: <url>` 行渲染成图（`qrcode` 依赖），扫码成功自动消失
+- **打包**：根 `npm run bundle:desktop` → `scripts/stage-desktop-core.js` 把 `dist/` 装配进 `packages/desktop/core-bundle/`（排除 `config.json` / `data/` / `.wechatbot/` / dev 表情清单，不把开发机密钥打进安装包），并按 `@cith/core` 生产依赖闭包复制根 `node_modules`（内置 core 是独立 Node 进程，asar 里的依赖读不到；默认 websearch MCP 的 cwd 相对路径靠它）；electron-builder `extraResources` 落 `resources/core`，未安装 npm CLI 依赖、闭包纯靠逐包读 package.json 递归。`core-bundle/` gitignored
+- **已知边界**：打包模式不带 `mcp/` 本地 MCP（bilibili / github-server 需在 GUI 里填绝对路径）；技能脚本 `run_shell node xxx.js` 依赖系统 PATH 有 Node；单机同时跑两个 core 会撞 2145 / 2147 / 8080 端口（GUI 三个端口字段都可改）；`enableWechat` 开着且无凭证时会无限重试登录刷日志（GUI 可关）
+
 ## 本地落盘
 
 - 会话快照走 `userData/sessions.json`（主进程 `src/main/sessions.ts`）：渲染层去抖 500ms 写一次，`beforeunload` / `pagehide` 再单向补写一次；主进程先写 `.tmp` 再改名，超过 16MB 直接丢弃
@@ -91,3 +103,5 @@ src/renderer/src/
 - 打包：无应用图标（默认 Electron 图标，放 `build/icon.ico` 即换）；未签名，别的机器首启有 SmartScreen 提示；`release/` 已 gitignored
 - ESM 产物命名：main 是 `.js`（靠 package.json 的 `type: module` 判定）、preload 是 `.mjs`（预加载无 package.json 上下文，靠扩展名自证）——`package.json#main` 与主进程里的 preload 路径必须与产物对齐
 - `dev:web` 模式下 `localStorage` 与 Electron 正式环境同源策略不同（浏览器端口 5199），UI 设置两边不共享，属预期
+- dev 模式内置核心指向仓库根 `dist/`（`resolveCorePaths`），**必须先 `npm run build`**，否则启动报入口不存在；打包态入口在 `resources/core/`
+- core 的 skills / stickers 由 `ensureCoreData` 播种进 userData；手动删掉 `userData/core/` 会重置全部本地核心数据（含微信凭证），属「重置」语义而非 bug
