@@ -416,7 +416,8 @@ function assertProjectRoot(): void {
     const pkgPath = join(ROOT, "package.json");
     if (!existsSync(pkgPath)) throw new Error(`未找到 package.json：${pkgPath}`);
     const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as { name?: string };
-    if (pkg.name !== "sunbatwobot") {
+    // 新包名是 cith，旧的 sunbatwobot 继续认，避免老检出克隆里 setup 直接拒跑
+    if (pkg.name !== "cith" && pkg.name !== "sunbatwobot") {
         throw new Error(`当前目录不是 Cith 项目根（package.json 的 name 为 ${pkg.name ?? "?"}）`);
     }
 }

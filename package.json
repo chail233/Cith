@@ -1,7 +1,7 @@
 {
-  "name": "sunbatwobot",
-  "version": "1.2.0",
-  "description": "A Personal Agent with any adapter you want, featuring multi-turn tool calling, a four-tier memory system, user profiling, image vision, MCP tool extensions and a pluggable skill system.",
+  "name": "cith",
+  "version": "1.2.1",
+  "description": "A self-hosted personal agent living in QQ, WeChat and its own desktop client — multi-turn tool calling, layered memory, MCP tools and a pluggable skill system.",
   "workspaces": ["packages/*"],
   "scripts": {
     "setup": "node scripts/setup.ts",

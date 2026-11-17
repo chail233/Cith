@@ -1,8 +1,8 @@
 {
     "name": "@cith/core",
-    "version": "1.2.0",
+    "version": "1.2.1",
     "private": true,
-    "description": "Cith 核心：多轮工具调用 Agent 循环、四层记忆、MCP 扩展与多频道收发",
+    "description": "Cith 核心：多轮工具调用 Agent 循环、分层记忆、MCP 与技能扩展、多通道收发",
     "type": "module",
     "dependencies": {
         "@modelcontextprotocol/client": "^2.3.1",

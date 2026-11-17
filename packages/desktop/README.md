@@ -1,30 +1,42 @@
-# sunbatwobot-desktop
+# Cith 桌面客户端
 
-Cith 的桌面客户端（Electron）。workspace 子包（`packages/desktop/`），与 `packages/core/` 后端完全解耦，仅通过 WS 协议通信（占位协议已接通，正式协议待定型）。
+Cith 的 Electron 客户端：React + TypeScript，workspace 子包（`packages/desktop/`），与 `packages/core/` 完全解耦，只经 WebSocket 协议通信。
 
 ## 开发
 
 ```bash
-npm install        # 在仓库根执行一次即可（workspaces 统一安装）
-npm run dev        # 开发模式（Vite HMR + Electron）
-npm run build      # 类型检查 + 编译，产物输出到 out/
-npm run preview    # 运行编译产物
-npm run typecheck  # 只做类型检查（node / web 两个子项目）
-npm run dist       # 打包分发产物 → release/（NSIS 安装包 + portable）
+npm install          # 仓库根执行一次即可（workspaces 统一安装）
+npm run dev          # Electron 开发模式（main/preload 秒编译，renderer HMR）
+npm run dev:web      # 只在浏览器跑渲染层（:5199）；无 window.desktop，相关能力自动降级
+npm run build        # 类型检查 + 编译 → out/
+npm run preview      # 运行 out/ 产物
+npm run typecheck    # 只做类型检查（node / web 两个子项目）
+npm run dist         # 打包 → release/（NSIS 安装包 + portable）
 ```
+
+> 改了 `main/` 或 `preload/` 必须完全退出客户端再启动；只靠渲染层热更新会出现「界面是新的、`window.desktop` 是旧的」的半更新状态。
+
+## 功能
+
+- **连接**：core 的 `DesktopServer`（`desktopPort`，默认 2147，Bearer 握手复用 `token`）；地址与 token 在设置页「后端连接」里配，主进程常驻连接、关窗重开后自动恢复。
+- **独立会话**：每条对话在后端是独立会话（`user:<userId>#<conversationId>`），各有 Agent 与短期记忆；回复帧回传 `conversationId`，消息直接落回原对话。
+- **发送与中断**：等回复期间可继续发送（新消息进记忆，运行中的循环下一轮会读到）；方块键发 `abort` 帧中断当前轮，不产生消息、不进记忆。
+- **本地历史**：快照落在 `userData/sessions.json`（只是缓存，真源在 core 记忆里），去抖 500ms 写入 + 关窗补写；保留条数与清空在设置页「会话」。
+- **设置**：界面（字号 / 行高 / 段间距 / 消息间距 / 内容宽度）、通用（开机自启、发送快捷键）、会话（保留条数、打开数据目录、清空本地记录）、通知（回复通知 + 测试通知）、用户（频道身份）、后端连接。
 
 ## 结构
 
-- `src/main/` —— 主进程：窗口生命周期、IPC handler；**后端连接客户端在 `backend.ts`**（Bearer 握手鉴权、自动重连，状态与消息帧经 IPC 广播给渲染层）
-- `src/preload/` —— 预加载：contextBridge 暴露 `window.desktop`（类型声明在 `index.d.ts`），帧与状态类型单一真源在 `api.ts`
-- `src/renderer/` —— 渲染层：React + TS
-  - `types.ts` 会话/消息域类型（`Segment` 即协议段形状 `{type, data}`）
-  - `useConversations.ts` 会话状态缝（出站消息段在此构建）；`useBackendChat.ts` 消息通道会话桥（装帧/收帧）
-  - `components/` 按组件分文件，样式与组件同名同目录
+```
+src/main/        主进程：窗口、IPC；backend.ts 常驻 WS；settings.ts / sessions.ts 落盘
+src/preload/     contextBridge 暴露 window.desktop（api.ts 是类型单一真源）
+src/renderer/    React 界面：useConversations 状态缝、useBackendChat 会话桥、components/
+src/shared/      主进程与渲染层共用：设置项（含 mergeSettings 校验）、快照外形
+```
 
-工程级约定与协议现状见 [AGENTS.md](AGENTS.md)。
+消息段与协议帧同构（`{type, data}`），支持 text / image / file。工程约定、协议细节与扩展方式见 [AGENTS.md](AGENTS.md)。
 
 ## 待接入
 
-- 正式协议（握手版本号、`chat.*` 事件集、trace / 审批卡片、历史同步）
+- 正式协议：握手版本号、`chat.*` 事件集、trace / 审批卡片、跨端历史同步
 - electron-builder 自动更新
+

@@ -1,6 +1,6 @@
-# SunbatwoBot Web 面板
+# Cith Web 管理面板
 
-Bot 的 Web 管理面板：React 18 + TypeScript + Vite 前端 + 轻量 Node BFF（Express + ws）。
+Cith 的 Web 管理面板：React 18 + TypeScript + Vite 前端 + 轻量 Node BFF（Express + ws）。
 
 ## 架构
 
@@ -26,8 +26,8 @@ Bot 面板 API Server (packages/core/api/server.ts, ws://127.0.0.1:2145/api/v1/w
 ## 快速开始
 
 ```powershell
+npm install             # 仓库根执行一次（workspaces 统一安装）
 cd packages/web
-npm install
 
 # 终端 1：启动 BFF
 npm run server          # http://127.0.0.1:2146
@@ -51,21 +51,13 @@ npm run dev             # http://localhost:5173，/api 自动代理到 BFF
 
 > 生产部署务必修改 `BOT_API_TOKEN` 并设置 `WEB_PASSWORD`。
 
-### HTTPS 自签名证书
-
-无域名场景下设置 `WEB_SSL_ENABLED=true` 即可通过 `https://<IP>:<WEB_PORT>` 访问面板：
-
-- 证书在 BFF 启动时自动生成（selfsigned，RSA 2048，有效期 10 年）并落盘到 `web/.ssl/`（已 gitignore）；重启复用同一证书，浏览器**信任一次即可长期使用**，不会每次重启都重新提示；
-- 删除 `web/.ssl/` 下的 `key.pem` / `cert.pem` 即可在下次启动时重新生成（例如服务器 IP 变更后需带上新的 `WEB_SERVER_IP` 重新生成）；
-- 自签名证书浏览器首次访问会有安全警告，点击「继续访问」/信任证书后一切正常（含 SSE 事件流）；
-- 依赖 `selfsigned` v5+（`generate` 为异步 API，有效期通过 `notAfterDate` 指定）。
-
 ## 功能页面
 
 | 页面 | 数据来源 | 说明 |
 |------|----------|------|
 | 运行状态 | `get_status`（5s 轮询）+ `get_token_usage`（60s 轮询） | 运行时长 / OneBot 在线 / MCP 连接数 / 内存 / Node 版本 + Token 用量与花销（今日 / 近 7 天 / 累计，含缓存命中率）+ 最近事件速览 |
 | 模型价格 | `get_model_pricing` / `set_model_pricing` | 按模型填「元 / 百万 tokens」单价，保存即时生效；未定价模型一键补价 |
+| 系统提示词 | `get_prompt` / `set_prompt` | 在线编辑 `packages/core/prompts/system.md`，保存带 `.bak` 备份，下一轮生效 |
 | 配置管理 | `get_config` / `set_config` | 脱敏快照展示；非脱敏字段可尝试热改，白名单由 Bot 控制，拒绝原因原样展示 |
 | 事件日志 | `log` 事件流 + `get_logs` | 级别筛选 / 事件类型筛选 / 内容搜索 / 自动滚动；进入页面自动补拉最近 200 条 |
 | 能力清单 | `list_actions`（30s 轮询） | 动态展示 Bot 支持的 action 及说明 |
@@ -85,7 +77,7 @@ packages/web/
 │   │   ├── event-stream.tsx  # 全局 SSE 事件流 Provider（去重 / 排序 / 补拉灌入）
 │   │   └── usePolling.ts     # 轮询 hook（后台标签页暂停）
 │   ├── components/      # 通用 UI（卡片 / 徽标 / 状态灯 / 登录页等）
-│   ├── pages/           # 五个功能页面
+│   ├── pages/           # 六个功能页面
 │   ├── types.ts         # 协议与领域类型（对应 packages/core/api/types.ts）
 │   ├── utils/format.ts  # 展示格式化
 │   └── App.tsx          # 布局 + hash 路由
@@ -99,21 +91,6 @@ packages/web/
 | POST | `/api/login` | `{password}` → `{token}`（未设 `WEB_PASSWORD` 时返回 `required:false`） |
 | GET | `/api/session` | `{required, authed}` 会话探测 |
 | GET | `/api/health` | BFF / Bot 连接状态、最近事件时间戳 |
-| POST | `/api/rpc` | `{action, params}` → Bot 响应；action 仅限白名单（get_status / get_config / set_config / get_logs / list_actions / get_token_usage / get_model_pricing / set_model_pricing） |
+| POST | `/api/rpc` | `{action, params}` → Bot 响应；action 仅限白名单（get_status / get_config / set_config / get_prompt / set_prompt / get_logs / list_actions / get_token_usage / get_model_pricing / set_model_pricing） |
 | GET | `/api/events` | SSE 事件流；`id` 即事件 ts，支持 `Last-Event-ID` 补拉；15s 心跳注释帧 |
 
-错误约定：白名单外 action → HTTP 403；Bot 未连接 → HTTP 503；Bot 业务错误（如 set_config 拒绝）→ HTTP 200 + `{status:"error", message}`，便于前端区分展示。
-
-## 协议实现细节备忘
-
-- **auth 握手**：连接建立后立即发送 `{id, action:"auth", token}`（token 是顶层字段而非 params），5 秒内完成；Bot 关闭码 `4001`=鉴权超时、`4401`=token 错误，BFF 日志会明确提示。
-- **帧分流**：`type === "event"` → 事件帧（更新 lastTs 并分发）；否则按 `id` 结算挂起请求，`status:"error"` 转 reject。
-- **保活**：`ws` 客户端自动回复 Bot 的 ping，无需手动处理。
-- **环形缓冲**：Bot 端默认 1000 条（`web.logBufferSize`），`since` 过早时最多只能补回缓冲内的数据。
-
-## 常见问题
-
-- **顶栏 Bot 灯一直是红的**：确认 Bot 主进程已启动且 `packages/core/config.js` 的 `web.port` 与 BFF 的 `BOT_API_URL` 端口一致；查看 BFF 终端日志，若出现 `4401` 说明 token 不匹配。
-- **配置编辑保存报「该配置项不允许修改」**：Bot 端白名单（`packages/core/api/actions/config.ts` 的 `WRITABLE_KEYS`）未包含该字段，属预期行为。
-- **日志页看不到更早的历史**：受 Bot 环形缓冲容量限制，超出部分已被覆盖。
-- **浏览器访问 HTTPS 面板提示证书不受信任**：自签名证书的预期行为，信任后即可；若信任后仍提示，多半是服务器 IP 变了而证书 SAN 还是旧 IP——更新 `WEB_SERVER_IP` 并删除 `web/.ssl/` 后重启重新生成。

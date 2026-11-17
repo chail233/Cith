@@ -2,7 +2,7 @@
 
 本文件为 AI 编码代理（及新加入的开发者）提供本仓库的工作指南。
 
-**Cith / SunbatwoBot** 是一个跑在自建设备上的个人 Agent，住在 QQ（OneBot v11 / NapCat）与微信里。核心是一个多轮工具调用的 LLM Agent 循环，配四层记忆系统、MCP 工具扩展、SKILL.md 技能系统和一个 Web 管理面板。
+**Cith / SunbatwoBot** 是一个跑在自建设备上的个人 Agent，住在 QQ（OneBot v11 / NapCat）与微信里，另配一个 Web 管理面板与一个 Electron 桌面客户端。核心是一个多轮工具调用的 LLM Agent 循环，配分层记忆、MCP 工具扩展与 SKILL.md 技能系统。
 
 - Node.js **>= 24**：依赖原生 type stripping 直接运行 `.ts`；全仓 ESM（`"type": "module"`）
 - JS/TS 混合结构：`packages/core/` 中 TS 略多于 JS，逐步向 TS 迁移
@@ -118,4 +118,3 @@ NapCat(反向WS) / 微信(长轮询) / 桌面客户端(自开WS, DesktopServer)
 ## 仓库注意
 
 - gitignored 的本地路径：`packages/core/config.json`、`packages/core/app.pem`、`mcp/`（本地 MCP server，如 `mcp/github-server`）、`packages/core/data/rememori/`（长期记忆）、`packages/core/data/images/`（微信图片落地缓存）、`packages/core/data/voices/`（QQ 语音转码落地）、`packages/core/data/wechatbot*/`（微信登录凭证）、`packages/core/stickers/manifest.dev.json`、`packages/core/prompts/*.bak`、`packages/web/.env`、`dist/`。sticker manifest 有 `manifest.example.json` 模板。
-- 表情包素材：`packages/core/stickers/`（manifest + images/），根目录 `homura/`、`imgs/` 是未跟踪的原始素材，等待 `npm run add-stickers` 处理。

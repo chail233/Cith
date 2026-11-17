@@ -1,8 +1,8 @@
 {
-    "name": "sunbatwobot-web",
-    "version": "0.1.0",
+    "name": "cith-web",
+    "version": "0.2.0",
     "private": false,
-    "description": "SunbatwoBot's web dashboard (React + Vite frontend, Express backend)",
+    "description": "Cith web dashboard — React + Vite front end with an Express BFF",
     "type": "module",
     "scripts": {
         "dev": "vite",
