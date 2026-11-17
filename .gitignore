@@ -34,6 +34,8 @@
 
 # 微信登录凭证（wechatStorageDir 指向仓库内目录时）
 /packages/core/data/wechatbot*/
+# 微信登录凭证与会话令牌（仓库根目录的历史落点）
+/.wechatbot/
 
 # 全局笔记（AI 自我维护，运行时懒创建）
 /packages/core/data/notes.json
@@ -41,3 +43,9 @@
 
 # token-usage 运行数据（与 data 路径问题一族，待统一治理）
 /packages/core/data/token-usage.json
+
+# IDE 本地配置（仅跟踪 .idea/.gitignore 这一个忽略清单）
+/.idea/
+
+# 本地 AI 计划文件
+/.zcode/
