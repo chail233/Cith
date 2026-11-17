@@ -1,5 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ChatMessage, Conversation, Segment, TraceData } from './types'
+import { restoreSessions, snapshotOf } from './sessionSnapshot'
+
+/** 落盘去抖：连发几条消息也只写一次 */
+const SAVE_DEBOUNCE_MS = 500
 
 let seq = 0
 export function nextId() {
@@ -13,15 +17,61 @@ export function nowTime() {
 
 /**
  * 会话集合状态：列表 / 归档 / 激活会话及其增删改。
- * 会话没有历史同步，从空开始；协议侧数据经 useBackendChat 进出，组件层不需要感知。
+ * 会话只在本机缓存（userData/sessions.json），真源仍在 core 的记忆里；
+ * 无主进程（dev:web）时放弃持久化，只在内存里跑。
  * 消息段在缝内按协议段构建：出站段数组从这里交出去，不做二次转换。
  */
 export function useConversations() {
     const [conversations, setConversations] = useState<Conversation[]>([])
     const [archived, setArchived] = useState<Conversation[]>([])
     const [activeId, setActiveId] = useState('')
+    /** 恢复完成前不落盘：否则初始空列表会立刻把磁盘上的历史覆盖掉 */
+    const [hydrated, setHydrated] = useState(() => !window.desktop?.getSessions)
 
     const active = conversations.find((c) => c.id === activeId) ?? conversations[0]
+
+    // 启动时恢复上次的会话；文件缺失或损坏时保持空列表
+    useEffect(() => {
+        const api = window.desktop
+        if (!api?.getSessions) return
+        api.getSessions()
+            .then((raw) => {
+                const restored = restoreSessions(raw)
+                if (!restored) return
+                setConversations(restored.conversations)
+                setArchived(restored.archived)
+                setActiveId(restored.activeId)
+            })
+            .catch(() => {})
+            .finally(() => setHydrated(true))
+    }, [])
+
+    // 快照每次状态变更构建一次，落盘与关窗补写共用
+    const snapshot = useMemo(
+        () => (hydrated ? snapshotOf({ conversations, archived, activeId }) : null),
+        [hydrated, conversations, archived, activeId],
+    )
+
+    // 去抖落盘
+    useEffect(() => {
+        if (!snapshot || !window.desktop?.saveSessions) return
+        const timer = window.setTimeout(() => {
+            void window.desktop?.saveSessions?.(snapshot)
+        }, SAVE_DEBOUNCE_MS)
+        return () => window.clearTimeout(timer)
+    }, [snapshot])
+
+    // 关窗 / 刷新时补一次单向写：去抖窗口内的改动不至于丢
+    useEffect(() => {
+        if (!snapshot || !window.desktop?.flushSessions) return
+        const flush = () => window.desktop?.flushSessions?.(snapshot)
+        window.addEventListener('beforeunload', flush)
+        window.addEventListener('pagehide', flush)
+        return () => {
+            window.removeEventListener('beforeunload', flush)
+            window.removeEventListener('pagehide', flush)
+        }
+    }, [snapshot])
 
     function select(id: string) {
         setActiveId(id)

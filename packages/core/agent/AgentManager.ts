@@ -53,6 +53,16 @@ export function getAgent(space: Space): Agent {
 }
 
 /**
+ * 按会话 ID 中断正在跑的那一轮（只查不建：会话不存在时直接返回 false，不顺手拉起新实例）
+ * @returns 是否确有进行中的任务被标记中断
+ */
+export function abortSession(id: string): boolean {
+    const entry = agents.get(id);
+    if (!entry) return false;
+    return entry.agent.abort();
+}
+
+/**
  * 会话概览列表
  */
 export function listAgents(): AgentInfo[] {

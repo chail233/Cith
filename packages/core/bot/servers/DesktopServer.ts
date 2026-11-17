@@ -7,6 +7,7 @@ import type { PlatformEventMeta } from "./BaseServer.ts";
 import DesktopAdapter from "../adapters/DesktopAdapter.ts";
 import { saveMediaFile } from "../../utils/media-store.ts";
 import { registerAdapter, unregisterAdapter } from "../../services/adapter-registry.js";
+import { abortSession, sessionIdOf } from "../../agent/AgentManager.ts";
 import { runtimeState } from "../../api/runtime-state.ts";
 import { isPlaceholder } from "../../services/preflight.ts";
 import type { CtxEvent, MessageSegment } from "../../types/index.ts";
@@ -111,6 +112,10 @@ class DesktopServer extends BaseServer<DesktopFrame> {
         try {
             const frame = JSON.parse(String(data)) as DesktopFrame;
             logger.debug("收到桌面端消息:", frame);
+            if (frame.type === "abort") {
+                this.abort(frame);
+                return;
+            }
             // 占位阶段只认消息帧，其余（握手 / 心跳）待正式协议定型
             if (frame.type !== "message") return;
             await this.dispatch(frame);
@@ -118,6 +123,14 @@ class DesktopServer extends BaseServer<DesktopFrame> {
         catch (err) {
             logger.error("解析桌面端消息 JSON 失败:", err);
         }
+    }
+
+    /** 按会话归属中断正在进行的一轮；归属规则与消息帧完全一致 */
+    private abort(frame: DesktopFrame): void {
+        const { space } = this.toEventMeta(frame);
+        const id = sessionIdOf(space);
+        const aborted = abortSession(id);
+        logger.info(`桌面端请求中断，会话 ${id}：${aborted ? "已中断" : "没有进行中的任务"}`);
     }
 
     protected async toSegments(frame: DesktopFrame): Promise<MessageSegment[]> {

@@ -1,5 +1,6 @@
 import { ipcRenderer, type IpcRendererEvent } from 'electron'
 import type { UiSettings } from '../shared/settings.ts'
+import type { PersistedSessions } from '../shared/session.ts'
 
 /** 消息通道连接状态（主进程 → 渲染层广播） */
 export type BackendStatus = {
@@ -60,6 +61,16 @@ export const desktopApi = {
     },
     /** 发送一条消息帧；返回是否已交付传输层（未连接时为 false） */
     sendMessage: (frame: OutgoingMessageFrame): Promise<boolean> => ipcRenderer.invoke('backend:send', frame),
+    /** 中断该会话进行中的一轮（发 abort 帧，不产生用户消息）；返回是否已交付传输层 */
+    abort: (userId: string): Promise<boolean> => ipcRenderer.invoke('backend:abort', userId),
+    /** 读取落盘的会话快照；无文件或文件损坏时为 null */
+    getSessions: (): Promise<PersistedSessions | null> => ipcRenderer.invoke('sessions:get'),
+    /** 写入会话快照；形状不合或超出体积上限时主进程直接丢弃 */
+    saveSessions: (snapshot: PersistedSessions): Promise<void> => ipcRenderer.invoke('sessions:save', snapshot),
+    /** 关窗前的补写：单向发送，不等回执 */
+    flushSessions: (snapshot: PersistedSessions): void => {
+        ipcRenderer.send('sessions:flush', snapshot)
+    },
     /** 订阅入站消息帧；返回退订函数 */
     onMessage: (cb: (frame: IncomingMessageFrame) => void): (() => void) => {
         const listener = (_e: IpcRendererEvent, frame: IncomingMessageFrame): void => cb(frame)

@@ -63,6 +63,16 @@ export function useBackendChat(store: ConversationsStore, userId: string) {
         setPending(false)
     }
 
+    /**
+     * 中断后端正在跑的那一轮：只发 abort 帧，不占会话消息、不进模型记忆。
+     * 被中断的轮次不会再投递回复，所以思考指示当场收掉，不等帧。
+     */
+    function stop(): void {
+        const frameUserId = userIdRef.current.trim() || DESKTOP_USER_ID
+        void window.desktop?.abort?.(frameUserId)?.catch(() => {})
+        releasePending()
+    }
+
     function armTimeout(): void {
         disarmTimeout()
         timeoutRef.current = window.setTimeout(() => {
@@ -90,7 +100,7 @@ export function useBackendChat(store: ConversationsStore, userId: string) {
             ?? cur.create()
         cur.appendMessage(convId, { id: nextId(), role: 'agent', time: nowTime(), segments })
         spaceMap.current.set(frame.space.id, convId)
-        // 回复是按段拆帧连发的，第一帧即解锁输入，后续帧靠 spaceMap 归位
+        // 回复是按段拆帧连发的，第一帧即收掉思考指示（pending 只管指示，不锁输入）
         if (pendingConv.current) releasePending()
     }
     
@@ -109,5 +119,5 @@ export function useBackendChat(store: ConversationsStore, userId: string) {
         })
     }
 
-    return { pending, send }
+    return { pending, send, stop }
 }

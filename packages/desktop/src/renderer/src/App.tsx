@@ -132,6 +132,7 @@ export default function App() {
                     pending={chat.pending}
                     connected={backendStatus.state === 'connected'}
                     onSend={handleSend}
+                    onStop={chat.stop}
                 />
             ) : (
                 <main className="chat">

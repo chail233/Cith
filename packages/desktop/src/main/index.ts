@@ -2,6 +2,7 @@ import { join } from 'path'
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { BackendConnection } from './backend'
 import { loadSettings, saveSettings } from './settings'
+import { loadSessions, saveSessions } from './sessions'
 import { registerFileHandlers } from './files'
 import type { BackendConfig } from '../preload/api.ts'
 
@@ -60,6 +61,15 @@ app.whenReady().then(() => {
         if (config) backend.apply(config)
     })
     ipcMain.handle('backend:send', (_e, raw: unknown) => backend.send(raw))
+    // 中断帧：不走消息管道，只让 core 停掉该会话进行中的一轮
+    ipcMain.handle('backend:abort', (_e, raw: unknown) => {
+        const userId = typeof raw === 'string' && raw.trim() !== '' ? raw.trim() : 'desktop'
+        return backend.send({ type: 'abort', userId })
+    })
+    ipcMain.handle('sessions:get', () => loadSessions())
+    ipcMain.handle('sessions:save', (_e, raw: unknown) => saveSessions(raw))
+    // 关窗前的补写走单向通道：退出路径上不等回执
+    ipcMain.on('sessions:flush', (_e, raw: unknown) => saveSessions(raw))
     createWindow()
 
     app.on('activate', () => {

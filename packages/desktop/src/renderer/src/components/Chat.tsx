@@ -10,9 +10,10 @@ type Props = {
     pending: boolean
     connected: boolean
     onSend: (text: string, extras: Segment[]) => void
+    onStop: () => void
 }
 
-export function ChatArea({ conversation, pending, connected, onSend }: Props) {
+export function ChatArea({ conversation, pending, connected, onSend, onStop }: Props) {
     const empty = conversation.messages.length === 0
     return (
         <main className="chat">
@@ -28,7 +29,9 @@ export function ChatArea({ conversation, pending, connected, onSend }: Props) {
 
             <Composer
                 onSend={onSend}
-                disabled={pending || !connected}
+                onStop={onStop}
+                disabled={!connected}
+                pending={pending}
                 hint={connected ? undefined : '未连接后端，消息无法送达 · 前往设置配置连接'}
             />
         </main>

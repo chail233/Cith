@@ -19,6 +19,15 @@ export function SendIcon({ size = 16 }: IconProps) {
     )
 }
 
+/** 中断：实心方块，与发送键同位置 */
+export function StopIcon({ size = 13 }: IconProps) {
+    return (
+        <svg width={size} height={size} viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <rect x="3.5" y="3.5" width="9" height="9" rx="2" />
+        </svg>
+    )
+}
+
 export function ChevronIcon({ size = 12, open = false }: IconProps) {
     return (
         <svg

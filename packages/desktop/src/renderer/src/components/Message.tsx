@@ -45,7 +45,18 @@ function ImageSegment({ data }: { data: MediaSegmentData }) {
     const src = data.base64
         ? `data:${data.mime ?? 'image/png'};base64,${data.base64}`
         : data.media?.uri
-    if (!src) return null
+    // 重启后从本地快照恢复的大图已被裁掉 base64，用文件卡做占位而不是空泡
+    if (!src) {
+        return (
+            <div className="msg-file">
+                <span className="msg-file-icon"><FileIcon size={17} /></span>
+                <span className="msg-file-info">
+                    <span className="msg-file-name">{data.name ?? '图片'}</span>
+                    <span className="msg-file-size">本地未缓存</span>
+                </span>
+            </div>
+        )
+    }
     return <img className="msg-img" src={src} alt={data.name ?? '图片'} />
 }
 

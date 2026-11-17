@@ -2,17 +2,22 @@ import { useRef, useState } from 'react'
 import type { Segment } from '../types'
 import type { PickedFile } from '../../../preload/api.ts'
 import { fmtSize } from '../format'
-import { CloseIcon, ImageIcon, PaperclipIcon, SendIcon } from './icons'
+import { CloseIcon, ImageIcon, PaperclipIcon, SendIcon, StopIcon } from './icons'
 import './Composer.css'
 
 type Props = {
     onSend: (text: string, extras: Segment[]) => void
+    /** 中断后端正在跑的那一轮 */
+    onStop: () => void
+    /** 后端不可用等硬性禁用 */
     disabled: boolean
-    /** 覆盖底部提示文案；缺省为快捷键说明 */
+    /** 正在等回复：额外多一个中断键，但发音不受影响 */
+    pending: boolean
+    /** 覆盖底部提示文案；缺省按状态给 */
     hint?: string
 }
 
-export function Composer({ onSend, disabled, hint }: Props) {
+export function Composer({ onSend, onStop, disabled, pending, hint }: Props) {
     const [value, setValue] = useState('')
     const [files, setFiles] = useState<PickedFile[]>([])
     const ref = useRef<HTMLTextAreaElement>(null)
@@ -92,6 +97,11 @@ export function Composer({ onSend, disabled, hint }: Props) {
                         }
                     }}
                 />
+                {pending && (
+                    <button className="composer-stop" onClick={onStop} aria-label="中断本轮任务">
+                        <StopIcon />
+                    </button>
+                )}
                 <button
                     className="composer-send"
                     onClick={submit}
@@ -101,7 +111,9 @@ export function Composer({ onSend, disabled, hint }: Props) {
                     <SendIcon />
                 </button>
             </div>
-            <div className="composer-hint">{hint ?? 'Enter 发送 · Shift+Enter 换行'}</div>
+            <div className="composer-hint">
+                {hint ?? (pending ? '正在处理，可继续发送 · 方块中断' : 'Enter 发送 · Shift+Enter 换行')}
+            </div>
         </div>
     )
 }

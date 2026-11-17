@@ -93,7 +93,7 @@ NapCat(反向WS) / 微信(长轮询) / 桌面客户端(自开WS, DesktopServer)
 - `packages/core/api/`：独立 WS 服务（默认 `ws://127.0.0.1:2145/api/v1/ws`，token 鉴权、心跳、action 白名单路由 `router.ts`、事件总线/环形日志缓冲）。各动件在 `api/actions/`。
 - **npm workspaces**：根 `package.json` 声明 `workspaces: ["packages/*"]`，统一 lockfile、依赖提升到根 `node_modules`；`packages/core/` 是 `@cith/core` 子包（运行依赖在其 package.json），`packages/ui/` 是 `@cith/ui`（共享 UI 组件源码直出、无构建步骤，消费端 Vite 负责编译；品牌色内联不挂主题变量），根上只留编排脚本与 TypeScript。`.npmrc`（Electron / electron-builder 镜像）在根。跨包脚本用 `npm run xxx -w packages/web`（-w 收路径，包名亦可）。
 - `packages/web/`：workspace 子包——React 18 + TS + Vite 前端 + Express BFF（`packages/web/server/index.mjs`，:2146，持 `BOT_API_TOKEN`，可选 `WEB_PASSWORD` 登录与自签 HTTPS，SSE `/api/events`）。开发在 `packages/web/` 内 `npm run dev` + `npm run server`；详见 `packages/web/README.md`。
-- `packages/desktop/`：workspace 子包——Electron 桌面客户端（electron-vite：main/preload/renderer 三段，React 18 + TS 渲染层，全 ESM；electron 依赖钉精确版本）。与 core 完全解耦，仅经 WS 协议通信（占位协议已接通）；工程级指南见 `packages/desktop/AGENTS.md`。
+- `packages/desktop/`：workspace 子包——Electron 桌面客户端（electron-vite：main/preload/renderer 三段，React 18 + TS 渲染层，全 ESM；electron 依赖钉精确版本）。与 core 完全解耦，仅经 WS 协议通信（占位协议已接通：消息帧 + `abort` 中断帧，中断直通 `AgentManager.abortSession()`）；工程级指南见 `packages/desktop/AGENTS.md`。
 
 ## 开发约定
 

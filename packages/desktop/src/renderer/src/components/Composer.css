@@ -145,6 +145,29 @@
     cursor: default;
 }
 
+/* 中断键：与发送键左右并排，尺寸小一号并居中对齐，走中性面——琥珀只留给「发出」 */
+.composer-stop {
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    margin-bottom: 3px;
+    border-radius: 999px;
+    background: var(--bg-3);
+    color: var(--text-1);
+    display: grid;
+    place-items: center;
+    transition: background var(--speed) var(--ease), color var(--speed) var(--ease), transform var(--speed) var(--ease);
+}
+
+.composer-stop:hover {
+    background: var(--text-2);
+    color: var(--bg-0);
+}
+
+.composer-stop:active {
+    transform: scale(0.96);
+}
+
 .composer-hint {
     max-width: var(--content-width);
     margin: 8px auto 0;
