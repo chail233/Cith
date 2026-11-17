@@ -22,7 +22,7 @@
 
 ## 进程模型（Electron 三段）
 
-- `src/main/` —— 主进程（Node 环境，每个 App 一个）：窗口生命周期、IPC handler。**后端 WS 客户端在 `backend.ts`**——主进程不随窗口关闭而死，常驻连接是托盘 / 系统通知的前提；`settings.ts` 持久化用户设置（userData/settings.json，懒加载懒创建）；`files.ts` 文件对话框与落盘（选取/保存/打开链接）
+- `src/main/` —— 主进程（Node 环境，每个 App 一个）：窗口生命周期、IPC handler。**后端 WS 客户端在 `backend.ts`**——主进程不随窗口关闭而死，常驻连接是托盘 / 系统通知的前提；`settings.ts` 持久化用户设置（userData/settings.json，懒加载懒创建）；`sessions.ts` 会话快照读写与清空；`files.ts` 文件对话框与落盘（选取/保存/打开链接）。**设置的副作用只在主进程生效**：`index.ts` 的 `applyLoginItem()` 管开机自启（保存时与启动时各对齐一次），`showReplyNotice()` 管系统通知（读设置 + `BrowserWindow.getFocusedWindow()` 双重判定）
 - `src/preload/` —— 预加载桥：`api.ts` 定义 `desktopApi`（单一真源），经 `contextBridge` 暴露为 `window.desktop`，类型通过 `index.d.ts` 给渲染层。**能力收口**：渲染层永远不直接碰 Node，新能力逐个显式加进 `desktopApi`
 - `src/renderer/` —— React 界面（结构与数据流见下）
 
@@ -36,7 +36,7 @@ src/renderer/src/
 ├── settings.ts               UI 设置应用：apply 写 CSS 变量到根节点；类型与默认值在 src/shared/settings.ts，持久化在主进程
 ├── useConversations.ts       会话状态缝：列表 / 归档组 / 激活会话 + 全部增删改 + 本机落盘
 ├── sessionSnapshot.ts        快照净化：落盘前裁掉超限 base64，读回时逐段校验（坏段丢弃）
-├── useBackendChat.ts         消息通道会话桥：出站装帧、入站转段进会话（space.id 归属映射 + pending）
+├── useBackendChat.ts         消息通道会话桥：出站装帧、入站转段进会话（按回传的 conversationId 归属 + pending 兜底）
 ├── styles/
 │   ├── tokens.css            设计 token 单一真源（色板 / 圆角 / 缓动 / 可调变量）
 │   └── base.css              reset + 滚动条 + .app 骨架 + 跨组件共享动画帧（rise / view-in / breathe）
@@ -45,8 +45,8 @@ src/renderer/src/
     ├── Chat.tsx/.css         视图编排：头部 / 消息列表（自动滚底）/ 思考点 / 空状态
     ├── Message.tsx/.css      段渲染器：文本段拆段落 + 行内 code；image 段气泡内图片；file 段文件卡（保存 / 打开链接）；trace 段转交 ToolTrace
     ├── ToolTrace.tsx/.css    工具痕迹卡片（签名组件，grid-rows 平滑展开终端输出）
-    ├── Composer.tsx/.css     自适应高度输入框（Enter 发送 / Shift+Enter 换行）+ 附件入口（图片 / 文件）与待发附件条；等回复期间右侧额外多一个中断键，输入与发送都不锁
-    ├── Settings.tsx/.css     设置弹窗（全屏遮罩 + 居中面板，Esc / 遮罩 / × 关闭）：分类导航 + 界面滑组 + 用户（频道身份）+ 后端连接（地址 / token / 连接状态，状态文案与侧栏共用）+ 实时预览
+    ├── Composer.tsx/.css     自适应高度输入框（键位随 sendKey 设置：Enter 发送 / Shift+Enter 换行，或 Ctrl+Enter 发送 / Enter 换行）+ 附件入口（图片 / 文件）与待发附件条；等回复期间右侧额外多一个中断键，输入与发送都不锁
+    ├── Settings.tsx/.css     设置弹窗（全屏遮罩 + 居中面板，Esc / 遮罩 / × 关闭）：分类导航 + 界面滑组 + 通用（开机自启 / 发送快捷键）+ 会话（保留条数 / 打开数据目录 / 清空本地记录）+ 通知（系统通知开关）+ 用户（频道身份）+ 后端连接（地址 / token / 连接状态，状态文案与侧栏共用）+ 实时预览；行组件三种：`SliderRow` / `SwitchRow` / `OptionRow`，带按钮的行另有 `ActionRow`（danger 需点两次，4s 自动复位）
     ├── BrandMark.tsx/.css    品牌标组件：徽章双色调（C 罩 + ith 焰心）；`orbit` 变体即加载态（C 沿 ith 公转）；侧栏 / 空态 / 关于 / 思考指示共用
     └── icons.tsx             手写 SVG，不引图标库
 ```
@@ -61,8 +61,8 @@ src/renderer/src/
 - 颜色 / 圆角 / 缓动不写魔法值，进 `tokens.css`；组件私有样式与组件同名同目录，跨组件的动画帧进 `styles/base.css`；**不画边框线**，分层靠表面色阶和软阴影（用户审美红线：冷色、线条堆结构）
 - **视觉纪律（去 AI 味，用户红线）**：禁发光（任何彩色 box-shadow halo）、禁弹簧过冲（`--ease-spring` 已删，一律 `--ease`）、禁 blur 入场；动效只回应操作（`--speed` 180ms），进场帧全站只有 `rise` / `view-in`，不做 stagger；状态点一律实色无光环；琥珀只用于品牌标（BrandMark 徽章）、主发送按钮、range 轨道与 active 标记（菱形仅作列表标记语言）；Space Grotesk 仅品牌标使用；思考指示是品牌标公转（`orbit`），不是三点弹跳
 - 加消息段类型：`types.ts` 加类型 → `Message.tsx` 加分支 → 必要时新组件一个
-- 加界面设置项：`settings.ts` 加字段（类型 + 默认值 + apply 写变量）→ `Settings.tsx` 加一行 `SliderRow` → CSS 里用 `var(--xxx)` 做作用点
-- 加 `window.desktop` 能力：`preload/api.ts` 加方法 + `index.d.ts` 类型自动跟随，渲染层可选链调用
+- 加界面设置项：`shared/settings.ts` 加字段（类型 + 默认值 + `mergeSettings` 校验）→ `settings.ts` 的 apply 写变量（仅视觉类需要）→ `Settings.tsx` 挑合适的行组件（`SliderRow` 滑块 / `SwitchRow` 开关 / `OptionRow` 分段 / `ActionRow` 按钮）→ CSS 里用 `var(--xxx)` 做作用点。**非视觉项（如开机自启、系统通知）不加 apply，改在主进程读设置时生效**
+- 加 `window.desktop` 能力：`preload/api.ts` 加方法 + `index.d.ts` 类型自动跟随，渲染层可选链调用；需要主进程做事的（系统级副作用、文件操作）走 IPC handler，不要塞进渲染层
 - 每轮请求 UI 改动后：`npm run typecheck` + `npm run build`，视觉改动用 `dev:web` 截图自查（改动后导航要带时间戳参数穿透缓存）
 
 ## 协议（占位已接通）
@@ -76,13 +76,13 @@ src/renderer/src/
 - **段建模**：出站段在 `useConversations.sendOutgoing` 缝内构建（text + Composer 传来的 image/file 附件段），返回值直接装帧、不做二次转换；trace 是桌面本地展示段，将来由 `tool-*` 事件在缝里转换生成，不进传输协议
 - **媒体段**（占位协议扩展，与统一段同构）：image/file 段的 `data` 携带 `{media?, base64?, mime?, name?, size?}`。出站方向 core 侧 `DesktopAdapter` 把 localPath 读成 base64 随帧携带（http 引用原样透传）；入站方向客户端随帧带 base64，core 侧 `DesktopServer` 落地进 `data/desktop/` 并改写成 `media.localPath`（base64 不进上下文，识图等链路照常按路径取用）。体积上限：发送 50MB / 上传 25MB，超出跳过
 - 待办：正式协议握手版本号与 `chat.*` 事件集、trace / 审批卡片事件、跨端历史同步、voice 段
-- 设置页「后端连接」分类已预留（地址 / token / 连接状态）
+- **设置项已全部开放**（无占位分类），每一项都落到真实行为：`startAtLogin` → 主进程 `app.setLoginItemSettings`；`sendKey` → `Composer` 的键位与提示文案；`historyLimit` → `snapshotOf` 存盘截断（60~600，`HISTORY_LIMIT_MIN/MAX` 单一真源在 `shared/settings.ts`）；`notifyOnReply` → 主进程 `Notification`。其余为视觉项（字号 / 行高 / 段间距 / 消息间距 / 内容宽度）与后端连接（地址 / token）、频道身份（`userId`）
 
 ## 本地落盘
 
 - 会话快照走 `userData/sessions.json`（主进程 `src/main/sessions.ts`）：渲染层去抖 500ms 写一次，`beforeunload` / `pagehide` 再单向补写一次；主进程先写 `.tmp` 再改名，超过 16MB 直接丢弃
 - 层级分工：`src/shared/session.ts` 只约定外层形状（`version` / `conversations` / `archived` / `activeId`），段级校验在渲染层 `sessionSnapshot.ts`——快照可能来自旧版本或被外部改坏，坏段整条丢弃
-- 截断规则：会话各 200 条、单会话保留尾部 400 条消息、单段 base64 超 1.5MB 只留元信息（图片变成「本地未缓存」文件卡，文件卡仍显示名字与体积）
+- 截断规则：会话各 200 条、单会话保留尾部 `historyLimit` 条消息（默认 400，设置页 60~600 可调；读回侧固定按上限 600 截断，调小设置后重启不会立刻丢更早的历史）、单段 base64 超 1.5MB 只留元信息（图片变成「本地未缓存」文件卡，文件卡仍显示名字与体积）
 - 快照只是**本机缓存**：真源仍在 core 的记忆里，跨设备/跨端不共享；用 `conversationId` 与后端会话一一对应（定时苏醒任务也随 `space.conversationId` 落回原对话）；`dev:web` 无主进程时不落盘，只在内存里跑
 
 ## 已知坑

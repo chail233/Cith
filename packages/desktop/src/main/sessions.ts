@@ -1,4 +1,4 @@
-import { readFileSync, renameSync, writeFileSync } from 'fs'
+import { readFileSync, renameSync, unlinkSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { app } from 'electron'
 import { MAX_SNAPSHOT_BYTES, SESSIONS_VERSION, type PersistedSessions } from '../shared/session.ts'
@@ -48,5 +48,17 @@ export function saveSessions(raw: unknown): void {
     }
     catch (err) {
         console.warn('会话快照落盘失败:', err)
+    }
+}
+
+export function clearSessions(): void {
+    for (const path of [file(), `${file()}.tmp`]) {
+        try {
+            unlinkSync(path)
+        }
+        catch (err) {
+            // 文件本就不存在时不必吭声
+            if ((err as NodeJS.ErrnoException).code !== 'ENOENT') console.warn('会话快照删除失败:', err)
+        }
     }
 }

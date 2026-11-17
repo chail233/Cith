@@ -1,32 +1,37 @@
-import { useState, type CSSProperties, type ReactNode } from 'react'
-import { defaultSettings, type UiSettings } from '../../../shared/settings.ts'
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
+import {
+    defaultSettings,
+    HISTORY_LIMIT_MAX,
+    HISTORY_LIMIT_MIN,
+    type UiSettings,
+} from '../../../shared/settings.ts'
 import type { BackendStatus } from '../../../preload/api.ts'
 import { BrandMark } from '@cith/ui'
 import { CloseIcon } from './icons'
 import './Settings.css'
 
 const CATEGORIES = [
-    { id: 'interface', label: '界面', hint: '' },
-    { id: 'general', label: '通用', hint: '语言、开机自启、窗口与托盘行为' },
-    { id: 'chats', label: '会话', hint: '会话管理、历史与本地缓存清理' },
-    { id: 'notifications', label: '通知', hint: '系统通知与审批提醒的规则' },
-    { id: 'user', label: '用户', hint: '桌面频道身份，随消息发送到后端' },
-    { id: 'backend', label: '后端连接', hint: 'DesktopServer 地址、token 与连接状态' },
-    { id: 'about', label: '关于', hint: '' },
+    { id: 'interface', label: '界面' },
+    { id: 'general', label: '通用' },
+    { id: 'chats', label: '会话' },
+    { id: 'notifications', label: '通知' },
+    { id: 'user', label: '用户' },
+    { id: 'backend', label: '后端连接' },
+    { id: 'about', label: '关于' },
 ]
-
-const OPEN_CATEGORIES = ['interface', 'user', 'backend', 'about']
 
 type Props = {
     settings: UiSettings
     onSave: (next: UiSettings) => void
     version: string
     backendStatus: BackendStatus
-    /** 关闭弹窗（× 按钮 / 遮罩点击由组件内处理，Esc 由 App 监听） */
+    onClearLocal: () => void
+    onOpenDataDir: () => Promise<void>
+    onTestNotify: () => Promise<void>
     onClose: () => void
 }
 
-export function SettingsView({ settings, onSave, version, backendStatus, onClose }: Props) {
+export function SettingsView({ settings, onSave, version, backendStatus, onClearLocal, onOpenDataDir, onTestNotify, onClose }: Props) {
     const [active, setActive] = useState('interface')
     const [draft, setDraft] = useState<UiSettings>(() => ({ ...settings }))
     const dirty = JSON.stringify(draft) !== JSON.stringify(settings)
@@ -64,19 +69,29 @@ export function SettingsView({ settings, onSave, version, backendStatus, onClose
                                 onClick={() => setActive(c.id)}
                             >
                                 <span>{c.label}</span>
-                                {!OPEN_CATEGORIES.includes(c.id) && <span className="set-cat-soon">未开放</span>}
                             </button>
                         ))}
                     </nav>
 
                     <section className="settings-pane" key={active}>
                         {cat.id === 'interface' && <InterfacePane settings={draft} onChange={edit} />}
+                        {cat.id === 'general' && <GeneralPane settings={draft} onChange={edit} />}
+                        {cat.id === 'chats' && (
+                            <ChatsPane
+                                settings={draft}
+                                onChange={edit}
+                                onClearLocal={onClearLocal}
+                                onOpenDataDir={onOpenDataDir}
+                            />
+                        )}
+                        {cat.id === 'notifications' && (
+                            <NotificationsPane settings={draft} onChange={edit} onTestNotify={onTestNotify} />
+                        )}
                         {cat.id === 'user' && <UserPane settings={draft} onChange={edit} />}
                         {cat.id === 'backend' && (
                             <BackendPane settings={draft} onChange={edit} status={backendStatus} />
                         )}
                         {cat.id === 'about' && <AboutPane version={version} />}
-                        {!OPEN_CATEGORIES.includes(cat.id) && <ReservedPane label={cat.label} hint={cat.hint} />}
                     </section>
                 </div>
             </main>
@@ -241,6 +256,242 @@ function UserPane({ settings, onChange }: {
     )
 }
 
+function GeneralPane({ settings, onChange }: { settings: UiSettings; onChange: (p: Partial<UiSettings>) => void }) {
+    return (
+        <>
+            <header className="pane-head">
+                <h2 className="pane-title">通用</h2>
+                <p className="pane-desc">启动与输入行为，跟着配置文件走，重开后依然生效。</p>
+            </header>
+
+            <div className="pane-card">
+                <SwitchRow
+                    label="开机自启"
+                    hint="登录系统后自动启动客户端；开发态注册的是 electron 本体，打包版才真正有意义"
+                    checked={settings.startAtLogin}
+                    onChange={(v) => onChange({ startAtLogin: v })}
+                />
+                <OptionRow
+                    label="发送快捷键"
+                    hint="选 Ctrl+Enter 时单独回车只换行，适合写长句"
+                    value={settings.sendKey}
+                    options={[
+                        { value: 'enter', label: 'Enter' },
+                        { value: 'ctrlEnter', label: 'Ctrl+Enter' },
+                    ]}
+                    onChange={(v) => onChange({ sendKey: v })}
+                />
+            </div>
+        </>
+    )
+}
+
+function ChatsPane({ settings, onChange, onClearLocal, onOpenDataDir }: {
+    settings: UiSettings
+    onChange: (p: Partial<UiSettings>) => void
+    onClearLocal: () => void
+    onOpenDataDir: () => Promise<void>
+}) {
+    return (
+        <>
+            <header className="pane-head">
+                <h2 className="pane-title">会话</h2>
+                <p className="pane-desc">本机历史只是缓存：真源在 core 的记忆里，清掉它不会影响后端与会话本身。</p>
+            </header>
+
+            <div className="pane-card">
+                <SliderRow
+                    label="每条对话保留消息"
+                    value={settings.historyLimit}
+                    min={HISTORY_LIMIT_MIN}
+                    max={HISTORY_LIMIT_MAX}
+                    step={20}
+                    format={(v) => `${v} 条`}
+                    onChange={(v) => onChange({ historyLimit: v })}
+                />
+            </div>
+
+            <div className="pane-card">
+                <ActionRow
+                    label="打开数据目录"
+                    hint="会话快照、设置文件与日志都在这里"
+                    actionLabel="打开"
+                    doneLabel="已打开"
+                    onAction={onOpenDataDir}
+                />
+                <ActionRow
+                    label="清空本地记录"
+                    hint="删除本机快照，列表与消息一并清空；不可恢复"
+                    actionLabel="清空"
+                    doneLabel="已清空"
+                    danger
+                    onAction={onClearLocal}
+                />
+            </div>
+        </>
+    )
+}
+
+function NotificationsPane({ settings, onChange, onTestNotify }: {
+    settings: UiSettings
+    onChange: (p: Partial<UiSettings>) => void
+    onTestNotify: () => Promise<void>
+}) {
+    return (
+        <>
+            <header className="pane-head">
+                <h2 className="pane-title">通知</h2>
+                <p className="pane-desc">只在窗口不在前台时打扰；正看着对话时不会弹。</p>
+            </header>
+
+            <div className="pane-card">
+                <SwitchRow
+                    label="回复到达时弹系统通知"
+                    hint="系统层面关掉了应用通知权限时不会生效（Windows 设置 → 通知）"
+                    checked={settings.notifyOnReply}
+                    onChange={(v) => onChange({ notifyOnReply: v })}
+                />
+                <ActionRow
+                    label="发送测试通知"
+                    hint="窗口在前台也会弹，用来确认系统通知权限没被关掉"
+                    actionLabel="测试"
+                    doneLabel="已发送"
+                    onAction={onTestNotify}
+                />
+            </div>
+        </>
+    )
+}
+
+/** 开关行：与滑块行同一套留白节奏，右侧是自绘开关 */
+function SwitchRow({ label, hint, checked, onChange }: {
+    label: string
+    hint?: string
+    checked: boolean
+    onChange: (v: boolean) => void
+}) {
+    return (
+        <div className="switch-row">
+            <div className="switch-text">
+                <span className="field-label">{label}</span>
+                {hint && <span className="field-hint">{hint}</span>}
+            </div>
+            <button
+                role="switch"
+                aria-checked={checked}
+                aria-label={label}
+                className={`switch${checked ? ' on' : ''}`}
+                onClick={() => onChange(!checked)}
+            >
+                <span className="switch-knob" />
+            </button>
+        </div>
+    )
+}
+
+/** 二选一行：分段控件，选中项用表面色阶而不是面色 */
+function OptionRow<T extends string>({ label, hint, value, options, onChange }: {
+    label: string
+    hint?: string
+    value: T
+    options: Array<{ value: T; label: string }>
+    onChange: (v: T) => void
+}) {
+    return (
+        <div className="switch-row">
+            <div className="switch-text">
+                <span className="field-label">{label}</span>
+                {hint && <span className="field-hint">{hint}</span>}
+            </div>
+            <div className="seg">
+                {options.map((option) => (
+                    <button
+                        key={option.value}
+                        className={`seg-item${option.value === value ? ' on' : ''}`}
+                        onClick={() => onChange(option.value)}
+                    >
+                        {option.label}
+                    </button>
+                ))}
+            </div>
+        </div>
+    )
+}
+
+/** 动作行：危险动作走二次确认（四秒内再点一次才执行），执行结果在按钮上反馈一会儿 */
+function ActionRow({ label, hint, actionLabel, doneLabel = '已完成', danger, onAction }: {
+    label: string
+    hint?: string
+    actionLabel: string
+    /** 成功后的提示文案，默认「已完成」 */
+    doneLabel?: string
+    danger?: boolean
+    onAction: () => void | Promise<void>
+}) {
+    const [armed, setArmed] = useState(false)
+    const [result, setResult] = useState<'done' | 'failed' | null>(null)
+    const [failure, setFailure] = useState('')
+
+    // 二次确认只留一会儿，避免长时间挂着“再点一次”
+    useEffect(() => {
+        if (!armed) return
+        const timer = window.setTimeout(() => setArmed(false), 4000)
+        return () => window.clearTimeout(timer)
+    }, [armed])
+
+    // 结果提示同样只留一会儿：失败时把原因直接摆出来，不用去开控制台
+    useEffect(() => {
+        if (!result) return
+        const timer = window.setTimeout(() => {
+            setResult(null)
+            setFailure('')
+        }, 5000)
+        return () => window.clearTimeout(timer)
+    }, [result])
+
+    async function run(): Promise<void> {
+        try {
+            await onAction()
+            setResult('done')
+        }
+        catch (err) {
+            console.warn('设置动作执行失败:', err)
+            setResult('failed')
+            setFailure(err instanceof Error ? err.message : String(err))
+        }
+    }
+
+    const text =
+        armed ? '再点一次确认'
+            : result === 'failed' ? '失败'
+                : result === 'done' ? doneLabel
+                    : actionLabel
+
+    return (
+        <div className="action-row">
+            <div className="switch-text">
+                <span className="field-label">{label}</span>
+                {result === 'failed'
+                    ? <span className="field-hint failure" title={failure}>失败：{failure.slice(0, 120)}</span>
+                    : hint && <span className="field-hint">{hint}</span>}
+            </div>
+            <button
+                className={`action-btn${danger ? ' danger' : ''}${armed ? ' armed' : ''}${result ? ` ${result}` : ''}`}
+                onClick={() => {
+                    if (danger && !armed) {
+                        setArmed(true)
+                        return
+                    }
+                    setArmed(false)
+                    void run()
+                }}
+            >
+                {text}
+            </button>
+        </div>
+    )
+}
+
 function BackendPane({ settings, onChange, status }: {
     settings: UiSettings
     onChange: (p: Partial<UiSettings>) => void
@@ -302,21 +553,6 @@ function FieldRow({ label, children }: { label: string; children: ReactNode }) {
             </div>
             {children}
         </div>
-    )
-}
-
-function ReservedPane({ label, hint }: { label: string; hint: string }) {
-    return (
-        <>
-            <header className="pane-head">
-                <h2 className="pane-title">{label}</h2>
-                <p className="pane-desc">这一类设置随后端协议与打包能力一起到来。</p>
-            </header>
-            <div className="reserved">
-                <span className="reserved-mark" />
-                <span>{hint ? `预留位置：${hint}。` : '预留位置。'}</span>
-            </div>
-        </>
     )
 }
 

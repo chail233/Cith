@@ -13,11 +13,13 @@ type Props = {
     disabled: boolean
     /** 正在等回复：额外多一个中断键，但发音不受影响 */
     pending: boolean
+    /** 发送快捷键：enter 直接发，ctrlEnter 时回车换行 */
+    sendKey: 'enter' | 'ctrlEnter'
     /** 覆盖底部提示文案；缺省按状态给 */
     hint?: string
 }
 
-export function Composer({ onSend, onStop, disabled, pending, hint }: Props) {
+export function Composer({ onSend, onStop, disabled, pending, sendKey, hint }: Props) {
     const [value, setValue] = useState('')
     const [files, setFiles] = useState<PickedFile[]>([])
     const ref = useRef<HTMLTextAreaElement>(null)
@@ -91,10 +93,13 @@ export function Composer({ onSend, onStop, disabled, pending, hint }: Props) {
                         resize()
                     }}
                     onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault()
-                            submit()
-                        }
+                        if (e.key !== 'Enter') return
+                        const mod = e.ctrlKey || e.metaKey
+                        // Enter 模式：回车即发；Ctrl+Enter 模式：单独回车换行
+                        const send = sendKey === 'ctrlEnter' ? mod : !mod
+                        if (!send || e.shiftKey) return
+                        e.preventDefault()
+                        submit()
                     }}
                 />
                 {pending && (
@@ -112,7 +117,12 @@ export function Composer({ onSend, onStop, disabled, pending, hint }: Props) {
                 </button>
             </div>
             <div className="composer-hint">
-                {hint ?? (pending ? '正在处理，可继续发送 · 方块中断' : 'Enter 发送 · Shift+Enter 换行')}
+                {hint ??
+                    (pending
+                        ? '正在处理，可继续发送 · 方块中断'
+                        : sendKey === 'ctrlEnter'
+                          ? 'Ctrl+Enter 发送 · Enter 换行'
+                          : 'Enter 发送 · Shift+Enter 换行')}
             </div>
         </div>
     )

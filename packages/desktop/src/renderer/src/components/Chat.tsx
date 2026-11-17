@@ -9,11 +9,13 @@ type Props = {
     conversation: Conversation
     pending: boolean
     connected: boolean
+    /** 发送快捷键，来自设置页「通用」 */
+    sendKey: 'enter' | 'ctrlEnter'
     onSend: (text: string, extras: Segment[]) => void
     onStop: () => void
 }
 
-export function ChatArea({ conversation, pending, connected, onSend, onStop }: Props) {
+export function ChatArea({ conversation, pending, connected, sendKey, onSend, onStop }: Props) {
     const empty = conversation.messages.length === 0
     return (
         <main className="chat">
@@ -32,6 +34,7 @@ export function ChatArea({ conversation, pending, connected, onSend, onStop }: P
                 onStop={onStop}
                 disabled={!connected}
                 pending={pending}
+                sendKey={sendKey}
                 hint={connected ? undefined : '未连接后端，消息无法送达 · 前往设置配置连接'}
             />
         </main>

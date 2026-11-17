@@ -7,6 +7,8 @@ import type { IncomingMessageFrame, OutgoingMessageFrame } from '../../preload/a
 const DESKTOP_USER_ID = 'desktop'
 /** 发出后等首帧回复的兜底窗口：超时只收掉思考指示，不阻塞输入 */
 const REPLY_TIMEOUT_MS = 120_000
+/** 同一条回复是按段拆帧连发的，两帧间隔 3~4s：通知节流窗口要能盖住整串 */
+const NOTIFY_GAP_MS = 15_000
 
 /**
  * 消息通道会话桥：出站帧由缝里构建的段数组直装，入站帧转成渲染段进会话。
@@ -23,6 +25,8 @@ export function useBackendChat(store: ConversationsStore, userId: string) {
     /** 等回复期间记住发出的对话：中断与无归属帧都优先回到这里 */
     const pendingConv = useRef<string | null>(null)
     const timeoutRef = useRef<number | null>(null)
+    /** 每个对话最近一帧的到达时间：一串连发的回复只喊一次，新回复隔开 15s 再喊 */
+    const lastFrameAt = useRef<Map<string, number>>(new Map())
 
     useEffect(() => {
         const unsub = window.desktop?.onMessage?.(appendFrame)
@@ -97,8 +101,23 @@ export function useBackendChat(store: ConversationsStore, userId: string) {
         const cur = storeRef.current
         const convId = resolveConversation(cur, frame)
         cur.appendMessage(convId, { id: nextId(), role: 'agent', time: nowTime(), segments })
+        maybeNotify(convId, segments)
         // 回复是按段拆帧连发的，第一帧即收掉思考指示（pending 只管指示，不锁输入）
         if (pendingConv.current) releasePending()
+    }
+
+    /**
+     * 系统通知：由主进程判断开关与窗口焦点，这里只负责「什么时候喊」。
+     * 等的那个对话收到首帧就算回复到了；其余（主动消息）看与上一帧的间隔，
+     * 一串连发的回复中间不会反复弹，等对话安静 15s 后新到的消息再喊。
+     */
+    function maybeNotify(convId: string, segments: Segment[]): void {
+        const now = Date.now()
+        const last = lastFrameAt.current.get(convId) ?? 0
+        const first = pendingConv.current !== null
+        lastFrameAt.current.set(convId, now)
+        if (!first && now - last < NOTIFY_GAP_MS) return
+        window.desktop?.notifyReply?.(previewOf(segments))
     }
 
     /** 帧归属：优先按后端回传的对话 id，退回到等的那个对话，再退回到当前对话 */
@@ -108,6 +127,17 @@ export function useBackendChat(store: ConversationsStore, userId: string) {
         return pendingConv.current ?? cur.active?.id ?? cur.create()
     }
     
+    /** 通知正文：优先文本，纯媒体给个泛化描述 */
+    function previewOf(segments: Segment[]): string {
+        const text = segments
+            .filter((seg) => seg.type === 'text')
+            .map((seg) => seg.data.text ?? '')
+            .join(' ')
+            .trim()
+        if (text !== '') return text
+        return segments.some((seg) => seg.type === 'image') ? '[图片]' : '[文件]'
+    }
+
     function toRenderSegments(raw: IncomingMessageFrame['segments']): Segment[] {
         return raw.flatMap((seg): Segment[] => {
             if (seg.type === 'text') {

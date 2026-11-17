@@ -1,15 +1,9 @@
 import type { ChatMessage, Conversation, MediaSegmentData, Segment, TraceData, TraceStatus } from './types'
 import { SESSIONS_VERSION, type PersistedSessions } from '../../shared/session.ts'
-
-/**
- * 会话快照的净化：落盘前只留能渲染的字段，读回时逐段校验。
- * 快照可能来自旧版本或被外部改坏，坏段丢弃即可，不让一条脏数据毁掉整份列表。
- */
+import { HISTORY_LIMIT_MAX, HISTORY_LIMIT_MIN } from '../../shared/settings.ts'
 
 /** 会话条数上限（列表 + 归档各自） */
 const MAX_CONVERSATIONS = 200
-/** 单个会话保留的消息条数上限，超出按尾部截断 */
-const MAX_MESSAGES = 400
 /** 单段 base64 的体积上限：超出只留元信息（重启后渲染成「未缓存」占位，不让图片把快照撑爆） */
 const MAX_SEGMENT_BASE64 = 1536 * 1024
 
@@ -17,22 +11,32 @@ const TRACE_STATUSES: TraceStatus[] = ['ok', 'error', 'running']
 
 type SnapshotState = { conversations: Conversation[]; archived: Conversation[]; activeId: string }
 
-/** 构建待落盘的快照：媒体段的 base64 按体积截断，其余字段原样带走 */
-export function snapshotOf({ conversations, archived, activeId }: SnapshotState): PersistedSessions {
+
+function clampLimit(limit: number): number {
+    if (!Number.isFinite(limit)) return HISTORY_LIMIT_MAX
+    return Math.min(HISTORY_LIMIT_MAX, Math.max(HISTORY_LIMIT_MIN, Math.round(limit)))
+}
+
+
+export function snapshotOf(
+    { conversations, archived, activeId }: SnapshotState,
+    historyLimit: number = HISTORY_LIMIT_MAX,
+): PersistedSessions {
+    const limit = clampLimit(historyLimit)
     return {
         version: SESSIONS_VERSION,
-        conversations: conversations.slice(0, MAX_CONVERSATIONS).map(snapshotConversation),
-        archived: archived.slice(0, MAX_CONVERSATIONS).map(snapshotConversation),
+        conversations: conversations.slice(0, MAX_CONVERSATIONS).map((conv) => snapshotConversation(conv, limit)),
+        archived: archived.slice(0, MAX_CONVERSATIONS).map((conv) => snapshotConversation(conv, limit)),
         activeId,
     }
 }
 
-function snapshotConversation(conv: Conversation): Conversation {
+function snapshotConversation(conv: Conversation, limit: number): Conversation {
     return {
         id: conv.id,
         title: conv.title,
         updated: conv.updated,
-        messages: conv.messages.slice(-MAX_MESSAGES).map((msg) => ({
+        messages: conv.messages.slice(-limit).map((msg) => ({
             id: msg.id,
             role: msg.role,
             time: msg.time,
@@ -73,7 +77,7 @@ function toConversation(raw: unknown): Conversation | null {
         id: conv.id,
         title: typeof conv.title === 'string' && conv.title !== '' ? conv.title : '新对话',
         updated: typeof conv.updated === 'string' ? conv.updated : '刚刚',
-        messages: messages.slice(-MAX_MESSAGES),
+        messages: messages.slice(-clampLimit(HISTORY_LIMIT_MAX)),
     }
 }
 

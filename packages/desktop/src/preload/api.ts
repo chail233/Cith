@@ -71,9 +71,21 @@ export const desktopApi = {
     getSessions: (): Promise<PersistedSessions | null> => ipcRenderer.invoke('sessions:get'),
     /** 写入会话快照；形状不合或超出体积上限时主进程直接丢弃 */
     saveSessions: (snapshot: PersistedSessions): Promise<void> => ipcRenderer.invoke('sessions:save', snapshot),
-    /** 关窗前的补写：单向发送，不等回执 */
+    /** 关闭弹窗 / 刷新时的单向写：不等回执 */
     flushSessions: (snapshot: PersistedSessions): void => {
         ipcRenderer.send('sessions:flush', snapshot)
+    },
+    /** 清空本地会话快照（渲染层随后会把内存里的会话也清掉） */
+    clearSessions: (): Promise<void> => ipcRenderer.invoke('sessions:clear'),
+    /** 用系统文件管理器打开数据目录（快照、设置都在这下面） */
+    openDataDir: (): Promise<void> => ipcRenderer.invoke('system:open-data-dir'),
+    /** 收到回复时喊一声；是否真弹通知由主进程按设置与窗口焦点决定 */
+    notifyReply: (text: string): void => {
+        ipcRenderer.send('notify:reply', text)
+    },
+    /** 测试通知：绕过设置与焦点判断，只验证系统能否弹出来 */
+    notifyTest: (): void => {
+        ipcRenderer.send('notify:test')
     },
     /** 订阅入站消息帧；返回退订函数 */
     onMessage: (cb: (frame: IncomingMessageFrame) => void): (() => void) => {

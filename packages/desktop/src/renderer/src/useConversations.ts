@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ChatMessage, Conversation, Segment, TraceData } from './types'
 import { restoreSessions, snapshotOf } from './sessionSnapshot'
+import { HISTORY_LIMIT_MAX } from '../../shared/settings.ts'
 
 /** 落盘去抖：连发几条消息也只写一次 */
 const SAVE_DEBOUNCE_MS = 500
@@ -20,8 +21,9 @@ export function nowTime() {
  * 会话只在本机缓存（userData/sessions.json），真源仍在 core 的记忆里；
  * 无主进程（dev:web）时放弃持久化，只在内存里跑。
  * 消息段在缝内按协议段构建：出站段数组从这里交出去，不做二次转换。
+ * @param historyLimit 每条对话落盘保留的消息条数（设置页「会话」里可调）
  */
-export function useConversations() {
+export function useConversations(historyLimit: number = HISTORY_LIMIT_MAX) {
     const [conversations, setConversations] = useState<Conversation[]>([])
     const [archived, setArchived] = useState<Conversation[]>([])
     const [activeId, setActiveId] = useState('')
@@ -48,8 +50,8 @@ export function useConversations() {
 
     // 快照每次状态变更构建一次，落盘与关窗补写共用
     const snapshot = useMemo(
-        () => (hydrated ? snapshotOf({ conversations, archived, activeId }) : null),
-        [hydrated, conversations, archived, activeId],
+        () => (hydrated ? snapshotOf({ conversations, archived, activeId }, historyLimit) : null),
+        [hydrated, conversations, archived, activeId, historyLimit],
     )
 
     // 去抖落盘
@@ -168,6 +170,14 @@ export function useConversations() {
         setActiveId(id)
     }
 
+    /** 清空本地记录：删掉快照文件，并把内存里的会话一起清掉 */
+    function clearAll() {
+        void window.desktop?.clearSessions?.().catch(() => {})
+        setConversations([])
+        setArchived([])
+        setActiveId('')
+    }
+
     return {
         conversations,
         archived,
@@ -181,6 +191,7 @@ export function useConversations() {
         archive,
         remove,
         restore,
+        clearAll,
     }
 }
 

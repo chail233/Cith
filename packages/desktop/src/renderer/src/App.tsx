@@ -37,7 +37,7 @@ export default function App() {
     const [version, setVersion] = useState('')
     const [settings, setSettings] = useState<UiSettings>(defaultSettings)
     const [backendStatus, setBackendStatus] = useState<BackendStatus>({ state: 'idle' })
-    const conv = useConversations()
+    const conv = useConversations(settings.historyLimit)
     const chat = useBackendChat(conv, settings.backendUserId)
 
     useEffect(() => {
@@ -100,6 +100,31 @@ export default function App() {
         pushBackend(saved)
     }
 
+    /**
+     * 打开数据目录。两种失败要分开报：
+     * - 根本没有 window.desktop → 在浏览器里跑（dev:web），本来就没有主进程；
+     * - 桥在但方法缺失 → 运行的是旧 preload，需要完全退出客户端再启动。
+     */
+    function handleOpenDataDir(): Promise<void> {
+        const api = window.desktop
+        if (!api) return Promise.reject(new Error('页面里没有主进程桥（浏览器调试模式），请在 Electron 客户端里使用'))
+        if (typeof api.openDataDir !== 'function') {
+            return Promise.reject(new Error('主进程桥是旧版本（缺 openDataDir），请完全退出客户端后重新启动'))
+        }
+        return api.openDataDir()
+    }
+
+    /** 测试系统通知：同样把「没有桥」与「桥太旧」分开 */
+    function handleTestNotify(): Promise<void> {
+        const api = window.desktop
+        if (!api) return Promise.reject(new Error('页面里没有主进程桥（浏览器调试模式），请在 Electron 客户端里使用'))
+        if (typeof api.notifyTest !== 'function') {
+            return Promise.reject(new Error('主进程桥是旧版本（缺 notifyTest），请完全退出客户端后重新启动'))
+        }
+        api.notifyTest()
+        return Promise.resolve()
+    }
+
     useEffect(() => {
         if (view !== 'settings') return
         const onKey = (e: KeyboardEvent) => {
@@ -131,6 +156,7 @@ export default function App() {
                     conversation={conv.active}
                     pending={chat.pending}
                     connected={backendStatus.state === 'connected'}
+                    sendKey={settings.sendKey}
                     onSend={handleSend}
                     onStop={chat.stop}
                 />
@@ -149,6 +175,9 @@ export default function App() {
                     onSave={handleSaveSettings}
                     version={version}
                     backendStatus={backendStatus}
+                    onClearLocal={conv.clearAll}
+                    onOpenDataDir={handleOpenDataDir}
+                    onTestNotify={handleTestNotify}
                     onClose={() => setView('chat')}
                 />
             )}
