@@ -5,7 +5,7 @@ import type { IncomingMessageFrame, OutgoingMessageFrame } from '../../preload/a
 
 /** 桌面频道身份的缺省值（设置留空时回退） */
 const DESKTOP_USER_ID = 'desktop'
-/** 发出后等待回复的兜底窗口：超时解锁输入，避免服务端无回复时卡死 */
+/** 发出后等首帧回复的兜底窗口：超时只收掉思考指示，不阻塞输入 */
 const REPLY_TIMEOUT_MS = 120_000
 
 /**
@@ -36,7 +36,6 @@ export function useBackendChat(store: ConversationsStore, userId: string) {
 
     /** 发出一条消息；段数组由数据缝构建（extras 为附件段），这里只装帧 */
     function send(convId: string, text: string, extras: Segment[] = []): void {
-        if (pending) return
         const frameUserId = userIdRef.current.trim() || DESKTOP_USER_ID
         const segments = storeRef.current.sendOutgoing(convId, text, extras)
         if (segments.length === 0) return

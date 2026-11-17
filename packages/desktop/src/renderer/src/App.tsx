@@ -67,7 +67,7 @@ export default function App() {
     }, [])
 
     function handleSend(text: string, extras: Segment[]) {
-        if (!conv.active || chat.pending || backendStatus.state !== 'connected') return
+        if (!conv.active || backendStatus.state !== 'connected') return
         chat.send(conv.active.id, text, extras)
     }
 

@@ -69,7 +69,7 @@ src/renderer/src/
 - core 侧 `DesktopServer` 已落地（`desktopPort`，默认 2147；token 与 NapCat 共用，握手阶段校验 `Authorization: Bearer`）；审批桥（`#do-yes` 按钮化）仍走 core/api（2145）的 action
 - 占位帧契约（正式协议定型后替换）：出站 `{type:'message', messageId, userId, segments}`，入站 `{type:'message', space:{from,id}, segments}`，段一律 `{type, data}` 统一段直传；帧类型单一真源在 `preload/api.ts`
 - **连接客户端**：`src/main/backend.ts` 常驻持有传输层（Bearer 握手、自动指数重连、建连超时兜底、入站帧经 `backend:message` 广播给渲染层）；地址 / token 在设置页「后端连接」配置并实时经 `desktopApi.setBackend` 下发
-- **会话桥**：`useBackendChat` 装帧/收帧；agent 回复按段拆帧连发（段间 3~4s 拟人间隔），客户端逐帧追加即保节奏，第一帧解锁输入、后续帧按 space.id 归位；桌面频道身份 `userId` 在「用户」设置页可配（缺省 `desktop`，留空回退），随消息帧发送到后端并决定会话归属；主动消息（定时苏醒）无 pending 时按映射落到对应会话
+- **会话桥**：`useBackendChat` 装帧/收帧；agent 回复按段拆帧连发（段间 3~4s 拟人间隔），客户端逐帧追加即保节奏，第一帧收掉思考指示、后续帧按 space.id 归位；发送不做互斥（会话内并发请求由 core 的 Agent 自己处理）；桌面频道身份 `userId` 在「用户」设置页可配（缺省 `desktop`，留空回退），随消息帧发送到后端并决定会话归属；主动消息（定时苏醒）无 pending 时按映射落到对应会话
 - **段建模**：出站段在 `useConversations.sendOutgoing` 缝内构建（text + Composer 传来的 image/file 附件段），返回值直接装帧、不做二次转换；trace 是桌面本地展示段，将来由 `tool-*` 事件在缝里转换生成，不进传输协议
 - **媒体段**（占位协议扩展，与统一段同构）：image/file 段的 `data` 携带 `{media?, base64?, mime?, name?, size?}`。出站方向 core 侧 `DesktopAdapter` 把 localPath 读成 base64 随帧携带（http 引用原样透传）；入站方向客户端随帧带 base64，core 侧 `DesktopServer` 落地进 `data/desktop/` 并改写成 `media.localPath`（base64 不进上下文，识图等链路照常按路径取用）。体积上限：发送 50MB / 上传 25MB，超出跳过
 - 待办：正式协议握手版本号与 `chat.*` 事件集、trace / 审批卡片事件、历史同步、voice 段
