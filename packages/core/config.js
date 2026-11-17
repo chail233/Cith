@@ -1,8 +1,3 @@
-/**
- * 统一配置模块
- *
- * config.json 只写需要覆盖默认值的键；开发与生产共用同一套机制，无需切换任何开关。
- */
 import { existsSync, readFileSync, writeFileSync, renameSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
@@ -25,35 +20,6 @@ const RESTART_KEYS = new Set([
     "aiApiKey", "visionApiKey", "githubToken", "token", "memoryEmbedApiKey", "guardApiKey",
 ]);
 
-/**
- * 旧键 → 新键映射（历史配置兼容）
- * 新键已显式填写时以新键为准，旧键被丢弃
- */
-const LEGACY_KEY_MAP = {
-    aiAPIKEY: "aiApiKey",
-    visionAPIKEY: "visionApiKey",
-    EnableProactiveChat: "enableProactiveChat",
-    PROACTIVE_CHAT_LIMIT: "proactiveChatLimit",
-    LLM_API_URL: "llmApiUrl",
-    LLM_VISION_API_URL: "llmVisionApiUrl",
-    CHAT_MODEL: "chatModel",
-    VISION_MODEL: "visionModel",
-    LLM_TIMEOUT: "llmTimeout",
-    ENABLE_LONG_TERM_MEMORY: "enableLongTermMemory",
-    MEMORY_STORE_PATH: "memoryStorePath",
-    MEMORY_OLLAMA_URL: "memoryOllamaUrl",
-    MEMORY_EMBED_MODEL: "memoryEmbedModel",
-    MEMORY_EMBED_PROVIDER: "memoryEmbedProvider",
-    MEMORY_EMBED_BASE_URL: "memoryEmbedBaseUrl",
-    MEMORY_EMBED_API_KEY: "memoryEmbedApiKey",
-    MEMORY_SEARCH_TOP_K: "memorySearchTopK",
-    MEMORY_MIN_SIMILARITY: "memoryMinSimilarity",
-    MEMORY_HALF_LIFE_DAYS: "memoryHalfLifeDays",
-    MEMORY_TIMEOUT: "memoryTimeout",
-    MEMORY_MAINTAIN_EVERY_WRITES: "memoryMaintainEveryWrites",
-    TOOLCHAIN_MAX_LENGTH: "toolChainMaxLength",
-    MEMORY_USER_ID_PREFIX: "memoryUserIdPrefix",
-};
 
 const baseConfig = {
     // ========== 服务与接入 ==========
