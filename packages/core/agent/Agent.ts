@@ -118,6 +118,8 @@ export default class Agent extends EventEmitter {
 
             if (calls.length === 0) {
                 const text = (result.message.content ?? "").trim();
+                // 正文为空 = 模型选择本轮不发言：既无内容可纠偏，也没有可桥接的文本，直接收尾
+                if (text === "") return { acts: [] };
                 if (!corrected) {
                     corrected = true;
                     this.memory.add({ role: "system", content: { text: `你直接输出了文本而没有调用 send_message，文本不会被发送。请用 send_message 重新发送这段内容：「${text.slice(0, 200)}」` } });
