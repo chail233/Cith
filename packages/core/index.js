@@ -1,8 +1,10 @@
 import logger from "./utils/logger.js";
+import config from "./config.js";
 import { startOneBotServer } from "./bot/servers/OnebotServer.ts";
 import runPipeline from "./pipeline/index.js";
 import {mcpClient} from "./agent/mcp-manager.js";
 import { startApiServer } from "./api/server.ts";
+import { setShutdownHandler } from "./api/actions/shutdown.ts";
 import startWechatBotServer from "./bot/servers/WechatBotServer.ts";
 import { startDesktopServer } from "./bot/servers/DesktopServer.ts";
 import { startScheduler, stopScheduler } from "./services/scheduler.js";
@@ -20,9 +22,10 @@ void maintainMemoryStore();
 
 await mcpClient.init();
 
-// 启动 WebSocket 服务，使用管道模式处理事件
-startOneBotServer(runPipeline);
-startWechatBotServer(runPipeline);
+if (config.enableOnebot) startOneBotServer(runPipeline);
+else logger.info("enableOnebot=false，跳过 QQ 接入服务");
+if (config.enableWechat) startWechatBotServer(runPipeline);
+else logger.info("enableWechat=false，跳过微信接入");
 startDesktopServer(runPipeline);
 
 // 启动面板 API WebSocket 服务
@@ -41,6 +44,8 @@ const cleanup = async (signal) => {
     process.exit(0);
 };
 
+// 优雅退出钩子：shutdown action（桌面客户端停止内置 core）复用同一条清理链
+setShutdownHandler(() => cleanup("shutdown"));
 process.on('SIGINT', () => cleanup('SIGINT'));
 process.on('SIGTERM', () => cleanup('SIGTERM'));
 process.on('uncaughtException', async (err) => {

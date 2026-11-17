@@ -5,8 +5,9 @@ import logger from "../utils/logger.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-/** skills 目录绝对路径 */
-const SKILLS_DIR = resolve(__dirname, "..", "skills");
+const SKILLS_DIR = process.env.CITH_DATA
+    ? resolve(process.env.CITH_DATA, "skills")
+    : resolve(__dirname, "..", "skills");
 
 /** 技能元数据列表（不含正文） */
 export let skills = [];

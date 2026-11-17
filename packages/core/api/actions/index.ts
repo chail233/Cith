@@ -3,6 +3,7 @@
  * 新增 action 模块时在此追加一行 import 即可。
  */
 import "./status.ts";
+import "./shutdown.ts";
 import "./config.ts";
 import "./prompt.ts";
 import "./logs.ts";

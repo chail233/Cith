@@ -32,6 +32,12 @@ const baseConfig = {
 
     wechatStorageDir: ".wechatbot",
 
+    /** 是否启动 OneBot 反向 WS 服务（QQ 接入） */
+    enableOnebot: true,
+
+    /** 是否启动微信接入（无凭证时会无限重试登录，桌面端本地模式建议按需开关） */
+    enableWechat: true,
+
     /**
      * 接入鉴权 token
      */

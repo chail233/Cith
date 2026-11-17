@@ -6,8 +6,10 @@ import { fileURLToPath } from "node:url";
  * 封装路径解析与穿越防护，供内部服务与 run_shell 的 cwd 解析使用
  */
 
-/** core/ 目录的绝对路径（file-security.js 在 core/utils/，回退一级到 core/） */
-const baseDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+
+const baseDir = process.env.CITH_DATA
+    ? resolve(process.env.CITH_DATA)
+    : resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 /**
  * 将相对于 core/ 的路径解析为绝对路径，并检查路径穿越
