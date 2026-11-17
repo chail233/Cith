@@ -18,13 +18,12 @@
 | `npm run build:web` | 编译 Web 面板（`packages/web/` 内 tsc -b + Vite → `packages/web/dist/`） |
 | `npm run build:desktop` | 编译桌面客户端（`packages/desktop/` 内 tsc -b + electron-vite → `out/`；开发进 `packages/desktop/` 跑 `npm run dev`） |
 | `npm test` | `node --experimental-test-module-mocks --test "tests/**/*.test.mjs"` |
-| `npm run bench:thresholds` | 只跑记忆阈值基准测试 |
 | `npm run setup` | 交互式初始化（写 `packages/core/config.json` 与 `packages/web/.env`；`--check` 只读检查 / `--no-start` / `--force`） |
 | `npm run add-stickers` | 用视觉模型批量给表情包图片生成描述/标签，写入 sticker manifest |
 | `bash update.sh` | 拉取更新 + 按需装依赖 + 编译（`--web` / `--stash` / `--force`；不会重启服务） |
 
 - **没有 linter**，没有根级 `typecheck` 脚本。`tsconfig.json` 是 IDE 类型检查基准（strict + noEmit）；如需 CLI 检查手动跑 `node node_modules/typescript/lib/tsc.js -p tsconfig.json`。
-- **测试现状（写作时）**：9 个测试文件、56 个用例，53 过 3 失败 —— `config-store.test.mjs` 整体失败（import 的 `packages/core/config/store.ts`/`schema.ts` 尚不存在，是先行于配置重构的测试）；`thresholds.test.mjs` 有 2 个断言失败。修复前先弄清失败是“测试先行”还是“真实回归”，不要盲目改代码凑绿。
+- **测试现状（写作时）**：8 个测试文件、53 个用例，全绿 —— `adapter-registry`（通道路由）、`agent-abort`（中断语义）、`image-compress`、`memory-eviction`、`memory-time`、`notes-store`、`reply-tool`（发言工具 + 主循环）、`voice-segment`。测试只覆盖不依赖外部服务的纯逻辑与可 mock 的循环行为，不写“某个阈值取多少最优”这类随参数漂移的断言；失败时先弄清是“测试先行”还是“真实回归”，不要盲目改代码凑绿。
 - 需要连接 NapCat（反向 WS，默认 `ws://127.0.0.1:8080/onebot/v11/ws`）才能真正收发消息；无 NapCat 时可只验证启动自检与面板 API。
 
 ## 配置系统
