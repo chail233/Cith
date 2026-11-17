@@ -59,7 +59,7 @@ function TypingRow() {
     return (
         <div className="msg agent">
             <div className="typing" aria-label="正在思考">
-                <BrandMark size={22} orbit />
+                <BrandMark size={26} orbit />
             </div>
         </div>
     )

@@ -12,7 +12,7 @@
 }
 
 .brandmark.orbit .brandmark-arc {
-    animation: brandmark-orbit 5s linear infinite;
+    animation: brandmark-orbit 3s linear infinite;
 }
 
 @keyframes brandmark-orbit {
