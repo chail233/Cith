@@ -40,23 +40,36 @@ const toolMap = new Map(
 const TIMEOUT_GRACE_MS = 10_000;
 
 /**
- * 给一次工具执行加超时：到点放弃等待并回填说明文本，避免一次挂死把整个会话锁住
+ * 给一次工具执行加超时与中断：超时/用户中断时立即放弃等待并回填说明文本
  * 执行自身抛错时原样透传，不改变调用方的错误语义
  * @param {string} name 工具名
  * @param {Promise<unknown>} task 工具执行
  * @param {number} budgetMs 超时（毫秒），非正数表示不限
+ * @param {AbortSignal} [signal] 本轮中断信号
  * @returns {Promise<unknown>}
  */
-function withToolTimeout(name, task, budgetMs) {
-    if (!Number.isFinite(budgetMs) || budgetMs <= 0) return task;
+function withToolTimeout(name, task, budgetMs, signal) {
+    const limited = Number.isFinite(budgetMs) && budgetMs > 0;
+    if (!limited && !signal) return task;
     return new Promise((resolve, reject) => {
-        const timer = setTimeout(() => {
-            resolve(`${name} 执行超时（${Math.round(budgetMs / 1000)} 秒），已放弃等待；命令可能仍在后台运行，需要结果时请稍后用其它工具确认`);
-        }, budgetMs);
-        timer.unref?.();
+        let timer = null;
+        const onAbort = () => resolve(`${name} 已被中断，已停止等待`);
+        if (signal?.aborted) return onAbort();
+        if (limited) {
+            timer = setTimeout(() => {
+                resolve(`${name} 执行超时（${Math.round(budgetMs / 1000)} 秒），已放弃等待；命令可能仍在后台运行，需要结果时请稍后用其它工具确认`);
+            }, budgetMs);
+            timer.unref?.();
+        }
+        const settle = (fn, value) => {
+            if (timer) clearTimeout(timer);
+            signal?.removeEventListener("abort", onAbort);
+            fn(value);
+        };
+        signal?.addEventListener("abort", onAbort, { once: true });
         task.then(
-            (value) => { clearTimeout(timer); resolve(value); },
-            (err) => { clearTimeout(timer); reject(err); },
+            (value) => settle(resolve, value),
+            (err) => settle(reject, err),
         );
     });
 }
@@ -79,6 +92,7 @@ export function getAllTools() {
 export async function callTool(tool_call, ctx, confirmed = false){
     const name = tool_call.function.name;
     const parameter = JSON.parse(tool_call.function.arguments);
+    const signal = ctx?.signal;
 
     // run_shell 门禁：已确认重执行直通；非管理员任何模式都审查，
     // 管理员仅 guard 模式审查、open 模式直通。allow 放行，deny/unsure/未配置 guardModel/调用失败一律挂起
@@ -106,7 +120,7 @@ export async function callTool(tool_call, ctx, confirmed = false){
 
     if (name.startsWith("mcp_")) {
         const originalName = name.slice(4);
-        const result = await withToolTimeout(name, mcpClient.callTool(originalName, parameter), config.toolTimeout);
+        const result = await withToolTimeout(name, mcpClient.callTool(originalName, parameter), config.toolTimeout, signal);
         return `${name}调用结果:\n${result}`;
     }
 
@@ -114,7 +128,8 @@ export async function callTool(tool_call, ctx, confirmed = false){
     if (!tool) {
         throw new Error(`未知工具: ${name}`);
     }
+    // run_shell 自己到点强杀子进程，外层多留余量再放弃等待
     const budget = name === "run_shell" ? config.toolTimeout + TIMEOUT_GRACE_MS : config.toolTimeout;
-    const output = await withToolTimeout(name, Promise.resolve().then(() => tool(parameter, ctx)), budget);
+    const output = await withToolTimeout(name, Promise.resolve().then(() => tool(parameter, ctx)), budget, signal);
     return `${name}调用结果:\n${output}`;
 }

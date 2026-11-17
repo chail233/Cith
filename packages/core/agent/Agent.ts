@@ -11,7 +11,7 @@ import config from "../config.js";
 import logger from "../utils/logger.js";
 import type { ChatRecorder } from "./recorder.js";
 import type { Context, MessageSegment } from "../types/index.ts";
-import type { AgentRunOutcome, AgentToolContext, HeldOutcome, LlmResult, ReplyPayload, ToolCall, ToolContext, ToolDefinition, ToolExecution, ToolHold } from "./types.ts";
+import type { AbortedOutcome, AgentRunOutcome, AgentToolContext, HeldOutcome, LlmResult, ReplyPayload, ToolCall, ToolContext, ToolDefinition, ToolExecution, ToolHold } from "./types.ts";
 import type { ReplyTool, ReplyToolResult } from "../bot/adapters/reply-tool.ts";
 
 /** 定时苏醒的触发信息 */
@@ -24,6 +24,8 @@ export default class Agent extends EventEmitter {
     readonly planBoard = new PlanBoard();
 
     private running = false;
+    private aborted = false;
+    private controller: AbortController | null = null;
 
     pendingTrigger: WakeTrigger | null = null;
 
@@ -41,6 +43,8 @@ export default class Agent extends EventEmitter {
             return;
         }
         this.running = true
+        this.aborted = false
+        this.controller = new AbortController()
         try {
             // 每回合现取：开工前重新扫描 skills 目录，保证强加载/技能列表与磁盘一致
             await reloadSkills();
@@ -50,6 +54,7 @@ export default class Agent extends EventEmitter {
                 this.deliver([{ type: "text", data: { text: `ERROR:${outcome}` } }]);
                 return;
             }
+            if (isAbortedOutcome(outcome)) return;
             // 门禁挂起：本轮不再产出回复，询问段交给分发方经适配器发出；挂起信息不进对话记忆
             if (isHeldOutcome(outcome)) {
                 this.broadcast("approval", outcome.held);
@@ -58,9 +63,26 @@ export default class Agent extends EventEmitter {
             this.deliver(outcome.acts);
         }
         finally {
+            this.controller = null
             this.running = false
             void this.postRunMaintenance();
         }
+    }
+
+
+    /**
+     * 立即中断当前会话的主循环
+     * 通过 AbortController 直接打断在途的模型请求与工具执行（run_shell 会强杀子进程），
+     * 主循环随即在检查点收尾
+     * @returns 是否确有进行中的任务被中断
+     */
+    abort(): boolean {
+        const controller = this.controller;
+        if (!this.running || !controller || controller.signal.aborted) return false;
+        this.aborted = true;
+        controller.abort();
+        logger.info("已中断本轮任务:", this.sessionId);
+        return true;
     }
 
 
@@ -74,8 +96,8 @@ export default class Agent extends EventEmitter {
     }
 
 
-    private async runLoop(ctx: Context): Promise<AgentRunOutcome | HeldOutcome | string> {
-        const toolCtx: AgentToolContext = { ...ctx, agent: this };
+    private async runLoop(ctx: Context): Promise<AgentRunOutcome | HeldOutcome | AbortedOutcome | string> {
+        const toolCtx: AgentToolContext = { ...ctx, agent: this, signal: this.controller?.signal };
         const replyTool = resolveReplyTool(ctx.adapter);
         if (!replyTool) return "当前通道没有可用的发言工具，本轮无法回复";
         /** 已执行的工具轮数 */
@@ -84,9 +106,12 @@ export default class Agent extends EventEmitter {
         let corrected = false;
 
         while (true) {
+            if (this.aborted) return this.abortedOutcome();
+
             // 工作阈值守护：请求前守体积，工具痕迹累积超预算时折叠最旧的部分，避免长工具链把上下文撑爆
             this.memory.compactIfNeeded(config.contextBudgetTokens);
             const result = await this.ask(this.availableTools(replyTool));
+            if (this.aborted) return this.abortedOutcome();
             if (typeof result === "string") return result;
 
             const calls = result.message.tool_calls ?? [];
@@ -115,10 +140,12 @@ export default class Agent extends EventEmitter {
             if (otherCalls.length > 0) {
                 const holds = await this.runTools(otherCalls, toolCtx);
                 if (holds.length > 0) return { held: holds };
+                if (this.aborted) return this.abortedOutcome();
             }
 
             // 发言：参数合法就是一段可发的消息；全部不合法则错误已回填，继续循环让模型自修
             const acts = replyCalls.length > 0 ? await this.speak(replyCalls, replyTool, toolCtx) : null;
+            if (this.aborted) return this.abortedOutcome();
 
             //  没有别的活了：发言就是本轮结论，交给 run() 统一投递
             if (otherCalls.length === 0) {
@@ -188,6 +215,7 @@ export default class Agent extends EventEmitter {
             model: config.chatModel,
             messages: await this.buildMessages(),
             tools,
+            signal: this.controller?.signal,
         });
         return result || "AI 服务无响应";
     }
@@ -203,8 +231,10 @@ export default class Agent extends EventEmitter {
      * 工具链达到上限后的收敛请求：只留发言工具再问一次，逼模型直接作答
      * 收敛请求失败或模型仍不说话时，本轮不发言
      */
-    private async converge(replyTool: ReplyTool, toolCtx: AgentToolContext): Promise<AgentRunOutcome> {
+    private async converge(replyTool: ReplyTool, toolCtx: AgentToolContext): Promise<AgentRunOutcome | AbortedOutcome> {
+        if (this.aborted) return this.abortedOutcome();
         const final = await this.ask([replyTool.definition]);
+        if (this.aborted) return this.abortedOutcome();
         if (typeof final === "string") {
             logger.warn("收敛请求失败，本轮不发言:", final);
             return { acts: [] };
@@ -222,6 +252,14 @@ export default class Agent extends EventEmitter {
         }
         logger.info("收敛后模型仍未发言:", this.sessionId);
         return { acts: [] };
+    }
+
+
+
+    private abortedOutcome(): AbortedOutcome {
+        logger.info("本轮任务已被中断:", this.sessionId);
+        this.memory.add({ role: "system", content: { text: "本轮任务被用户中断，未完成的部分不要自动继续，除非用户明确要求" } });
+        return { aborted: true };
     }
 
 
@@ -373,6 +411,11 @@ function isToolHold(value: unknown): value is ToolHold {
 /** 守卫：主循环是否因门禁挂起而中止 */
 function isHeldOutcome(value: AgentRunOutcome | HeldOutcome): value is HeldOutcome {
     return Array.isArray((value as HeldOutcome).held);
+}
+
+/** 守卫：主循环是否因用户中断而收尾 */
+function isAbortedOutcome(value: unknown): value is AbortedOutcome {
+    return typeof value === "object" && value !== null && (value as { aborted?: unknown }).aborted === true;
 }
 
 /** 从适配器取发言工具；没有适配器或适配器生成失败时返回 null，本轮无法发言 */

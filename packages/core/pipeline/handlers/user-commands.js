@@ -58,6 +58,17 @@ function bindTargetOf(ctx) {
 
 const cmds = [
     {
+        name: "stop",
+        needsAdmin: true,
+        description: "中断当前会话进行中的任务（管理员）",
+        params: [],
+        handler: async (args, ctx) => {
+            return getAgent(ctx.space).abort()
+                ? "已中断当前任务，本轮不再继续"
+                : "当前没有进行中的任务";
+        }
+    },
+    {
         name: "clear",
         needsAdmin: true,
         description: "清除短期记忆（管理员）",

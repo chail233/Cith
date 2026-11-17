@@ -72,6 +72,11 @@ export interface HeldOutcome {
     held: ToolHold[];
 }
 
+/** 本轮主循环被用户中断：不投递任何消息，已发出的部分保留 */
+export interface AbortedOutcome {
+    aborted: true;
+}
+
 /** 单次工具调用的执行记录；args 为 null 表示参数解析失败 */
 export interface ToolExecution {
     toolCall: ToolCall;
@@ -121,10 +126,11 @@ export interface ToolDefinition {
 /** 工具执行上下文：请求上下文 + 调用方注入的 Agent 会话引用 */
 export interface ToolContext extends Context {
     agent?: Agent | null;
+    signal?: AbortSignal;
 }
 
 /** 传给工具层的上下文：请求上下文 + 发起本次调用的 Agent（保证 agent 存在） */
-export interface AgentToolContext extends Context {
+export interface AgentToolContext extends ToolContext {
     agent: Agent;
 }
 

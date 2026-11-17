@@ -23,6 +23,8 @@ export interface CallLlmOptions {
     responseFormat?: { type: "json_object" | "text" };
     /** 工具列表（OpenAI function calling 格式） */
     tools?: ToolDefinition[];
+    /** 中断信号：触发时立即取消请求 */
+    signal?: AbortSignal;
     /** 请求模式："chat"（默认）、"vision" 或 "guard"（run_shell 安全审查） */
     mode?: "chat" | "vision" | "guard";
 }
@@ -59,7 +61,7 @@ function normalizeBaseURL(url: string): string {
  * 调用 LLM 聊天补全接口
  * @returns 成功返回 { message, usage }，失败返回错误字符串
  */
-export async function callLLM({ model, messages, temperature, responseFormat, tools, mode = "chat" }: CallLlmOptions): Promise<LlmResult | string> {
+export async function callLLM({ model, messages, temperature, responseFormat, tools, signal, mode = "chat" }: CallLlmOptions): Promise<LlmResult | string> {
     try {
         const body = {
             model,
@@ -68,7 +70,7 @@ export async function callLLM({ model, messages, temperature, responseFormat, to
             ...(responseFormat && { response_format: responseFormat }),
             ...(tools && { tools: tools as unknown as OpenAI.Chat.ChatCompletionTool[] }),
         };
-        const completion = await getClient(mode).chat.completions.create(body);
+        const completion = await getClient(mode).chat.completions.create(body, { signal });
 
         const message = completion.choices[0]?.message;
         if (!message) {
@@ -95,6 +97,10 @@ export async function callLLM({ model, messages, temperature, responseFormat, to
         };
     }
     catch (err) {
+        if (signal?.aborted) {
+            logger.info("LLM 请求已被中断");
+            return "已中断";
+        }
         const detail = err instanceof Error ? err.message : String(err);
         logger.error("LLM API 调用失败:", detail);
         return "LLM API 调用失败:" + detail;
