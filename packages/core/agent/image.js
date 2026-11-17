@@ -1,5 +1,3 @@
-// @ts-check
-
 import { callLLM } from "./client.ts";
 import config from "../config.js";
 import logger from "../utils/logger.js";
@@ -55,6 +53,5 @@ export default async function recognizeImage(base64, type) {
         return null;
     }
 
-    logger.info(`本次识图消耗: ${result.usage?.totalTokens ?? 0} tokens`);
     return result.message.content;
 }

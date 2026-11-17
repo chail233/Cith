@@ -187,7 +187,6 @@ export default class Agent extends EventEmitter {
         const result = await callLLM({
             model: config.chatModel,
             messages: await this.buildMessages(),
-            temperature: 0.2,
             tools,
         });
         return result || "AI 服务无响应";

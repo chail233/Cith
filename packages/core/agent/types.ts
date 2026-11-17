@@ -37,7 +37,6 @@ export interface LlmResult {
     usage: LlmUsage | null;
 }
 
-/** Agent "reply" 事件负载：本轮解析出的回复消息段 */
 export interface ReplyPayload {
     acts: MessageSegment[];
 }
