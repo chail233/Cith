@@ -7,17 +7,15 @@ import { addNote, deleteNote, renderNotesBlock, updateNote } from "../services/n
 import { readSystemPrompt } from "../services/prompt-store.ts";
 import { renderPlanBlock } from "./plan.ts";
 
-/** 维护 pass 的最大请求轮数 */
 const NOTE_PASS_MAX_ROUNDS = 6;
 
-/** 维护指令：交代上下文即将被摘要压缩，引导模型自主整理笔记 */
 const NOTES_PASS_PROMPT = [
     "【全局笔记维护】上面是你最近一段对话的完整上下文，它稍后会被摘要压缩，压缩后原文将不再可见。",
     "请回顾这段对话，用笔记工具维护你的全局笔记：",
     "- 自我认知：对自己性格、说话与做事方式、与各成员关系的新认识；",
     "- 想亲自记住的事：承诺、约定、重要事实、经验教训；",
-    "- 已有笔记与现实不符或已经过时的，用 update_note 修正或 delete_note 删除。",
-    "笔记一条只写一件事，简洁、能脱离上下文单独理解；不要记琐碎闲聊和转瞬即逝的话题。",
+    "- 已有笔记与现实不符、已经过时的、不再需要的，用 update_note 修正或 delete_note 删除。笔记最好维护在100条以内。",
+    "笔记一条只写一件事，简洁、能脱离上下文单独理解；不要记琐碎闲聊、转瞬即逝的话题和临时的内容。",
     "没有需要变动的内容时，不要调用任何工具，直接结束。",
 ].join("\n");
 
@@ -29,7 +27,7 @@ interface NoteIdParams {
     id?: unknown;
 }
 
-/** 三个工具共用的参数 schema 片段 */
+
 const noteIdProperty = {
     type: "string",
     description: "笔记编号，见上下文里你的笔记列表（如 n3）",

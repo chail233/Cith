@@ -33,18 +33,16 @@ export interface LlmUsage {
 /** LLM 聊天补全接口成功返回的结构 */
 export interface LlmResult {
     message: LlmResponseMessage;
-    totalTokens: number;
     /** 归一化用量；服务商未返回 usage 时为 null */
     usage: LlmUsage | null;
 }
 
-/** Agent "reply" 事件负载：本轮解析出的回复消息段 + 累计 tokens */
+/** Agent "reply" 事件负载：本轮解析出的回复消息段 */
 export interface ReplyPayload {
     acts: MessageSegment[];
-    tokens: number;
 }
 
-/** 一轮 Agent 主循环的产出：最终要发送的消息段 + 本轮累计 tokens */
+/** 一轮 Agent 主循环的产出：最终要发送的消息段 */
 export type AgentRunOutcome = ReplyPayload;
 
 /**

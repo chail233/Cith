@@ -90,8 +90,8 @@ async function deliverApproval(ctx: Context, holds: ToolHold[]): Promise<void> {
  * 按段顺序逐个发送一轮回复消息段，段间保留拟人化间隔。
  * reply/mention 依赖与内容同消息，攒到下一个内容段合并发送；
  */
-async function deliverReply(ctx: Context, { acts, tokens }: ReplyPayload): Promise<void> {
-    logger.info("AI 消息内容:", JSON.stringify({ acts, tokens }));
+async function deliverReply(ctx: Context, { acts }: ReplyPayload): Promise<void> {
+    logger.info("AI 消息内容:", JSON.stringify({ acts }));
     let decorations: MessageSegment[] = [];
     for (const seg of acts) {
         if (seg.type === "reply" || seg.type === "mention") {
@@ -104,7 +104,6 @@ async function deliverReply(ctx: Context, { acts, tokens }: ReplyPayload): Promi
             decorations.length > 0 ? [...decorations, seg] : seg;
         decorations = [];
         ctx.adapter.sendMsg(ctx.space, payload);
-        // 文本是主要节奏（慢），媒体/文件轻快一些
         await sleep(seg.type === "text" ? 3000 + Math.floor(Math.random() * 1000) : 1200 + Math.floor(Math.random() * 800));
     }
     // 结尾落单的修饰段：mention 单发仍有意义，reply 单发无意义丢弃

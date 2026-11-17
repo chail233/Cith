@@ -57,7 +57,7 @@ function normalizeBaseURL(url: string): string {
 
 /**
  * 调用 LLM 聊天补全接口
- * @returns 成功返回 { message, totalTokens }，失败返回错误字符串
+ * @returns 成功返回 { message, usage }，失败返回错误字符串
  */
 export async function callLLM({ model, messages, temperature, responseFormat, tools, mode = "chat" }: CallLlmOptions): Promise<LlmResult | string> {
     try {
@@ -91,7 +91,6 @@ export async function callLLM({ model, messages, temperature, responseFormat, to
         if (usage && usage.totalTokens > 0) recordUsage(usage);
         return {
             message: toLlmMessage(message),
-            totalTokens: usage?.totalTokens ?? 0,
             usage,
         };
     }

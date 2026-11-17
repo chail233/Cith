@@ -216,7 +216,7 @@ export class ChatSim {
         this.stats.summaryCalls++;
         this.stats.missTokens += inputTokens;
         this.stats.outTokens += outTokens;
-        return { message: { content }, totalTokens: inputTokens + outTokens, usage: null };
+        return { message: { content }, usage: null };
     }
 
     /** 主请求：按前缀缓存计费 */
@@ -232,7 +232,7 @@ export class ChatSim {
         const content = `{"segments":[{"type":"text","data":{"text":"${"好".repeat(Math.round(this.opts.replyChars / 2))}"}}]}`;
         const outTokens = Math.ceil(content.length / CHARS_PER_TOKEN);
         this.stats.outTokens += outTokens;
-        return { message: { content }, totalTokens: inputTokens + outTokens, usage: null };
+        return { message: { content }, usage: null };
     }
 
     /** 复刻 Agent.buildMessages 的骨架：固定前缀 → 概要 → 历史 */

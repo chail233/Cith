@@ -143,7 +143,6 @@ function replyToolCall(param, content) {
             content,
             tool_calls: [{ id: "call_1", function: { name: REPLY_TOOL_NAME, arguments: JSON.stringify(param) } }],
         },
-        totalTokens: 10,
         usage: null,
     };
 }
@@ -155,7 +154,6 @@ function toolCall(name) {
             content: null,
             tool_calls: [{ id: `call_${name}`, function: { name, arguments: "{}" } }],
         },
-        totalTokens: 1,
         usage: null,
     };
 }
@@ -229,7 +227,6 @@ test("同一轮既有工具又有发言时，话当场发出并继续跑工具",
                     },
                 ],
             },
-            totalTokens: 3,
             usage: null,
         },
         replyToolCall({ segments: [{ type: "text", data: { text: "查完了" } }] }),
@@ -268,7 +265,6 @@ test("同轮发言参数不合法时工具照跑，改好后再发", async () =>
                     },
                 ],
             },
-            totalTokens: 3,
             usage: null,
         },
         replyToolCall({ segments: [{ type: "text", data: { text: "查完了" } }] }),
@@ -300,7 +296,7 @@ test("模型传空数组时不发言：不广播 reply，但留一条记忆痕�
 });
 
 test("模型没调任何工具且正文为空时本轮不发言", async () => {
-    responses = [{ message: { content: null }, totalTokens: 5, usage: null }];
+    responses = [{ message: { content: null }, usage: null }];
     const memory = fakeMemory();
 
     const replies = await runOnce(memory);
@@ -312,7 +308,7 @@ test("模型没调任何工具且正文为空时本轮不发言", async () => {
 
 test("纯文本作答时先纠偏重试，改用发言工具后正常发出", async () => {
     responses = [
-        { message: { content: "我觉得这个话题挺有意思的" }, totalTokens: 5, usage: null },
+        { message: { content: "我觉得这个话题挺有意思的" }, usage: null },
         replyToolCall({ segments: [{ type: "text", data: { text: "这个话题确实有意思" } }] }),
     ];
     const memory = fakeMemory();
@@ -329,8 +325,8 @@ test("纯文本作答时先纠偏重试，改用发言工具后正常发出", as
 
 test("纠偏后仍纯文本时桥接成文本段发出", async () => {
     responses = [
-        { message: { content: "第一版答案" }, totalTokens: 5, usage: null },
-        { message: { content: "第二版答案" }, totalTokens: 5, usage: null },
+        { message: { content: "第一版答案" }, usage: null },
+        { message: { content: "第二版答案" }, usage: null },
     ];
     const memory = fakeMemory();
 
@@ -345,7 +341,7 @@ test("收敛请求得到纯文本时直接桥接", async () => {
     const max = config.toolChainMaxLength;
     responses = [
         ...Array.from({ length: max + 1 }, () => toolCall("run_shell")),
-        { message: { content: "收敛答复" }, totalTokens: 5, usage: null },
+        { message: { content: "收敛答复" }, usage: null },
     ];
     const memory = fakeMemory();
 
@@ -357,7 +353,7 @@ test("收敛请求得到纯文本时直接桥接", async () => {
 });
 
 test("当前通道没有发言工具时直接报错，不退回文本", async () => {
-    responses = [{ message: { content: "随便说点什么" }, totalTokens: 5, usage: null }];
+    responses = [{ message: { content: "随便说点什么" }, usage: null }];
     const memory = fakeMemory();
 
     const replies = await runOnce(memory, {});

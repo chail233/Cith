@@ -20,12 +20,11 @@ type WakeTrigger = { type: string; id?: string; title?: string; prompt?: string 
 export default class Agent extends EventEmitter {
     /** 会话 ID（{from}:{id}），同时作为长期记忆的派生键 */
     readonly sessionId: string;
-    /** 本会话的三层记忆记录器 */
     readonly memory: ChatRecorder;
-    /** 本会话的任务计划 */
     readonly planBoard = new PlanBoard();
 
-    /** 定时苏醒注入的唤醒说明；buildMessages 读取后置空，避免污染后续对话 */
+    private running = false;
+
     pendingTrigger: WakeTrigger | null = null;
 
     constructor(opts: { sessionId: string; memory: ChatRecorder }) {
@@ -34,20 +33,21 @@ export default class Agent extends EventEmitter {
         this.memory = opts.memory;
     }
 
-    // ---------------------------------------------------------------- 主循环
+
 
     async run(ctx: Context): Promise<void> {
-        if (!this.memory.tryBeginRequest()) {
+        if (this.running) {
             logger.info("会话已有模型请求进行中，跳过本次请求:", this.sessionId);
             return;
         }
+        this.running = true
         try {
             // 每回合现取：开工前重新扫描 skills 目录，保证强加载/技能列表与磁盘一致
             await reloadSkills();
 
             const outcome = await this.runLoop(ctx);
             if (typeof outcome === "string") {
-                this.deliver([{ type: "text", data: { text: `ERROR:${outcome}` } }], 0);
+                this.deliver([{ type: "text", data: { text: `ERROR:${outcome}` } }]);
                 return;
             }
             // 门禁挂起：本轮不再产出回复，询问段交给分发方经适配器发出；挂起信息不进对话记忆
@@ -55,20 +55,15 @@ export default class Agent extends EventEmitter {
                 this.broadcast("approval", outcome.held);
                 return;
             }
-            this.deliver(outcome.acts, outcome.tokens);
+            this.deliver(outcome.acts);
         }
         finally {
-            this.memory.endRequest();
-            // 聊天阈值守护：整轮跑完后若上下文仍超阈值，先做笔记维护再后台静默摘要，
-            // 都不阻塞监听器摘除与后续对话
+            this.running = false
             void this.postRunMaintenance();
         }
     }
 
-    /**
-     * 后台收尾：笔记维护
-     * → 摘要压缩。笔记 pass 失败不阻塞摘要。
-     */
+
     private async postRunMaintenance(): Promise<void> {
         try {
             await runNotesMaintenance(this);
@@ -78,18 +73,11 @@ export default class Agent extends EventEmitter {
         }
     }
 
-    /**
-     * Agent 主循环：请求 → 执行工具 → 回填痕迹 → 再请求，直到拿到可直接发送的回复
-     * 遇到门禁挂起时立即中断本轮，不再请求模型
-     * @returns 成功时为本轮产出；请求失败时为错误文本
-     */
+
     private async runLoop(ctx: Context): Promise<AgentRunOutcome | HeldOutcome | string> {
         const toolCtx: AgentToolContext = { ...ctx, agent: this };
-        /** 当前通道的发言工具：每轮向适配器现取，Agent 不缓存也不解析它的参数结构 */
         const replyTool = resolveReplyTool(ctx.adapter);
         if (!replyTool) return "当前通道没有可用的发言工具，本轮无法回复";
-        /** 本轮累计消耗 */
-        let tokens = 0;
         /** 已执行的工具轮数 */
         let toolDepth = 0;
         /** 是否已因纯文本输出纠偏重试过（只重试一次，防循环） */
@@ -100,17 +88,11 @@ export default class Agent extends EventEmitter {
             this.memory.compactIfNeeded(config.contextBudgetTokens);
             const result = await this.ask(this.availableTools(replyTool));
             if (typeof result === "string") return result;
-            tokens += result.totalTokens;
 
             const calls = result.message.tool_calls ?? [];
 
-            // 1. 一个工具都没调：正文为空是真沉默，本轮不发言；
             if (calls.length === 0) {
                 const text = (result.message.content ?? "").trim();
-                if (text === "") {
-                    logger.info("模型未调用任何工具，本轮不发言:", this.sessionId);
-                    return { acts: [], tokens };
-                }
                 if (!corrected) {
                     corrected = true;
                     this.memory.add({ role: "system", content: { text: `你直接输出了文本而没有调用 send_message，文本不会被发送。请用 send_message 重新发送这段内容：「${text.slice(0, 200)}」` } });
@@ -118,17 +100,16 @@ export default class Agent extends EventEmitter {
                     continue;
                 }
                 logger.warn("纠偏后模型仍以纯文本作答，桥接发送:", this.sessionId);
-                return { acts: [{ type: "text", data: { text } }], tokens };
+                return { acts: [{ type: "text", data: { text } }] };
             }
 
-            // 2. 工具链达到上限 → 强制收敛：只留发言工具再问一次，逼模型直接作答
+            // 工具链达到上限 → 强制收敛：只留发言工具再问一次，逼模型直接作答
             if (toolDepth >= config.toolChainMaxLength) {
-                return this.converge(tokens, replyTool, toolCtx);
+                return this.converge(replyTool, toolCtx);
             }
-
             toolDepth++;
 
-            // 3. 先把普通工具跑完（并行执行），有门禁挂起则立即中断本轮
+            // 先把普通工具跑完（并行执行），有门禁挂起则立即中断本轮
             const replyCalls = pickReplyCalls(calls, replyTool);
             const otherCalls = calls.filter((call) => !replyCalls.includes(call));
             if (otherCalls.length > 0) {
@@ -136,19 +117,18 @@ export default class Agent extends EventEmitter {
                 if (holds.length > 0) return { held: holds };
             }
 
-            // 4. 发言：参数合法就是一段可发的消息；全部不合法则错误已回填，继续循环让模型自修
+            // 发言：参数合法就是一段可发的消息；全部不合法则错误已回填，继续循环让模型自修
             const acts = replyCalls.length > 0 ? await this.speak(replyCalls, replyTool, toolCtx) : null;
 
-            // 5. 没有别的活了：发言就是本轮结论，交给 run() 统一投递
+            //  没有别的活了：发言就是本轮结论，交给 run() 统一投递
             if (otherCalls.length === 0) {
-                if (acts) return { acts, tokens };
+                if (acts) return { acts };
                 continue;
             }
 
-            // 6. 还有别的活没干完：这一轮的话当场发出，然后接着跑，直到只剩发言或没有工具
+            // 还有别的活没干完：这一轮的话当场发出，然后接着跑，直到只剩发言或没有工具
             if (acts && acts.length > 0) {
-                this.deliver(acts, tokens);
-                tokens = 0;
+                this.deliver(acts);
             }
         }
     }
@@ -224,29 +204,27 @@ export default class Agent extends EventEmitter {
      * 工具链达到上限后的收敛请求：只留发言工具再问一次，逼模型直接作答
      * 收敛请求失败或模型仍不说话时，本轮不发言
      */
-    private async converge(tokens: number, replyTool: ReplyTool, toolCtx: AgentToolContext): Promise<AgentRunOutcome> {
+    private async converge(replyTool: ReplyTool, toolCtx: AgentToolContext): Promise<AgentRunOutcome> {
         const final = await this.ask([replyTool.definition]);
         if (typeof final === "string") {
             logger.warn("收敛请求失败，本轮不发言:", final);
-            return { acts: [], tokens };
+            return { acts: [] };
         }
-        const totalTokens = tokens + final.totalTokens;
         const replyCalls = pickReplyCalls(final.message.tool_calls ?? [], replyTool);
         if (replyCalls.length > 0) {
             const acts = await this.speak(replyCalls, replyTool, toolCtx);
-            if (acts) return { acts, tokens: totalTokens };
+            if (acts) return { acts };
         }
         // 收敛轮没有纠偏预算：正文若已含答复文本，直接桥接成发言
         const text = (final.message.content ?? "").trim();
         if (text !== "") {
             logger.warn("收敛请求得到纯文本，桥接发送:", this.sessionId);
-            return { acts: [{ type: "text", data: { text } }], tokens: totalTokens };
+            return { acts: [{ type: "text", data: { text } }] };
         }
         logger.info("收敛后模型仍未发言:", this.sessionId);
-        return { acts: [], tokens: totalTokens };
+        return { acts: [] };
     }
 
-    // ---------------------------------------------------------------- 工具执行
 
     /**
      * 执行发言工具调用：按调用顺序规范化消息段
@@ -294,10 +272,7 @@ export default class Agent extends EventEmitter {
         return holds;
     }
 
-    /**
-     * 执行单个工具调用
-     * 失败不抛断整轮：把错误原因作为结果交给模型自我修正
-     */
+
     private async runTool(toolCall: ToolCall, toolCtx: AgentToolContext): Promise<ToolExecution> {
         const name = toolCall.function.name;
         let args: Record<string, unknown> | null = null;
@@ -331,9 +306,7 @@ export default class Agent extends EventEmitter {
         logger.info("工具调用被拒绝:", toolName, " 参数：", argsText);
     }
 
-    // ---------------------------------------------------------------- 事件
 
-    /** 安全广播：监听器异常不得反噬 Agent 主循环 */
     private broadcast(event: string, payload: unknown): void {
         try {
             this.emit(event, payload);
@@ -347,27 +320,26 @@ export default class Agent extends EventEmitter {
      * 产出一轮回复：广播 "reply" 事件供分发方消费
      * 空消息段 = 模型选择本轮不发言：不广播（分发方无内容可发），但留一条记忆痕迹
      */
-    private deliver(acts: MessageSegment[], tokens: number): void {
+    private deliver(acts: MessageSegment[]): void {
         if (acts.length === 0) {
             logger.info("本轮选择不发言:", this.sessionId);
             this.memory.add({ role: "assistant", content: { action: [], note: "本轮选择不发言" } });
             return;
         }
-        const payload: ReplyPayload = { acts, tokens };
+        const payload: ReplyPayload = { acts };
         this.broadcast("reply", payload);
         this.memory.add({ role: "assistant", content: { action: acts } });
         this.memory.msgWithoutChat = 0;
     }
 }
 
-// ---------------------------------------------------------------- 模块内工具函数
 
-/** 统一提取异常信息文本 */
+
 function errorMessage(err: unknown): string {
     return err instanceof Error ? err.message : String(err);
 }
 
-/** 渲染 MCP 服务器清单：名称 + 描述 + 激活状态 */
+
 function renderMcpServers(): string {
     const servers = mcpClient.listServers();
     if (servers.length === 0) return "无";

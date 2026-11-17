@@ -1,6 +1,5 @@
 import type { Plan, PlanStatus, RawTodo } from "./types.ts";
 
-/** 合法状态 → 渲染图标 */
 const STATUS_ICONS: Record<PlanStatus, string> = {
     pending: "○",
     in_progress: "→",
@@ -10,18 +9,18 @@ const STATUS_ICONS: Record<PlanStatus, string> = {
 
 const STATUS_KEYS: Record<PlanStatus, true> = { pending: true, in_progress: true, done: true, cancelled: true };
 
-/** 渲染计划为文本（目标行 + 步骤清单）；无目标时仅渲染步骤 */
+
 export function renderPlan(plan: Plan): string {
     const steps = plan.items.map((t) => `${STATUS_ICONS[t.status]} ${t.content}`).join("\n");
     return plan.goal ? `目标：${plan.goal}\n${steps}` : steps;
 }
 
-/** 渲染进上下文的计划 system 消息全文（Agent.buildMessages 与笔记维护 pass 共用） */
+
 export function renderPlanBlock(plan: Plan): string {
     return `当前任务计划：\n${renderPlan(plan)}\n（勿偏离目标，随进度用 manage_plan 更新状态）`;
 }
 
-/** 单个会话的任务计划：同一时间至多一份，每次全量覆盖 */
+
 export class PlanBoard {
     private plan: Plan | null = null;
 
