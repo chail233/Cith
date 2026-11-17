@@ -34,8 +34,6 @@ export default async function proactiveChat(ctx) {
     recorder.msgWithoutChat++;
     if (recorder.msgWithoutChat < limit) return false;
 
-    if (recorder.isRequesting) return false;
-
     logger.info(`达到主动聊天阈值（${recorder.msgWithoutChat} 条），触发 AI 对话`);
     recorder.msgWithoutChat = 0;
     await runAgent(ctx);

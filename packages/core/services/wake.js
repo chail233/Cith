@@ -17,7 +17,7 @@ const WAKE_POLL_INTERVAL_MS = 2000;
 /** 等待会话空闲（无进行中的模型请求）；超时返回 false */
 async function waitIdle(agent) {
     const deadline = Date.now() + WAKE_MAX_WAIT_MS;
-    while (agent.memory.isRequesting) {
+    while (agent.isRunning) {
         if (Date.now() >= deadline) return false;
         await sleep(WAKE_POLL_INTERVAL_MS);
     }

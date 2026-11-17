@@ -286,6 +286,10 @@ export default class Agent extends EventEmitter {
         }
     }
 
+    get isRunning(): boolean {
+        return this.running;
+    }
+
     /**
      * 将一次工具调用的过程与结果回填进会话记忆
      */
