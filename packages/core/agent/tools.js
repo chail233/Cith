@@ -1,30 +1,32 @@
 import config from "../config.js";
 import logger from "../utils/logger.js";
-import { mcpClient } from "./mcp-manager.js";
 import { hold } from "./tool-approval.js";
 import { checkShellCommand } from "./shell-guard.ts";
 
 import getMemoryTool from "./tools/get-memory.ts";
 import getSessionContextTool from "./tools/get-session-context.ts";
-import manageMcpTool from "./tools/manage-mcp.ts";
 import listStickersTool from "./tools/list-stickers.ts";
 import managePlanTool from "./tools/manage-plan.ts";
 import scheduleTool from "./tools/schedule.ts";
 import recognizeImageTool from "./tools/recognize-image.ts";
 import runShellTool from "./tools/run-shell.ts";
+import searchToolsTool from "./tools/search-tools.ts";
+import useToolTool from "./tools/use-tool.ts";
 
 /**
  * 工具注册表：每个条目包含 definition（工具上下文/参数定义）和 execute（实现）
+ * 工具表应尽可能保持稳定，避免频繁变化
  */
 const toolRegistry = [
     getMemoryTool,
     getSessionContextTool,
-    manageMcpTool,
     listStickersTool,
     managePlanTool,
     scheduleTool,
     recognizeImageTool,
     runShellTool,
+    searchToolsTool,
+    useToolTool,
 ];
 
 /**
@@ -75,11 +77,11 @@ function withToolTimeout(name, task, budgetMs, signal) {
 }
 
 /**
- * 模型可调用的工具定义：本地工具 + 已激活 MCP 服务器的工具
+ * 模型可调用的工具定义
  * @returns {import("./types.ts").ToolDefinition[]}
  */
 export function getAllTools() {
-    return [...tools, ...mcpClient.getActiveToolDefinitions()];
+    return tools;
 }
 
 /**
@@ -116,12 +118,6 @@ export async function callTool(tool_call, ctx, confirmed = false){
             };
         }
         logger.info(`guard 放行 run_shell: ${verdict.reason}`);
-    }
-
-    if (name.startsWith("mcp_")) {
-        const originalName = name.slice(4);
-        const result = await withToolTimeout(name, mcpClient.callTool(originalName, parameter), config.toolTimeout, signal);
-        return `${name}调用结果:\n${result}`;
     }
 
     const tool = toolMap.get(name);

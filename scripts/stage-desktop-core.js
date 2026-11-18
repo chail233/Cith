@@ -6,7 +6,7 @@
  * 排除开发机密钥与运行数据（config.json / data / .wechatbot / dev 表情清单），
  * 并按 @cith/core 的生产依赖闭包从根 node_modules 复制依赖包——
  * 内置 core 以 ELECTRON_RUN_AS_NODE 独立进程运行，asar 里的依赖它读不到，
- * 默认 websearch MCP（cwd 相对路径）与技能脚本的运行时都靠这份 node_modules。
+ * 技能脚本的运行时依赖这份 node_modules。
  *
  * 由根命令 `npm run bundle:desktop` 在 npm run build 之后调用。
  */

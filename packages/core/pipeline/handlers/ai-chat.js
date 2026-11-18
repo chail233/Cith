@@ -3,11 +3,6 @@ import logger from "../../utils/logger.js";
 import { getAgent } from "../../agent/AgentManager.ts";
 import {nowTime} from "../../utils/time.js";
 
-/**
- * AI 对话处理器
- * 当消息 @ 机器人时触发
- */
-
 
 /**
  * @param {object} ctx
@@ -29,7 +24,7 @@ export default async function aiChat(ctx) {
         },
     };
     getAgent(ctx.space).memory.add(msg);
-    logger.info("AI 对话请求:", message);
+    logger.debug("AI 对话请求:", message);
 
     await runAgent(ctx);
 

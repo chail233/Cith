@@ -14,10 +14,7 @@ import { isPlaceholder } from "../../services/preflight.ts";
 import type { CtxEvent, MessageSegment } from "../../types/index.ts";
 import type { MediaRef } from "../../types/segment.ts";
 
-/** 入站语音落地目录（相对于 core/） */
 const VOICE_DIR = "data/voices";
-
-/** 动作 RPC 等回包超时 */
 const ACTION_TIMEOUT_MS = 10_000;
 
 interface OneBotSegment {
@@ -80,7 +77,6 @@ function voiceDuration(raw: unknown): number | undefined {
 /** OneBot 接入服务器：持有反向 WS 服务，连接建立时绑定发送适配器 */
 class OnebotServer extends BaseServer<OneBotEvent> {
     private socket?: WebSocket;
-    /** 在途动作：echo → 收尾项（回包认领 / 超时 / 断线统一在这里了结） */
     private readonly pending = new Map<string, { resolve: (resp: ActionResponse | null) => void; timer: NodeJS.Timeout }>();
 
     constructor(pipeline: (ctxEvent: CtxEvent) => Promise<void>) {
@@ -108,7 +104,7 @@ class OnebotServer extends BaseServer<OneBotEvent> {
         });
 
         wss.on("connection", (ws, req) => {
-            logger.info(`NapCat 已连接 (端口: ${config.wsPort}, 来源: ${req.socket.remoteAddress ?? "unknown"})`);
+            logger.info(`OneBot客户端 已连接 (端口: ${config.wsPort}, 来源: ${req.socket.remoteAddress ?? "unknown"})`);
             runtimeState.onebotConnected = true;
             this.socket = ws;
             const adapter = new OnebotAdapter(this.pipeline, ws);
@@ -157,7 +153,7 @@ class OnebotServer extends BaseServer<OneBotEvent> {
     private async onRawMessage(data: unknown) {
         try {
             const frame = JSON.parse(String(data)) as OneBotEvent & { echo?: string; status?: string };
-            logger.debug("收到事件:", frame);
+            logger.info("收到事件:", frame);
             // 动作回包按 echo 认领；事件帧不带 echo，认领不了才走事件分发
             if (typeof frame.echo === "string" && this.pending.has(frame.echo)) {
                 const entry = this.pending.get(frame.echo)!;
@@ -184,7 +180,7 @@ class OnebotServer extends BaseServer<OneBotEvent> {
         return new Promise((resolve) => {
             const socket = this.socket;
             if (!socket || socket.readyState !== WebSocket.OPEN) {
-                logger[quiet ? "warn" : "error"](`NapCat 未连接，动作未执行 [${action}]`);
+                logger[quiet ? "warn" : "error"](`OneBotWS 未连接，动作未执行 [${action}]`);
                 resolve(null);
                 return;
             }
@@ -193,7 +189,7 @@ class OnebotServer extends BaseServer<OneBotEvent> {
                 const entry = this.pending.get(echo);
                 if (!entry) return;
                 this.pending.delete(echo);
-                logger[quiet ? "warn" : "error"](`NapCat 动作响应超时 [${action}]`);
+                logger[quiet ? "warn" : "error"](`OneBotWS 动作响应超时 [${action}]`);
                 entry.resolve(null);
             }, ACTION_TIMEOUT_MS);
             this.pending.set(echo, { resolve, timer });
@@ -203,7 +199,7 @@ class OnebotServer extends BaseServer<OneBotEvent> {
             catch (err) {
                 this.pending.delete(echo);
                 clearTimeout(timer);
-                logger.error(`NapCat 动作发送失败 [${action}]:`, err);
+                logger.error(`OneBotWS 动作发送失败 [${action}]:`, err);
                 resolve(null);
             }
         });
@@ -232,7 +228,6 @@ class OnebotServer extends BaseServer<OneBotEvent> {
                 case "at": {
                     const id = String(d.qq ?? "");
                     const isSelf = id === String(config.selfId ?? "");
-                    // NapCat 只部分场景给昵称；@自己固定叫"我"，@全体成员用固定文案
                     const name = isSelf ? "我" : d.name ? String(d.name) : (id === "all" ? "全体成员" : "");
                     return {
                         type: "mention",
@@ -255,7 +250,7 @@ class OnebotServer extends BaseServer<OneBotEvent> {
                             media.localPath = localPath;
                         }
                         else {
-                            logger.warn(`NapCat get_image 未返回本地路径: ${fileId}`);
+                            logger.warn(`OneBotWS get_image 未返回本地路径: ${fileId}`);
                         }
                     }
                     // NapCat 的 summary 通常是表情/图片名（如 "[动画表情]"），模型无需识图也能得体回应

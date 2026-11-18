@@ -35,7 +35,6 @@ export interface ConfigWarning {
 export interface BotStatus {
     uptimeMs: number;
     onebotConnected: boolean;
-    mcpConnections: number;
     memoryMb: number;
     nodeVersion: string;
     /** 启动自检结果；旧版本 Bot 不返回此字段 */
@@ -131,7 +130,7 @@ export type LogLevel = (typeof LOG_LEVELS)[number];
  * Bot 端新增 action 时此处缺省，展示为"未知能力"。
  */
 export const ACTION_DESCRIPTIONS: Record<string, string> = {
-    get_status: "运行状态快照：运行时长、OneBot 在线状态、MCP 连接数、内存占用、Node 版本、启动配置自检告警",
+    get_status: "运行状态快照：运行时长、OneBot 在线状态、内存占用、Node 版本、启动配置自检告警",
     get_config: "读取脱敏后的配置快照（敏感字段以 *** 展示）",
     set_config: "热改白名单内的配置字段，白名单外的字段会被 Bot 拒绝",
     get_logs: "按时间戳从环形缓冲补拉历史事件（默认容量 1000 条）",

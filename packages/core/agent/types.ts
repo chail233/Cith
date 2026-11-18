@@ -59,6 +59,32 @@ export interface ToolModule<P = unknown> {
 }
 
 
+export interface ExtensionTool {
+    name: string;
+    source: string;
+    description: string;
+    inputSchema: unknown;
+}
+
+
+export interface ExtensionOverviewEntry {
+    source: string;
+    description: string;
+    tools: number;
+}
+
+
+export interface ExtensionProvider {
+    id: string;
+    init(): Promise<void>;
+    shutdown(): Promise<void>;
+    overview(): Promise<ExtensionOverviewEntry[]>;
+    search(query: string): Promise<ExtensionTool[]>;
+    get(name: string): Promise<ExtensionTool | null>;
+    invoke(name: string, args: Record<string, unknown>, signal?: AbortSignal): Promise<string>;
+}
+
+
 export interface ToolContext extends Context {
     agent?: Agent | null;
     signal?: AbortSignal;

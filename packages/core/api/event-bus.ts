@@ -7,7 +7,7 @@ export const FRAME_CHANNEL = "__panel_frame__";
 
 /**
  * 单例事件总线。
- * 事件命名约定：`域.动作`，如 "log"、"message.received"、"mcp.status"。
+ * 事件命名约定：`域.动作`，如 "log"、"message.received"。
  */
 export const eventBus = new EventEmitter();
 

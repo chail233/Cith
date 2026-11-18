@@ -55,7 +55,7 @@ npm run dev             # http://localhost:5173，/api 自动代理到 BFF
 
 | 页面 | 数据来源 | 说明 |
 |------|----------|------|
-| 运行状态 | `get_status`（5s 轮询）+ `get_token_usage`（60s 轮询） | 运行时长 / OneBot 在线 / MCP 连接数 / 内存 / Node 版本 + Token 用量与花销（今日 / 近 7 天 / 累计，含缓存命中率）+ 最近事件速览 |
+| 运行状态 | `get_status`（5s 轮询）+ `get_token_usage`（60s 轮询） | 运行时长 / OneBot 在线 / 内存 / Node 版本 + Token 用量与花销（今日 / 近 7 天 / 累计，含缓存命中率）+ 最近事件速览 |
 | 模型价格 | `get_model_pricing` / `set_model_pricing` | 按模型填「元 / 百万 tokens」单价，保存即时生效；未定价模型一键补价 |
 | 系统提示词 | `get_prompt` / `set_prompt` | 在线编辑 `packages/core/prompts/system.md`，保存带 `.bak` 备份，下一轮生效 |
 | 配置管理 | `get_config` / `set_config` | 脱敏快照展示；非脱敏字段可尝试热改，白名单由 Bot 控制，拒绝原因原样展示 |

@@ -17,7 +17,7 @@
 它不是「接一句话回一句」的聊天机器人——你说一句需求，它自己拆任务、调工具、看结果、接着推理，办妥之后再像朋友一样回你。它看得懂图、听得懂语音、记得你的事，还能给自己装技能、给自己定闹钟。
 
 - **多平台适配** —— 通过Server和Adapter在约定通信协议下适配多平台如QQ/微信/桌面客户端
-- **真能做事** —— 多轮工具调用 + `run_shell`（小模型审查 + 待确认队列）+ 任意 MCP Server
+- **真能做事** —— 多轮工具调用 + `run_shell`（小模型审查 + 待确认队列）
 - **分层记忆** —— 短期 → 中期概括 → 长期语义检索，超长自动摘要，聊得再久也不失忆
 - **自我扩展** —— `SKILL.md` 技能可从 GitHub 在线安装，它也能自己给自己装
 - **会主动干活** —— 定时苏醒执行任务；群里冷场时判断要不要搭句话
@@ -113,7 +113,7 @@ bash update.sh --force    # 远端无新提交也重新编译
 | `web` | 面板 API：`port`（2145）/ `path` / `token` / `logBufferSize` |
 | `desktopPort` | 桌面客户端 WS 端口（默认 2147，token 与 NapCat 共用） |
 | `shellGate` / `guard*` | `run_shell` 门禁模式（`guard` / `open`）与 guard 模型端点 |
-| `mcpServers` | MCP Server 列表（默认自带无需凭据的 `websearch`） |
+| `mcpServers` | MCP Server 列表（默认自带无需凭据的 `websearch`；当前运行时已解耦未接入，仅保留配置项） |
 
 
 ## License

@@ -4,7 +4,7 @@
  * 用法：node scripts/diagnose-tool-calls.ts [每组重复次数，默认 2]
  *
  * 四组对照（temperature 固定 0.2，串行请求，避免服务端并发限制干扰）：
- *   A 生产复刻：真实 system.md + 8 个真实工具 + response_format: json_object
+ *   A 生产复刻：真实 system.md + 6 个真实工具 + response_format: json_object
  *   B 同 A，但不传 response_format
  *   C 最小对照：极简 system + 1 个天气工具 + response_format: json_object
  *   D 同 C，但不传 response_format
@@ -24,7 +24,6 @@ import config from "../packages/core/config.js";
 import type { ToolDefinition } from "../packages/core/agent/types.ts";
 
 import getMemoryTool from "../packages/core/agent/tools/get-memory.ts";
-import manageMcpTool from "../packages/core/agent/tools/manage-mcp.ts";
 import listStickersTool from "../packages/core/agent/tools/list-stickers.ts";
 import managePlanTool from "../packages/core/agent/tools/manage-plan.ts";
 import scheduleTool from "../packages/core/agent/tools/schedule.ts";
@@ -40,10 +39,9 @@ const ONLY = (process.env.CASE ?? "").trim().toUpperCase().split(",").filter(Boo
 /** 单次请求超时：思考型模型比生产用的 60s 需要更多余量 */
 const TIMEOUT = 180_000;
 
-/** 真实工具集合（与 agent/tools.js 的 toolRegistry 保持一致，不含 MCP 动态工具） */
+/** 真实工具集合（与 agent/tools.js 的 toolRegistry 保持一致） */
 const REAL_TOOLS: ToolDefinition[] = [
     getMemoryTool,
-    manageMcpTool,
     listStickersTool,
     managePlanTool,
     scheduleTool,

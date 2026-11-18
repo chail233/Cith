@@ -38,11 +38,6 @@ export default function Dashboard() {
                             <div className="stat-sub">消息适配器连接状态</div>
                         </div>
                         <div className="stat-card">
-                            <div className="stat-label">MCP 连接数</div>
-                            <div className="stat-value">{status.mcpConnections}</div>
-                            <div className="stat-sub">已连接的 MCP Server</div>
-                        </div>
-                        <div className="stat-card">
                             <div className="stat-label">堆内存占用</div>
                             <div className="stat-value">
                                 {status.memoryMb} <span className="stat-unit">MB</span>

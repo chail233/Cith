@@ -130,6 +130,6 @@ test("resolveCorePaths：打包态在 resources/core，开发态回仓库根", (
 
     const dev = resolveCorePaths(false, "/app/resources", resolve("/repo/dist"));
     assert.equal(dev.entry, resolve("/repo/dist", "index.js"));
-    // 开发态工作目录是仓库根（node_modules 在那里，MCP 相对路径才成立）
+    // 开发态工作目录是仓库根（依赖提升后的 node_modules 在那里）
     assert.equal(dev.cwd, resolve("/repo"));
 });

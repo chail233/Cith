@@ -1,7 +1,6 @@
 import { getAgent, listAgents } from "../../agent/AgentManager.ts";
 import config from "../../config.js";
 import {skills, forceSkills} from "../../agent/skill.js";
-import {mcpClient} from "../../agent/mcp-manager.js";
 import {getAllTools} from "../../agent/tools.js";
 import {list as doList} from "../../agent/tool-approval.js";
 import {confirmPending, rejectPending} from "../../agent/approval-runner.ts";
@@ -232,17 +231,6 @@ const cmds = [
             const text = await renderNotes();
             if (!text) return "当前没有笔记";
             return `全局笔记：\n${text}`;
-        }
-    },
-    {
-        name:"mcp",
-        description: "列出MCP配置",
-        params: [],
-        handler: async (args, ctx) => {
-            const names = [...mcpClient.connections.keys()];
-            if (names.length === 0) return "未连接任何 MCP 服务器";
-            const lines = names.map((name) => `${name} ${mcpClient.isActive(name) ? "[已激活]" : "[未激活]"}`);
-            return `MCP列表：\n${lines.join("\n")}`;
         }
     },
     {

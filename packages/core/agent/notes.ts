@@ -119,7 +119,7 @@ async function execNoteTool(call: ToolCall): Promise<string> {
 
 
 /**
- * 组装维护 pass 的消息列表：复用当前对话上下文，但去除技能/MCP 清单
+ * 组装维护 pass 的消息列表：复用当前对话上下文，但去除技能清单
  * 稳定段顺序与 Agent.buildMessages 保持一致，末尾附加维护指令
  */
 async function buildNoteMessages(agent: Agent): Promise<ChatMessage[]> {

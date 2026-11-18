@@ -2,7 +2,7 @@ import { EventEmitter } from "node:events";
 import { callLLM } from "./client.ts";
 import { callTool, getAllTools } from "./tools.js";
 import { reloadSkills, skills, forceSkills } from "./skill.js";
-import { mcpClient } from "./mcp-manager.js";
+import { extensionRegistry } from "./extensions/registry.ts";
 import { runNotesMaintenance } from "./notes.ts";
 import { renderPlanBlock, PlanBoard } from "./plan.ts";
 import { readSystemPrompt } from "../services/prompt-store.ts";
@@ -11,7 +11,7 @@ import config from "../config.js";
 import logger from "../utils/logger.js";
 import type { ChatRecorder } from "./recorder.js";
 import type { Context, MessageSegment } from "../types/index.ts";
-import type { AbortedOutcome, AgentRunResult, ChatMessage, HeldOutcome, LlmResult, ReplyOutcome, ToolCall, ToolContext, ToolDefinition, ToolExecution, ToolHold, WakeTrigger } from "./types.ts";
+import type { AbortedOutcome, AgentRunResult, ChatMessage, ExtensionOverviewEntry, HeldOutcome, LlmResult, ReplyOutcome, ToolCall, ToolContext, ToolDefinition, ToolExecution, ToolHold, WakeTrigger } from "./types.ts";
 import type { ReplyTool, ReplyToolResult } from "../bot/adapters/reply-tool.ts";
 
 export default class Agent extends EventEmitter {
@@ -19,12 +19,11 @@ export default class Agent extends EventEmitter {
     readonly sessionId: string;
     readonly memory: ChatRecorder;
     readonly planBoard = new PlanBoard();
-
     private running = false;
     private aborted = false;
     private controller: AbortController | null = null;
-
     pendingTrigger: WakeTrigger | null = null;
+    private extensionOverview: ExtensionOverviewEntry[] = [];
 
     constructor(opts: { sessionId: string; memory: ChatRecorder }) {
         super();
@@ -43,8 +42,8 @@ export default class Agent extends EventEmitter {
         this.aborted = false
         this.controller = new AbortController()
         try {
-            // 每回合现取：开工前重新扫描 skills 目录，保证强加载/技能列表与磁盘一致
             await reloadSkills();
+            this.extensionOverview = await extensionRegistry.overview();
 
             const outcome = await this.runLoop(ctx);
             if (typeof outcome === "string") {
@@ -159,10 +158,7 @@ export default class Agent extends EventEmitter {
         }
     }
 
-    /**
-     * 组装发送给 LLM 的完整消息列表
-     * 稳定前缀在前（系统提示 → 技能/MCP → 笔记 → 概要）、易变项在后（计划/唤醒说明），前缀缓存友好，勿打乱顺序
-     */
+
     private async buildMessages(): Promise<ChatMessage[]> {
         const messages: ChatMessage[] = [];
         const systemPrompt = readSystemPrompt();
@@ -174,12 +170,14 @@ export default class Agent extends EventEmitter {
                 .join("\n\n");
             messages.push({ role: "system", content: `强加载技能:\n${forceBlock}` });
         }
+        messages.push({ role: "system", content: `技能列表：${JSON.stringify(skills)}` });
 
-        messages.push(
-            { role: "system", content: `技能列表：${JSON.stringify(skills)}` },
-            { role: "system", content: `mcp列表：${renderMcpServers()}` },
-        );
-
+        if (this.extensionOverview.length > 0) {
+            messages.push({
+                role: "system",
+                content: `扩展工具来源：${JSON.stringify(this.extensionOverview)}。`,
+            });
+        }
         // 全局笔记：AI 自我维护，位于对话历史概要之前
         const notes = await renderNotesBlock();
         if (notes) messages.push({ role: "system", content: notes });
@@ -219,9 +217,7 @@ export default class Agent extends EventEmitter {
         return result || "AI 服务无响应";
     }
 
-    /**
-     * 本轮工具表：发言工具排首位（随通道固定，利于前缀缓存），其后是本地工具与已激活 MCP 工具
-     */
+
     private availableTools(replyTool: ReplyTool): ToolDefinition[] {
         return [replyTool.definition, ...getAllTools()];
     }
@@ -327,9 +323,7 @@ export default class Agent extends EventEmitter {
         return this.running;
     }
 
-    /**
-     * 将一次工具调用的过程与结果回填进会话记忆
-     */
+
     recordToolCall(toolName: string, argsText: string, result: string): void {
         this.memory.add({ role: "system", content: { text: `调用了工具 ${toolName}，参数：${argsText}，结果：${result}` } });
         logger.info("调用工具:", toolName, " 参数：", argsText, " 结果：", result);
@@ -377,15 +371,6 @@ export default class Agent extends EventEmitter {
 
 function errorMessage(err: unknown): string {
     return err instanceof Error ? err.message : String(err);
-}
-
-
-function renderMcpServers(): string {
-    const servers = mcpClient.listServers();
-    if (servers.length === 0) return "无";
-    return servers
-        .map((s) => `${s.name}${s.description ? `（${s.description}）` : ""}${mcpClient.isActive(s.name) ? "[已激活]" : ""}`)
-        .join("、");
 }
 
 /** 渲染「定时苏醒」触发说明：让模型知道自己是被闹钟叫醒的，而不是收到新消息 */

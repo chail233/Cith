@@ -2,11 +2,11 @@
 
 本文件为 AI 编码代理（及新加入的开发者）提供本仓库的工作指南。
 
-**Cith / SunbatwoBot** 是一个跑在自建设备上的个人 Agent，住在 QQ（OneBot v11 / NapCat）与微信里，另配一个 Web 管理面板与一个 Electron 桌面客户端。核心是一个多轮工具调用的 LLM Agent 循环，配分层记忆、MCP 工具扩展与 SKILL.md 技能系统。
+**Cith / SunbatwoBot** 是一个跑在自建设备上的个人 Agent，住在 QQ（OneBot v11 / NapCat）与微信里，另配一个 Web 管理面板与一个 Electron 桌面客户端。核心是一个多轮工具调用的 LLM Agent 循环，配分层记忆与 SKILL.md 技能系统。
 
 - Node.js **>= 24**：依赖原生 type stripping 直接运行 `.ts`；全仓 ESM（`"type": "module"`）
 - JS/TS 混合结构：`packages/core/` 中 TS 略多于 JS，逐步向 TS 迁移
-- LLM 走 OpenAI 兼容协议，接入任意端点；MCP 客户端基于 `@modelcontextprotocol/sdk`
+- LLM 走 OpenAI 兼容协议，接入任意端点
 
 ## 常用命令
 
@@ -66,13 +66,13 @@ NapCat(反向WS) / 微信(长轮询) / 桌面客户端(自开WS, DesktopServer)
 
 `Agent` 是 EventEmitter，每会话一实例，由 `AgentManager` 池管理（空闲 24 小时回收、上限 50）。**Agent 只"想"不"说"**：只广播 `reply` / `tool-call` / `tool-result` / `approval` 等事件，`pipeline/agent-runner.ts` 订阅后经适配器按拟人节奏发送。同一会话同时只允许一个模型请求。
 
-每轮流程：`Agent.buildMessages` 组装上下文（系统提示 + 强加载技能正文 + 技能/MCP 列表 + 全局笔记 + 记忆概要 + 历史 + 尾部易变项：活跃计划/唤醒说明）→ 带全量工具定义调 LLM → 同轮多个工具调用**并行执行** → 结果以 `role:"system"` 消息回填 → 再请求。最多 `toolChainMaxLength`（30）轮；达到上限后补发一次**只带发言工具**的请求强制收敛。**发言是工具调用，不是文本格式**：每轮工具表首位是由适配器能力集生成的 `send_message`（`bot/adapters/reply-tool.ts`），词表由适配器声明（OneBot 为 text / image / file / voice / mention / reply，微信没有 voice / mention / reply；表情包不设独立段：`list_stickers` 工具返回画面描述+文件路径，模型挑好直接走 image 段），与接收方向统一段同构。发言调用成功即交付消息（若本轮还有其它工具，则当场发出后继续循环，直到只剩发言或没有工具）；传空数组表示**本轮不发言**；模型不调用任何工具时正文为空才算不发言，正文有内容则回填 system 纠偏痕迹后重试一次，仍以纯文本作答就桥接成 text 段按正常发言投递（收敛轮不重试、直接桥接；正常路径依然没有纯文本通道，旧 `replyParser.ts` 已删除）。agent-runner 按段顺序逐个发送，reply/mention 攒到下一个内容段合并为一条（OneBot 语义）；平台不支持的段类型由 Adapter 自行跳过（微信不支持 mention/reply），字段翻译与纠错（如本地路径被填进 `uri`）也在适配器侧由 `utils/segment-media.ts` 完成。
+每轮流程：`Agent.buildMessages` 组装上下文（系统提示 + 强加载技能正文 + 技能列表 + 扩展来源目录 + 全局笔记 + 记忆概要 + 历史 + 尾部易变项：活跃计划/唤醒说明）→ 带全量工具定义调 LLM → 同轮多个工具调用**并行执行** → 结果以 `role:"system"` 消息回填 → 再请求。最多 `toolChainMaxLength`（30）轮；达到上限后补发一次**只带发言工具**的请求强制收敛。**发言是工具调用，不是文本格式**：每轮工具表首位是由适配器能力集生成的 `send_message`（`bot/adapters/reply-tool.ts`），词表由适配器声明（OneBot 为 text / image / file / voice / mention / reply，微信没有 voice / mention / reply；表情包不设独立段：`list_stickers` 工具返回画面描述+文件路径，模型挑好直接走 image 段），与接收方向统一段同构。发言调用成功即交付消息（若本轮还有其它工具，则当场发出后继续循环，直到只剩发言或没有工具）；传空数组表示**本轮不发言**；模型不调用任何工具时正文为空才算不发言，正文有内容则回填 system 纠偏痕迹后重试一次，仍以纯文本作答就桥接成 text 段按正常发言投递（收敛轮不重试、直接桥接；正常路径依然没有纯文本通道，旧 `replyParser.ts` 已删除）。agent-runner 按段顺序逐个发送，reply/mention 攒到下一个内容段合并为一条（OneBot 语义）；平台不支持的段类型由 Adapter 自行跳过（微信不支持 mention/reply），字段翻译与纠错（如本地路径被填进 `uri`）也在适配器侧由 `utils/segment-media.ts` 完成。
 
 技能目录在**每次 `Agent.run()` 开头重扫**，没有 `#reloadskls` 命令。计划状态在 `agent/plan.ts` 的 `PlanBoard`（Agent 只持有引用，`#plan` 命令与 `Agent.buildMessages` 共用同一份存储与渲染逻辑）。
 
 ### 工具（`agent/tools.js` + `agent/tools/`）
 
-一个工具一个模块，导出 `definition`（给模型）与 `execute`（实现），在 `agent/tools.js` 的 `toolRegistry` 登记；`callTool()` 是唯一入口。MCP 工具经 `mcp-manager.js`（stdio / old_sse / sse 三种传输）路由，模型通过唯一工具 `manage_mcp` 维护**激活列表**控制可见性（未激活的 server 其工具仍可调用，只是模型看不见）。`send_message` 负责所有对外输出，长任务的过程汇报也是它（与其它工具同轮调用时当场发出），没有独立的进度播报工具。
+一个工具一个模块，导出 `definition`（给模型）与 `execute`（实现），在 `agent/tools.js` 的 `toolRegistry` 登记；`callTool()` 是唯一入口。**扩展工具不进常驻工具表**：`agent/extensions/registry.ts` 纳管扩展来源（`ExtensionProvider`：init / shutdown / overview / search / get / invoke），常驻工具 `search_tools`（发现，返回含参数格式的工具卡）与 `use_tool`（调用）对接注册表；MCP 是第一个来源，经 `agent/extensions/mcp-provider.ts` 包装 `agent/extensions/mcp-manager.ts`（stdio / old_sse / sse）接入，`index.js` 启停统一走 `extensionRegistry.init()/shutdown()`；各来源目录（服务器名 + 描述 + 工具数）由 Agent 在每轮 `run()` 开头从注册表现取并固定注入上下文，模型不用猜有哪些来源——Agent 依然只认注册表，不知道 MCP 存在。旧激活列表工具 `tools/manage-mcp.ts` 已删除，`McpClientManager` 的激活/去激活方法也已移除。`send_message` 负责所有对外输出，长任务的过程汇报也是它（与其它工具同轮调用时当场发出），没有独立的进度播报工具。
 
 ### 审批门禁（不可绕过）
 
@@ -107,15 +107,16 @@ NapCat(反向WS) / 微信(长轮询) / 桌面客户端(自开WS, DesktopServer)
 - 共享类型单一真源：跨模块接口进 `packages/core/types/index.ts`（`CtxEvent` / `Space` / `Context`），消息段类型在 `packages/core/types/segment.ts`；Agent 专属类型（`ToolCall` / `LlmResult` / `ToolContext` / `ReplyOutcome` / `AgentRunResult` 等）进 `agent/types.ts`，按「对话与模型交互 / 工具 / 主循环产出 / 计划 / 长期记忆」分块——不要在别处重复定义。工具入参类型（`XxxParams`）跟着各自工具模块走，字段一律写 `unknown`（来自模型生成的 JSON，执行时自行归一化）。types 与 `BaseAdapter` 之间的 type-only 循环 import 是允许的（运行时擦除）。
 - 传输相关状态（如 ws socket）留在具体 Adapter 子类，不进 `BaseAdapter`。
 - 上下文组装讲究**前缀缓存友好**：稳定内容在前、易变内容在后；改动时勿打乱这一顺序。
-- 每轮请求的固定底噪约 **2.5k token**（`system.md` + 技能/MCP 清单 ≈ 280，8 个工具定义 ≈ 2.2k，`send_message` 单个 ≈ 940）：改工具 schema/描述时先想清楚这会让每轮成本涨多少。
+- 每轮请求的固定底噪主要来自 `system.md`、技能清单与工具定义（`send_message` 单个 ≈ 940 token）：改工具 schema/描述时先想清楚这会让每轮成本涨多少。
 
 ## 如何扩展
 
 - **加用户命令**：`pipeline/handlers/user-commands.js` 的 `cmds` 数组加一项（`name` / `description` / `needsAdmin` / `params` / `handler`）。
 - **加关键词匹配**：没有独立的关键词命令框架，直接写在 `user-commands.js` 的 handler 里判断文本。
 - **加工具**：`agent/tools/` 下新建模块 → 在 `toolRegistry` 登记；需要门禁的工具在 `callTool()` 里按工具名加分支。
+- **加扩展工具来源**：`agent/extensions/` 下实现 `ExtensionProvider`（发现 / 调用 / 生命周期）→ `registry.ts` 登记；其工具定义不进工具表，模型经 `search_tools` / `use_tool` 动态发现与调用。
+- **加 MCP Server**：写进 `packages/core/config.json` 的 `mcpServers`（按 `name` 增量合并规则，见上）。默认自带 `websearch`（open-websearch，无需凭据）；其工具不进工具表，模型经固定注入的来源目录感知存在，经 `search_tools` / `use_tool` 发现与调用。
 - **加聊天平台**：`bot/servers/` 加一个 `BaseServer` 子类（实现 `toSegments` 把平台消息归一化为统一段、`toEventMeta` 出元信息，媒体在 `toSegments` 内就地落地）+ `bot/adapters/` 加一个 `BaseAdapter` 子类（实现 `sendMsg()` 对外发送、声明 `channel` 与 `replyCapabilities()`），并在 `services/adapter-registry.js` 注册；管道与处理器零改动。
-- **加 MCP Server**：写进 `packages/core/config.json` 的 `mcpServers`（按 `name` 增量合并规则，见上）。默认自带 `websearch`（open-websearch，无需凭据）。
 - **加技能**：`packages/core/skills/<名称>/SKILL.md`（frontmatter `name`、`description`，可选 `force: true` 使正文固定注入上下文）+ `scripts/` 下 JS 脚本（`process.argv[2]` 收 JSON 参数、`console.log` 出结果，经 `run_shell` 执行）。社区技能经内置 `skills/skill-manager/` 从 GitHub 安装。
 
 ## 仓库注意

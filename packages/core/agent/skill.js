@@ -9,9 +9,8 @@ const SKILLS_DIR = process.env.CITH_DATA
     ? resolve(process.env.CITH_DATA, "skills")
     : resolve(__dirname, "..", "skills");
 
-/** 技能元数据列表（不含正文） */
+
 export let skills = [];
-/** 强加载技能列表（force: true），含 SKILL.md 正文内容 */
 export let forceSkills = [];
 
 const initial = await loadSkills();

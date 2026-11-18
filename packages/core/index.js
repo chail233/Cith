@@ -2,7 +2,7 @@ import logger from "./utils/logger.js";
 import config from "./config.js";
 import { startOneBotServer } from "./bot/servers/OnebotServer.ts";
 import runPipeline from "./pipeline/index.js";
-import {mcpClient} from "./agent/mcp-manager.js";
+import { extensionRegistry } from "./agent/extensions/registry.ts";
 import { startApiServer } from "./api/server.ts";
 import { setShutdownHandler } from "./api/actions/shutdown.ts";
 import startWechatBotServer from "./bot/servers/WechatBotServer.ts";
@@ -20,7 +20,8 @@ runPreflight();
 await initMemoryStore();
 void maintainMemoryStore();
 
-await mcpClient.init();
+// 扩展工具来源（MCP 等）：启动连接
+await extensionRegistry.init();
 
 if (config.enableOnebot) startOneBotServer(runPipeline);
 else logger.info("enableOnebot=false，跳过 QQ 接入服务");
@@ -31,16 +32,14 @@ startDesktopServer(runPipeline);
 // 启动面板 API WebSocket 服务
 const apiServer = startApiServer();
 
-
 await startScheduler({ onFire: wakeUp });
 
-// 进程退出时清理 MCP 子进程与面板 API 服务，防止僵尸进程/句柄泄漏
 const cleanup = async (signal) => {
     logger.info(`收到 ${signal} 信号，正在关闭...`);
     try { apiServer.close(); } catch { /* ignore */ }
     stopScheduler();
     await closeMemoryStore();
-    await mcpClient.shutdown();
+    await extensionRegistry.shutdown();
     process.exit(0);
 };
 
@@ -51,6 +50,6 @@ process.on('SIGTERM', () => cleanup('SIGTERM'));
 process.on('uncaughtException', async (err) => {
     logger.error('未捕获的异常:', err);
     await closeMemoryStore();
-    await mcpClient.shutdown();
+    await extensionRegistry.shutdown();
     process.exit(1);
 });
