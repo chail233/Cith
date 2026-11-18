@@ -96,6 +96,10 @@ export class ChatRecorder {
         this._chars += this._msgChars(msg);
     }
 
+    /**
+     * 全部消息序列化为 {role, content:string} 形态
+     * @returns {import("./types.ts").ChatMessage[]}
+     */
     getAll() {
         return this._messages.map((msg) => {
             return {role: msg.role, content: JSON.stringify(msg.content)};

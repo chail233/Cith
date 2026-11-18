@@ -29,7 +29,10 @@ export const definition: ToolDefinition = {
 };
 
 /** get_session_context 入参：模型生成的 JSON 字段类型不可信，需归一化 */
-type RawParams = { session?: unknown; count?: unknown };
+export interface GetSessionContextParams {
+    session?: unknown;
+    count?: unknown;
+}
 
 /** 消息条数上限：防止一次调用把调用方上下文撑爆 */
 const MAX_COUNT = 200;
@@ -41,8 +44,8 @@ const MAX_COUNT = 200;
  *
  * 记录原样透传（每行一条 JSON），消息段结构由记忆系统定义，与工具解耦
  */
-export async function execute(param: unknown, ctx?: ToolContext): Promise<string> {
-    const { session, count } = (param ?? {}) as RawParams;
+export async function execute(param: GetSessionContextParams, ctx?: ToolContext): Promise<string> {
+    const { session, count } = param ?? {};
     const currentId = ctx?.agent?.sessionId ?? "";
 
     if (typeof session !== "string" || session === "") {
@@ -64,4 +67,4 @@ export async function execute(param: unknown, ctx?: ToolContext): Promise<string
     return records.map((msg) => JSON.stringify(msg)).join("\n");
 }
 
-export default { definition, execute } satisfies ToolModule;
+export default { definition, execute } satisfies ToolModule<GetSessionContextParams>;

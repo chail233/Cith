@@ -11,11 +11,8 @@ import config from "../config.js";
 import logger from "../utils/logger.js";
 import type { ChatRecorder } from "./recorder.js";
 import type { Context, MessageSegment } from "../types/index.ts";
-import type { AbortedOutcome, AgentRunOutcome, AgentToolContext, HeldOutcome, LlmResult, ReplyPayload, ToolCall, ToolContext, ToolDefinition, ToolExecution, ToolHold } from "./types.ts";
+import type { AbortedOutcome, AgentRunResult, ChatMessage, HeldOutcome, LlmResult, ReplyOutcome, ToolCall, ToolContext, ToolDefinition, ToolExecution, ToolHold, WakeTrigger } from "./types.ts";
 import type { ReplyTool, ReplyToolResult } from "../bot/adapters/reply-tool.ts";
-
-/** 定时苏醒的触发信息 */
-type WakeTrigger = { type: string; id?: string; title?: string; prompt?: string };
 
 export default class Agent extends EventEmitter {
     /** 会话 ID（{from}:{id}），同时作为长期记忆的派生键 */
@@ -96,8 +93,8 @@ export default class Agent extends EventEmitter {
     }
 
 
-    private async runLoop(ctx: Context): Promise<AgentRunOutcome | HeldOutcome | AbortedOutcome | string> {
-        const toolCtx: AgentToolContext = { ...ctx, agent: this, signal: this.controller?.signal };
+    private async runLoop(ctx: Context): Promise<AgentRunResult> {
+        const toolCtx: ToolContext = { ...ctx, agent: this, signal: this.controller?.signal };
         const replyTool = resolveReplyTool(ctx.adapter);
         if (!replyTool) return "当前通道没有可用的发言工具，本轮无法回复";
         /** 已执行的工具轮数 */
@@ -166,8 +163,8 @@ export default class Agent extends EventEmitter {
      * 组装发送给 LLM 的完整消息列表
      * 稳定前缀在前（系统提示 → 技能/MCP → 笔记 → 概要）、易变项在后（计划/唤醒说明），前缀缓存友好，勿打乱顺序
      */
-    private async buildMessages(): Promise<Array<{ role: string; content: string }>> {
-        const messages: Array<{ role: string; content: string }> = [];
+    private async buildMessages(): Promise<ChatMessage[]> {
+        const messages: ChatMessage[] = [];
         const systemPrompt = readSystemPrompt();
         if (systemPrompt !== "") messages.push({ role: "system", content: systemPrompt });
 
@@ -192,7 +189,7 @@ export default class Agent extends EventEmitter {
             messages.push({ role: "system", content: `对话历史概要:${midSummary}` });
         }
 
-        const tail: Array<{ role: string; content: string }> = [];
+        const tail: ChatMessage[] = [];
         const activePlan = this.planBoard.getActive();
         if (activePlan) {
             tail.push({ role: "system", content: renderPlanBlock(activePlan) });
@@ -233,7 +230,7 @@ export default class Agent extends EventEmitter {
      * 工具链达到上限后的收敛请求：只留发言工具再问一次，逼模型直接作答
      * 收敛请求失败或模型仍不说话时，本轮不发言
      */
-    private async converge(replyTool: ReplyTool, toolCtx: AgentToolContext): Promise<AgentRunOutcome | AbortedOutcome> {
+    private async converge(replyTool: ReplyTool, toolCtx: ToolContext): Promise<ReplyOutcome | AbortedOutcome> {
         if (this.aborted) return this.abortedOutcome();
         const final = await this.ask([replyTool.definition]);
         if (this.aborted) return this.abortedOutcome();
@@ -270,7 +267,7 @@ export default class Agent extends EventEmitter {
      * 规范化失败则把原因回填给模型自修
      * @returns 待发送消息段（空数组 = 模型选择本轮不发言）；全部调用都失败时返回 null（错误已回填）
      */
-    private async speak(calls: ToolCall[], replyTool: ReplyTool, toolCtx: AgentToolContext): Promise<MessageSegment[] | null> {
+    private async speak(calls: ToolCall[], replyTool: ReplyTool, toolCtx: ToolContext): Promise<MessageSegment[] | null> {
         const acts: MessageSegment[] = [];
         let accepted = false;
         /** 本轮已成功受理的发言参数：端点偶发重复下发同一 tool_call 时，避免同一句话发两遍 */
@@ -296,33 +293,33 @@ export default class Agent extends EventEmitter {
      * 执行同一轮的多个工具调用：并行执行，并按 tool_calls 原顺序回填痕迹、广播结果
      * @returns 被门禁挂起的调用；非空时调用方必须中断本轮
      */
-    private async runTools(toolCalls: ToolCall[], toolCtx: AgentToolContext): Promise<ToolHold[]> {
+    private async runTools(toolCalls: ToolCall[], toolCtx: ToolContext): Promise<ToolHold[]> {
         const executions = await Promise.all(toolCalls.map((toolCall) => this.runTool(toolCall, toolCtx)));
         const holds: ToolHold[] = [];
-        for (const { toolCall, name, args, output } of executions) {
+        for (const { toolCall, args, output } of executions) {
             // 挂起调用既不记录也不广播：模型不该知道它悬而未决，确认后的结果由确认链注入上下文
             if (isToolHold(output)) {
                 holds.push(output);
                 continue;
             }
-            this.recordToolCall(name, JSON.stringify(args ?? toolCall.function.arguments), output);
-            this.broadcast("tool-result", { name, args, result: output });
+            this.recordToolCall(toolCall.function.name, JSON.stringify(args ?? toolCall.function.arguments), output);
+            this.broadcast("tool-result", { name: toolCall.function.name, args, result: output });
         }
         return holds;
     }
 
 
-    private async runTool(toolCall: ToolCall, toolCtx: AgentToolContext): Promise<ToolExecution> {
+    private async runTool(toolCall: ToolCall, toolCtx: ToolContext): Promise<ToolExecution> {
         const name = toolCall.function.name;
         let args: Record<string, unknown> | null = null;
         try {
             args = JSON.parse(toolCall.function.arguments);
             this.broadcast("tool-call", { name, args });
-            return { toolCall, name, args, output: await callTool(toolCall, toolCtx) };
+            return { toolCall, args, output: await callTool(toolCall, toolCtx) };
         }
         catch (err) {
             logger.error("AI 工具调用失败:", name, err);
-            return { toolCall, name, args, output: `工具 ${name} 执行失败：${errorMessage(err)}` };
+            return { toolCall, args, output: `工具 ${name} 执行失败：${errorMessage(err)}` };
         }
     }
 
@@ -369,7 +366,7 @@ export default class Agent extends EventEmitter {
             this.memory.add({ role: "assistant", content: { action: [], note: "本轮选择不发言" } });
             return;
         }
-        const payload: ReplyPayload = { acts };
+        const payload: ReplyOutcome = { acts };
         this.broadcast("reply", payload);
         this.memory.add({ role: "assistant", content: { action: acts } });
         this.memory.msgWithoutChat = 0;
@@ -411,8 +408,8 @@ function isToolHold(value: unknown): value is ToolHold {
 }
 
 /** 守卫：主循环是否因门禁挂起而中止 */
-function isHeldOutcome(value: AgentRunOutcome | HeldOutcome): value is HeldOutcome {
-    return Array.isArray((value as HeldOutcome).held);
+function isHeldOutcome(value: AgentRunResult): value is HeldOutcome {
+    return typeof value !== "string" && Array.isArray((value as HeldOutcome).held);
 }
 
 /** 守卫：主循环是否因用户中断而收尾 */

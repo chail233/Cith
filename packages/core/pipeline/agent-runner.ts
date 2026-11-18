@@ -8,11 +8,11 @@ import sleep from "../utils/sleep.js";
 import { getAgent } from "../agent/AgentManager.ts";
 import type Agent from "../agent/Agent.ts";
 import type { Context, MessageSegment } from "../types/index.ts";
-import type { ReplyPayload, ToolHold } from "../agent/types.ts";
+import type { ReplyOutcome, ToolHold } from "../agent/types.ts";
 
 /** Agent 事件监听器集合：reply 发回复，tool-call 发工具踩点，approval 发门禁询问 */
 type AgentListeners = {
-    reply: (payload: ReplyPayload) => void;
+    reply: (payload: ReplyOutcome) => void;
     "tool-call": (e: { name: string; args: unknown }) => void;
     approval: (holds: ToolHold[]) => void;
 };
@@ -26,7 +26,7 @@ export async function runAgent(ctx: Context): Promise<void> {
 
     // 回复发送串行化：多条回复按产出顺序逐条投递，保留拟人化节奏
     let tail = Promise.resolve();
-    const onReply = (payload: ReplyPayload) => {
+    const onReply = (payload: ReplyOutcome) => {
         tail = tail
             .then(() => deliverReply(ctx, payload))//追加
             .catch((err) => logger.error("AI 回复分发失败:", err));
@@ -90,7 +90,7 @@ async function deliverApproval(ctx: Context, holds: ToolHold[]): Promise<void> {
  * 按段顺序逐个发送一轮回复消息段，段间保留拟人化间隔。
  * reply/mention 依赖与内容同消息，攒到下一个内容段合并发送；
  */
-async function deliverReply(ctx: Context, { acts }: ReplyPayload): Promise<void> {
+async function deliverReply(ctx: Context, { acts }: ReplyOutcome): Promise<void> {
     logger.info("AI 消息内容:", JSON.stringify({ acts }));
     let decorations: MessageSegment[] = [];
     for (const seg of acts) {

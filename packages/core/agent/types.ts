@@ -1,8 +1,19 @@
-/**
- * Agent 系统独有类型
- */
 import type { Context, MessageSegment, Space } from "../types/index.ts";
+import type { ToolApprovalData } from "../types/segment.ts";
 import type Agent from "./Agent.ts";
+
+
+/** 发给模型的一条请求消息（content 可以是字符串，也可以是视觉模型要求的段数组） */
+export interface LlmMessage {
+    role: string;
+    content?: unknown;
+}
+
+/** 一条对话历史消息：content 已序列化为字符串（上下文组装与摘要都用这个形状） */
+export interface ChatMessage {
+    role: string;
+    content: string;
+}
 
 /** 模型返回的待执行工具调用 */
 export interface ToolCall {
@@ -16,104 +27,22 @@ export interface LlmResponseMessage {
     tool_calls?: ToolCall[];
 }
 
-/** 一次 LLM 调用的用量 */
 export interface LlmUsage {
-    /** 实际请求的模型 */
     model: string;
-    /** 输入 token（含缓存命中部分） */
     inputTokens: number;
-    /** 输出 token */
     outputTokens: number;
-    /** 前缀缓存命中的输入 token */
     cachedTokens: number;
-    /** 总消耗 */
     totalTokens: number;
 }
 
-/** LLM 聊天补全接口成功返回的结构 */
 export interface LlmResult {
     message: LlmResponseMessage;
-    /** 归一化用量；服务商未返回 usage 时为 null */
     usage: LlmUsage | null;
 }
 
-export interface ReplyPayload {
-    acts: MessageSegment[];
-}
 
-/** 一轮 Agent 主循环的产出：最终要发送的消息段 */
-export type AgentRunOutcome = ReplyPayload;
 
-/**
- * 门禁挂起的工具调用
- */
-export interface ToolHold {
-    /** 标记位，用于与正常文本输出区分 */
-    held: true;
-    /** 待确认操作编号 */
-    id: string;
-    /** 被挂起的工具名 */
-    toolName: string;
-    /** 挂起原因（guard 判定 / 未配置 guard 模型等） */
-    reason: string;
-    /** 被挂起的调用参数摘要（已截断） */
-    summary: string;
-    /** 发起人 ID */
-    requestedBy: string;
-    /** 发起人昵称 */
-    requestedByName: string;
-}
 
-/** 单个工具的调用结果：正常为文本输出，被门禁拦截时为挂起信息 */
-export type ToolCallResult = string | ToolHold;
-
-/** 本轮主循环因门禁挂起而中止，等待管理员确认 */
-export interface HeldOutcome {
-    held: ToolHold[];
-}
-
-/** 本轮主循环被用户中断：不投递任何消息，已发出的部分保留 */
-export interface AbortedOutcome {
-    aborted: true;
-}
-
-/** 单次工具调用的执行记录；args 为 null 表示参数解析失败 */
-export interface ToolExecution {
-    toolCall: ToolCall;
-    name: string;
-    args: Record<string, unknown> | null;
-    output: ToolCallResult;
-}
-
-/** 挂起等待管理员确认的危险工具操作 */
-export interface PendingToolCall {
-    toolCall: ToolCall;
-    toolName: string;
-    requestedBy: string;
-    requestedByName: string;
-    space: Space | null;
-    createdAt: number;
-}
-
-/** 任务计划步骤状态 */
-export type PlanStatus = "pending" | "in_progress" | "done" | "cancelled";
-
-/** 任务计划步骤条目 */
-export interface PlanItem {
-    content: string;
-    status: PlanStatus;
-}
-
-/** 一份完整任务计划：总体目标 + 步骤清单 */
-export interface Plan {
-    goal: string;
-    items: PlanItem[];
-}
-
-/** manage_plan 工具入参的原始形式：来自模型生成的 JSON，字段类型不可信，需经归一化 */
-export type RawTodo = { content?: unknown; status?: unknown } | null | undefined;
-
-/** OpenAI function calling 格式的单个工具定义 */
 export interface ToolDefinition {
     type: "function";
     function: {
@@ -123,19 +52,92 @@ export interface ToolDefinition {
     };
 }
 
-/** 工具执行上下文：请求上下文 + 调用方注入的 Agent 会话引用 */
+/** 单个 Agent 工具模块：definition 提供给模型，execute 为实现 */
+export interface ToolModule<P = unknown> {
+    definition: ToolDefinition;
+    execute: (param: P, ctx?: ToolContext) => Promise<string>;
+}
+
+
 export interface ToolContext extends Context {
     agent?: Agent | null;
     signal?: AbortSignal;
 }
 
-/** 传给工具层的上下文：请求上下文 + 发起本次调用的 Agent（保证 agent 存在） */
-export interface AgentToolContext extends ToolContext {
-    agent: Agent;
+
+export interface ToolHold extends ToolApprovalData {
+    /** 标记位，用于与正常文本输出区分 */
+    held: true;
+    /** 挂起原因（guard 判定 / 未配置 guard 模型等） */
+    reason: string;
+    /** 被挂起的调用参数摘要（已截断） */
+    summary: string;
 }
 
-/** 单个 Agent 工具模块：definition 提供给模型，execute 为实现 */
-export interface ToolModule<P = unknown> {
-    definition: ToolDefinition;
-    execute: (param: P, ctx?: ToolContext) => Promise<string>;
+/** 单个工具的调用结果：正常为文本输出，被门禁拦截时为挂起信息 */
+export type ToolCallResult = string | ToolHold;
+
+/** 单次工具调用的执行记录；args 为 null 表示参数解析失败 */
+export interface ToolExecution {
+    toolCall: ToolCall;
+    args: Record<string, unknown> | null;
+    output: ToolCallResult;
+}
+
+/** 待确认队列里的挂起项：工具名单独留一份，排队期间不依赖 toolCall 解析 */
+export interface PendingToolCall {
+    toolCall: ToolCall;
+    toolName: string;
+    requestedBy: string;
+    requestedByName: string;
+    space: Space | null;
+    createdAt: number;
+}
+
+
+
+/** 本轮发言：待发送的消息段（空数组 = 本轮不发言） */
+export interface ReplyOutcome {
+    acts: MessageSegment[];
+}
+
+/** 本轮主循环因门禁挂起而中止：等待管理员确认，本轮不发言 */
+export interface HeldOutcome {
+    held: ToolHold[];
+}
+
+/** 本轮主循环被用户中断：不投递任何消息，已发出的部分保留 */
+export interface AbortedOutcome {
+    aborted: true;
+}
+
+/** 主循环一轮的完整结果：发言 / 门禁挂起 / 被中断；模型或通道出错时退化为错误文本 */
+export type AgentRunResult = ReplyOutcome | HeldOutcome | AbortedOutcome | string;
+
+
+export interface WakeTrigger {
+    type: string;
+    id?: string;
+    title?: string;
+    prompt?: string;
+}
+
+export type PlanStatus = "pending" | "in_progress" | "done" | "cancelled";
+
+export interface PlanItem {
+    content: string;
+    status: PlanStatus;
+}
+
+export interface Plan {
+    goal: string;
+    items: PlanItem[];
+}
+
+export type RawTodo = { content?: unknown; status?: unknown } | null | undefined;
+
+
+export interface RecalledMemory {
+    text: string;
+    createdAt: number;
 }

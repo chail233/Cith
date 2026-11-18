@@ -1,6 +1,6 @@
 import logger from "../../utils/logger.js";
 import type { MessageSegment } from "../../types/index.ts";
-import type { ToolContext, ToolDefinition } from "../../agent/types.ts";
+import type { ReplyOutcome, ToolContext, ToolDefinition } from "../../agent/types.ts";
 
 /** 发言工具名 */
 export const REPLY_TOOL_NAME = "send_message";
@@ -19,7 +19,7 @@ export interface ReplySegmentCap {
 }
 
 /** 发言工具产出：成功为待发送消息段（空数组表示本轮不发言），失败为回填给模型的错误说明 */
-export type ReplyToolResult = { acts: MessageSegment[] } | string;
+export type ReplyToolResult = ReplyOutcome | string;
 
 /** 适配器对外暴露的发言工具 */
 export interface ReplyTool {

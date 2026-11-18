@@ -104,7 +104,7 @@ NapCat(反向WS) / 微信(长轮询) / 桌面客户端(自开WS, DesktopServer)
 - 用 `utils/logger.js`，不要用 `console`。
 - **JS 引用 TS 模块时 import 路径显式写 `.ts` 后缀**（构建时 `rewriteRelativeImportExtensions` 自动重写为 `.js`）；导入 interface **必须 `import type`**；JS 文件中用 JSDoc 引用类型：`/** @typedef {import("./xxx.ts").Type} Type */`。
 - `.ts` 中只允许可擦除语法（`erasableSyntaxOnly`：禁 `enum` 等）。
-- 共享类型单一真源：跨模块接口进 `packages/core/types/index.ts`（`CtxEvent` / `Space` / `Context`），消息段类型在 `packages/core/types/segment.ts`；Agent 专属类型（`ToolCall` / `LlmResult` / `ReplyAct` 等）进 `agent/types.ts`——不要在别处重复定义。types 与 `BaseAdapter` 之间的 type-only 循环 import 是允许的（运行时擦除）。
+- 共享类型单一真源：跨模块接口进 `packages/core/types/index.ts`（`CtxEvent` / `Space` / `Context`），消息段类型在 `packages/core/types/segment.ts`；Agent 专属类型（`ToolCall` / `LlmResult` / `ToolContext` / `ReplyOutcome` / `AgentRunResult` 等）进 `agent/types.ts`，按「对话与模型交互 / 工具 / 主循环产出 / 计划 / 长期记忆」分块——不要在别处重复定义。工具入参类型（`XxxParams`）跟着各自工具模块走，字段一律写 `unknown`（来自模型生成的 JSON，执行时自行归一化）。types 与 `BaseAdapter` 之间的 type-only 循环 import 是允许的（运行时擦除）。
 - 传输相关状态（如 ws socket）留在具体 Adapter 子类，不进 `BaseAdapter`。
 - 上下文组装讲究**前缀缓存友好**：稳定内容在前、易变内容在后；改动时勿打乱这一顺序。
 - 每轮请求的固定底噪约 **2.5k token**（`system.md` + 技能/MCP 清单 ≈ 280，8 个工具定义 ≈ 2.2k，`send_message` 单个 ≈ 940）：改工具 schema/描述时先想清楚这会让每轮成本涨多少。

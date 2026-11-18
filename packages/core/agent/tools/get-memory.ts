@@ -2,7 +2,7 @@ import { makeMemoryUserId, normalizeQueries, searchMemory } from "../long-term-m
 import { getMemoryStore } from "../../services/memory-store.ts";
 import { formatMemoryTime } from "../../utils/time.js";
 import logger from "../../utils/logger.js";
-import type { ToolContext, ToolDefinition, ToolModule } from "../types.ts";
+import type { RecalledMemory, ToolContext, ToolDefinition, ToolModule } from "../types.ts";
 
 export const definition: ToolDefinition = {
     type: "function",
@@ -29,23 +29,22 @@ export const definition: ToolDefinition = {
 };
 
 /** get_memory 入参：模型生成的 JSON 字段类型不可信，需归一化 */
-type RawMemoryQuery = { queries?: unknown } | null | undefined;
-
-/** 召回结果：内容 + 入库时间（毫秒时间戳） */
-type RecalledMemory = { text: string; createdAt: number };
+export interface GetMemoryParams {
+    queries?: unknown;
+}
 
 /**
  * 搜索长期记忆
  * - 传入 queries：按每条语句各召回一次，合并去重后按相似度取前 topK
  * - 未传 queries（或空数组）：取最近 20 条消息里的有效文本，最多 5 条逐条检索
  */
-export async function execute(param: unknown, ctx?: ToolContext): Promise<string> {
+export async function execute(param: GetMemoryParams, ctx?: ToolContext): Promise<string> {
     const agent = ctx?.agent;
     if (!agent) return "无法确定当前会话，无法搜索记忆";
     if (!getMemoryStore()) return "长期记忆未启用或初始化失败，暂时无法检索";
 
     const userId = makeMemoryUserId(agent.sessionId);
-    const queries = normalizeQueries((param as RawMemoryQuery)?.queries);
+    const queries = normalizeQueries(param?.queries);
 
     let recalled: RecalledMemory[];
     if (queries.length > 0) {
@@ -76,4 +75,4 @@ export async function execute(param: unknown, ctx?: ToolContext): Promise<string
         .join("\n");
 }
 
-export default { definition, execute } satisfies ToolModule;
+export default { definition, execute } satisfies ToolModule<GetMemoryParams>;

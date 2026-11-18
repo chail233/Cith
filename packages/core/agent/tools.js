@@ -85,7 +85,7 @@ export function getAllTools() {
 /**
  * 调用工具
  * @param {import("./types.ts").ToolCall} tool_call 完整的工具调用对象 { id, function: { name, arguments } }
- * @param {import("../types/index.ts").Context & {agent?: import("./Agent.ts").default}} [ctx] 请求上下文
+ * @param {import("./types.ts").ToolContext} [ctx] 工具执行上下文
  * @param {boolean} [confirmed=false] 是否已确认
  * @returns {Promise<import("./types.ts").ToolCallResult>} 正常为文本结果；门禁挂起时返回 ToolHold（不回给模型）
  */

@@ -49,6 +49,7 @@ async function doWake(task, adapter) {
         return false;
     }
     const prompt = String(task.prompt ?? "").trim();
+    /** @type {import("../agent/types.ts").WakeTrigger} */
     agent.pendingTrigger = {
         type: "schedule",
         id: task.id,
@@ -74,7 +75,6 @@ async function doWake(task, adapter) {
         isAdmin: true,
         isTarget: true,
         handled: false,
-        trigger: { type: "schedule", id: task.id, title: task.title },
     };
     logger.info(`定时苏醒：${task.id} ${task.title} → ${task.space.from}:${task.space.id}`);
     await runAgent(ctx);

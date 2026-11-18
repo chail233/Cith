@@ -1,15 +1,8 @@
-/**
- * 统一的 LLM API 客户端（OpenAI Chat Completions 协议）
- *
- * 通过 baseURL + apiKey 接入；不处理平台专属参数。
- */
 import OpenAI from "openai";
 import config from "../config.js";
 import logger from "../utils/logger.js";
-import type { LlmResponseMessage, LlmResult, LlmUsage, ToolDefinition } from "./types.ts";
+import type { LlmMessage, LlmResponseMessage, LlmResult, LlmUsage, ToolDefinition } from "./types.ts";
 import { recordUsage } from "../services/token-usage.ts";
-
-export type LlmMessage = { role: string; content?: unknown } & Record<string, unknown>;
 
 /** callLLM 入参 */
 export interface CallLlmOptions {

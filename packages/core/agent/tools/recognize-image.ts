@@ -7,7 +7,7 @@ import type { ToolDefinition, ToolModule } from "../types.ts";
 
 /** recognize_image 工具入参 */
 export interface RecognizeImageParams {
-    path: string;
+    path?: unknown;
 }
 
 export const definition: ToolDefinition = {
@@ -34,7 +34,7 @@ export const definition: ToolDefinition = {
  * 成本策略：送模型前先缩图，大图不再按原尺寸计费
  */
 export async function execute(param: RecognizeImageParams): Promise<string> {
-    const path = param?.path;
+    const path = typeof param?.path === "string" ? param.path.trim() : "";
     if (!path) return "缺少图片路径参数";
 
     let type: "jpg" | "png" | "gif" | "webp" | null;

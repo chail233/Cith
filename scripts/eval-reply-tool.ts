@@ -27,8 +27,7 @@ import { readSystemPrompt } from "../core/services/prompt-store.ts";
 import OnebotAdapter from "../core/bot/adapters/OnebotAdapter.ts";
 import { REPLY_TOOL_NAME } from "../core/bot/adapters/reply-tool.ts";
 import type { ReplyTool } from "../core/bot/adapters/reply-tool.ts";
-import type { LlmMessage } from "../core/agent/client.ts";
-import type { ToolDefinition } from "../core/agent/types.ts";
+import type { LlmMessage, ToolDefinition } from "../core/agent/types.ts";
 import type { MessageSegment } from "../core/types/index.ts";
 
 // ---------- 命令行参数 ----------

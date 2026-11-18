@@ -6,8 +6,8 @@ import type { ToolDefinition, ToolModule } from "../types.ts";
 
 /** manage_mcp 工具入参 */
 export interface ManageMcpParams {
-    action?: string;
-    mcpName?: string;
+    action?: unknown;
+    mcpName?: unknown;
 }
 
 export const definition: ToolDefinition = {

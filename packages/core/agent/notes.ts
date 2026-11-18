@@ -2,7 +2,7 @@ import { callLLM } from "./client.ts";
 import config from "../config.js";
 import logger from "../utils/logger.js";
 import type Agent from "./Agent.ts";
-import type { ToolCall, ToolContext, ToolModule } from "./types.ts";
+import type { ChatMessage, ToolCall, ToolContext, ToolModule } from "./types.ts";
 import { addNote, deleteNote, renderNotesBlock, updateNote } from "../services/notes-store.ts";
 import { readSystemPrompt } from "../services/prompt-store.ts";
 import { renderPlanBlock } from "./plan.ts";
@@ -19,11 +19,13 @@ const NOTES_PASS_PROMPT = [
     "没有需要变动的内容时，不要调用任何工具，直接结束。",
 ].join("\n");
 
-interface NoteContentParams {
+/** add_note 入参：模型生成的 JSON 字段类型不可信，交给 notes-store 归一化 */
+export interface NoteContentParams {
     content?: unknown;
 }
 
-interface NoteIdParams {
+/** update_note / delete_note 定位笔记的入参 */
+export interface NoteIdParams {
     id?: unknown;
 }
 
@@ -50,11 +52,10 @@ const addNoteTool = {
             },
         },
     },
-    execute: async (param: unknown, _ctx?: ToolContext) => {
-        const p = (param ?? {}) as NoteContentParams;
-        return addNote(p.content);
+    execute: async (param: NoteContentParams, _ctx?: ToolContext) => {
+        return addNote(param?.content);
     },
-} satisfies ToolModule;
+} satisfies ToolModule<NoteContentParams>;
 
 const updateNoteTool = {
     definition: {
@@ -69,11 +70,10 @@ const updateNoteTool = {
             },
         },
     },
-    execute: async (param: unknown, _ctx?: ToolContext) => {
-        const p = (param ?? {}) as NoteIdParams & NoteContentParams;
-        return updateNote(p.id, p.content);
+    execute: async (param: NoteIdParams & NoteContentParams, _ctx?: ToolContext) => {
+        return updateNote(param?.id, param?.content);
     },
-} satisfies ToolModule;
+} satisfies ToolModule<NoteIdParams & NoteContentParams>;
 
 const deleteNoteTool = {
     definition: {
@@ -88,11 +88,10 @@ const deleteNoteTool = {
             },
         },
     },
-    execute: async (param: unknown, _ctx?: ToolContext) => {
-        const p = (param ?? {}) as NoteIdParams;
-        return deleteNote(p.id);
+    execute: async (param: NoteIdParams, _ctx?: ToolContext) => {
+        return deleteNote(param?.id);
     },
-} satisfies ToolModule;
+} satisfies ToolModule<NoteIdParams>;
 
 const noteTools = [addNoteTool, updateNoteTool, deleteNoteTool];
 const noteToolMap = new Map(noteTools.map((t) => [t.definition.function.name, t]));
@@ -104,9 +103,10 @@ const noteToolMap = new Map(noteTools.map((t) => [t.definition.function.name, t]
 async function execNoteTool(call: ToolCall): Promise<string> {
     const tool = noteToolMap.get(call.function.name);
     if (!tool) return `未知工具 ${call.function.name}`;
-    let param: unknown;
+    // JSON.parse 返回 any：这里只声明期望的形状，字段类型仍由 notes-store 归一化
+    let param: NoteIdParams & NoteContentParams;
     try {
-        param = JSON.parse(call.function.arguments);
+        param = JSON.parse(call.function.arguments) ?? {};
     }
     catch {
         return "参数不是合法 JSON，请按工具定义重新填写";
@@ -124,8 +124,8 @@ async function execNoteTool(call: ToolCall): Promise<string> {
  * 组装维护 pass 的消息列表：复用当前对话上下文，但去除技能/MCP 清单
  * 稳定段顺序与 Agent.buildMessages 保持一致，末尾附加维护指令
  */
-async function buildNoteMessages(agent: Agent): Promise<Array<{ role: string; content: string }>> {
-    const messages: Array<{ role: string; content: string }> = [];
+async function buildNoteMessages(agent: Agent): Promise<ChatMessage[]> {
+    const messages: ChatMessage[] = [];
     const systemPrompt = readSystemPrompt();
     if (systemPrompt !== "") messages.push({ role: "system", content: systemPrompt });
 
