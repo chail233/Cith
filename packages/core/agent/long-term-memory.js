@@ -208,7 +208,7 @@ function queriesFromMessages(messages) {
  * @param {number} [options.topK] 合并后最多返回条数
  * @param {number} [options.minSimilarity] 原始余弦相似度底线
  * @param {number} [options.halfLifeDays] 时间衰减半衰期（天），0 表示不衰减
- * @returns {Promise<import("./types.ts").RecalledMemory[]>} 召回的记忆，为空表示无相关记忆
+ * @returns {Promise<import("../services/memory-store.ts").RecalledMemory[]>} 召回的记忆，为空表示无相关记忆
  */
 export async function searchMemory(userId, messages, options = {}) {
     if (!config.enableLongTermMemory) return [];
@@ -228,7 +228,7 @@ export async function searchMemory(userId, messages, options = {}) {
     if (queries.length === 0) return [];
 
     // 每条语句各召回一次，任一条失败只跳过，不整体放弃
-    /** @type {Map<string, import("./types.ts").RecalledMemory & {similarity: number}>} 记忆文本 → 最佳命中 */
+    /** @type {Map<string, import("../services/memory-store.ts").RecalledMemory & {similarity: number}>} 记忆文本 → 最佳命中 */
     const best = new Map();
     for (const query of queries) {
         try {

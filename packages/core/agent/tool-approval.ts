@@ -1,11 +1,22 @@
 import crypto from "node:crypto";
 import logger from "../utils/logger.js";
+import type { ToolCall } from "./types.ts";
+import type { Space } from "../types/index.ts";
+
+
+export interface PendingToolCall {
+    toolCall: ToolCall;
+    toolName: string;
+    requestedBy: string;
+    requestedByName: string;
+    space: Space | null;
+    createdAt: number;
+}
 
 const TTL_MS = 10 * 60 * 1000; // 10 分钟
 const MAX_PENDING = 20;
 
-/** @type {Map<string, import("./types.ts").PendingToolCall>} */
-const pending = new Map();
+const pending = new Map<string, PendingToolCall>();
 
 function sweepExpired() {
     const now = Date.now();
@@ -19,11 +30,12 @@ function sweepExpired() {
 
 /**
  * 挂起一个写工具调用
- * @param {object} toolCall 完整的工具调用对象 { id, function: { name, arguments } }
- * @param {{userId?: string, senderName?: string}} ctx
- * @returns {string|null} 待确认 id，队列满时返回 null
+ * @returns 待确认 id，队列满时返回 null
  */
-export function hold(toolCall, ctx) {
+export function hold(
+    toolCall: ToolCall,
+    ctx: { userId?: string; senderName?: string; space?: Space | null },
+): string | null {
     sweepExpired();
     if (pending.size >= MAX_PENDING) return null;
     const id = crypto.randomBytes(2).toString("hex");
@@ -42,10 +54,9 @@ export function hold(toolCall, ctx) {
 
 /**
  * 取出并移除一个挂起的写工具调用
- * @param {string} id
- * @returns {{entry: import("./types.ts").PendingToolCall|null, error: string}} 未找到时 entry 为 null
+ * @returns 未找到时 entry 为 null
  */
-export function take(id) {
+export function take(id: string): { entry: PendingToolCall | null; error: string } {
     sweepExpired();
     const entry = pending.get(id);
     if (!entry) return { entry: null, error: `没有找到待确认操作 #${id}（可能已过期或已执行）` };
@@ -54,7 +65,7 @@ export function take(id) {
 }
 
 /** 列出当前所有挂起项 */
-export function list() {
+export function list(): string {
     sweepExpired();
     if (pending.size === 0) return "当前没有待确认的危险操作";
     const lines = [...pending.entries()].map(([id, e]) => {

@@ -1,4 +1,17 @@
-import type { Plan, PlanStatus, RawTodo } from "./types.ts";
+export type PlanStatus = "pending" | "in_progress" | "done" | "cancelled";
+
+export interface PlanItem {
+    content: string;
+    status: PlanStatus;
+}
+
+export interface Plan {
+    goal: string;
+    items: PlanItem[];
+}
+
+/** 模型提交的待办项（未经归一化，content/status 均不可信） */
+export type RawTodo = { content?: unknown; status?: unknown } | null | undefined;
 
 const STATUS_ICONS: Record<PlanStatus, string> = {
     pending: "○",

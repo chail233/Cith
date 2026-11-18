@@ -49,7 +49,7 @@ async function doWake(task, adapter) {
         return false;
     }
     const prompt = String(task.prompt ?? "").trim();
-    /** @type {import("../agent/types.ts").WakeTrigger} */
+    /** @type {import("../agent/Agent.ts").WakeTrigger} */
     agent.pendingTrigger = {
         type: "schedule",
         id: task.id,

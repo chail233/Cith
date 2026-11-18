@@ -1,4 +1,5 @@
-import type { ToolContext, ToolDefinition, ToolModule, RawTodo } from "../types.ts";
+import type { ToolContext, ToolDefinition, ToolModule } from "../types.ts";
+import type { RawTodo } from "../plan.ts";
 
 /** manage_plan 工具入参（模型生成的 JSON，字段由 planBoard.set 归一化） */
 export interface ManagePlanParams {

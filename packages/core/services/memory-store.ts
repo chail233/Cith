@@ -12,6 +12,12 @@ import { resolveSrcPath } from "../utils/file-security.js";
 import { selectEvictions } from "./memory-eviction.ts";
 import type { EvictableRecord } from "./memory-eviction.ts";
 
+/** 从长期记忆里读出的一条记录（正文 + 入库时间） */
+export interface RecalledMemory {
+    text: string;
+    createdAt: number;
+}
+
 /** 单例；null 表示未启用或初始化失败，上层据此跳过长期记忆 */
 let store: Memory | null = null;
 /** 并发调用 init 时共享同一个初始化 Promise */

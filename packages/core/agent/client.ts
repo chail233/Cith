@@ -1,8 +1,34 @@
 import OpenAI from "openai";
 import config from "../config.js";
 import logger from "../utils/logger.js";
-import type { LlmMessage, LlmResponseMessage, LlmResult, LlmUsage, ToolDefinition } from "./types.ts";
+import type { ToolCall, ToolDefinition } from "./types.ts";
 import { recordUsage } from "../services/token-usage.ts";
+
+/** 发给模型的一条请求消息（content 可以是字符串，也可以是视觉模型要求的段数组） */
+export interface LlmMessage {
+    role: string;
+    content?: unknown;
+    tool_calls?: ToolCall[];
+    tool_call_id?: string;
+}
+
+export interface LlmResponseMessage {
+    content?: string | null;
+    tool_calls?: ToolCall[];
+}
+
+export interface LlmUsage {
+    model: string;
+    inputTokens: number;
+    outputTokens: number;
+    cachedTokens: number;
+    totalTokens: number;
+}
+
+export interface LlmResult {
+    message: LlmResponseMessage;
+    usage: LlmUsage | null;
+}
 
 export type LlmMode = "chat" | "vision" | "guard";
 

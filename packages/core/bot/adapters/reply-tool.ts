@@ -1,6 +1,7 @@
 import logger from "../../utils/logger.js";
 import type { MessageSegment } from "../../types/index.ts";
-import type { ReplyOutcome, ToolContext, ToolDefinition } from "../../agent/types.ts";
+import type { ToolContext, ToolDefinition } from "../../agent/types.ts";
+import type { ReplyOutcome } from "../../agent/Agent.ts";
 
 /** 发言工具名 */
 export const REPLY_TOOL_NAME = "send_message";

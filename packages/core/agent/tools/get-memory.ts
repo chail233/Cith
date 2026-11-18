@@ -2,7 +2,8 @@ import { makeMemoryUserId, normalizeQueries, searchMemory } from "../long-term-m
 import { getMemoryStore } from "../../services/memory-store.ts";
 import { formatMemoryTime } from "../../utils/time.js";
 import logger from "../../utils/logger.js";
-import type { RecalledMemory, ToolContext, ToolDefinition, ToolModule } from "../types.ts";
+import type { ToolContext, ToolDefinition, ToolModule } from "../types.ts";
+import type { RecalledMemory } from "../../services/memory-store.ts";
 
 export const definition: ToolDefinition = {
     type: "function",

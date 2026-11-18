@@ -1,6 +1,30 @@
 import logger from "../../utils/logger.js";
 import { createMcpProvider } from "./mcp-provider.ts";
-import type { ExtensionOverviewEntry, ExtensionProvider, ExtensionTool } from "../types.ts";
+
+
+export interface ExtensionTool {
+    name: string;
+    source: string;
+    description: string;
+    inputSchema: unknown;
+}
+
+export interface ExtensionOverviewEntry {
+    source: string;
+    description: string;
+    tools: number;
+}
+
+/** 扩展工具来源契约：发现 / 调用 / 生命周期 */
+export interface ExtensionProvider {
+    id: string;
+    init(): Promise<void>;
+    shutdown(): Promise<void>;
+    overview(): Promise<ExtensionOverviewEntry[]>;
+    search(query: string): Promise<ExtensionTool[]>;
+    get(name: string): Promise<ExtensionTool | null>;
+    invoke(name: string, args: Record<string, unknown>, signal?: AbortSignal): Promise<string>;
+}
 
 
 /** 搜索返回的工具卡上限：大 schema 一多会撑爆单轮回复 */

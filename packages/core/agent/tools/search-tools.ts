@@ -1,5 +1,6 @@
 import { extensionRegistry } from "../extensions/registry.ts";
-import type { ExtensionTool, ToolDefinition, ToolModule } from "../types.ts";
+import type { ToolDefinition, ToolModule } from "../types.ts";
+import type { ExtensionTool } from "../extensions/registry.ts";
 
 
 const MAX_SCHEMA_CHARS = 2000;

@@ -2,7 +2,7 @@ import { getAgent, listAgents } from "../../agent/AgentManager.ts";
 import config from "../../config.js";
 import {skills} from "../../agent/skill.js";
 import {getAllTools} from "../../agent/tools.js";
-import {list as doList} from "../../agent/tool-approval.js";
+import {list as doList} from "../../agent/tool-approval.ts";
 import {confirmPending, rejectPending} from "../../agent/approval-runner.ts";
 import { runAgent } from "../agent-runner.ts";
 import { ownerConfigured } from "../../services/preflight.ts";

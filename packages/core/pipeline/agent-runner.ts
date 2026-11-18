@@ -8,7 +8,8 @@ import sleep from "../utils/sleep.js";
 import { getAgent } from "../agent/AgentManager.ts";
 import type Agent from "../agent/Agent.ts";
 import type { Context, MessageSegment } from "../types/index.ts";
-import type { ReplyOutcome, ToolHold } from "../agent/types.ts";
+import type { ToolHold } from "../agent/types.ts";
+import type { ReplyOutcome } from "../agent/Agent.ts";
 
 /** Agent 事件监听器集合：reply 发回复，tool-call 发工具踩点，approval 发门禁询问 */
 type AgentListeners = {

@@ -1,6 +1,6 @@
 import { mcpClient } from "./mcp-manager.ts";
 import type { DiscoveredTool } from "./mcp-manager.ts";
-import type { ExtensionProvider, ExtensionTool } from "../types.ts";
+import type { ExtensionProvider, ExtensionTool } from "./registry.ts";
 
 /** mcp-manager 工具清单 → 扩展工具卡 */
 function toTool(item: DiscoveredTool): ExtensionTool {

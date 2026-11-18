@@ -1,6 +1,6 @@
 import config from "../config.js";
 import logger from "../utils/logger.js";
-import { hold } from "./tool-approval.js";
+import { hold } from "./tool-approval.ts";
 import { checkShellCommand } from "./shell-guard.ts";
 
 import getMemoryTool from "./tools/get-memory.ts";

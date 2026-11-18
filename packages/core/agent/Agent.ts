@@ -11,8 +11,49 @@ import config from "../config.js";
 import logger from "../utils/logger.js";
 import type { ChatRecorder } from "./recorder.js";
 import type { Context, MessageSegment } from "../types/index.ts";
-import type { AbortedOutcome, AgentRunResult, ChatMessage, ExtensionOverviewEntry, HeldOutcome, LlmResult, ReplyOutcome, SessionUsageStats, ToolCall, ToolContext, ToolDefinition, ToolExecution, ToolHold, ToolReceipt, WakeTrigger } from "./types.ts";
+import type { ChatMessage, ToolCall, ToolContext, ToolDefinition, ToolHold, ToolCallResult } from "./types.ts";
+import type { LlmResult } from "./client.ts";
+import type { ExtensionOverviewEntry } from "./extensions/registry.ts";
 import type { ReplyTool, ReplyToolResult } from "../bot/adapters/reply-tool.ts";
+
+export interface ToolExecution {
+    toolCall: ToolCall;
+    args: Record<string, unknown> | null;
+    output: ToolCallResult;
+}
+
+export interface ToolReceipt {
+    call: ToolCall;
+    output: string;
+}
+
+export interface ReplyOutcome {
+    acts: MessageSegment[];
+}
+
+export interface HeldOutcome {
+    held: ToolHold[];
+}
+
+export interface AbortedOutcome {
+    aborted: true;
+}
+
+/** 主循环一轮的完整结果：发言 / 门禁挂起 / 被中断；模型或通道出错时退化为错误文本 */
+export type AgentRunResult = ReplyOutcome | HeldOutcome | AbortedOutcome | string;
+
+export interface WakeTrigger {
+    type: string;
+    id?: string;
+    title?: string;
+    prompt?: string;
+}
+
+export interface SessionUsageStats {
+    requests: number;
+    inputTokens: number;
+    cachedTokens: number;
+}
 
 export default class Agent extends EventEmitter {
     /** 会话 ID（{from}:{id}），同时作为长期记忆的派生键 */

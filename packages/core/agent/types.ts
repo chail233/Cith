@@ -1,26 +1,12 @@
-import type { Context, MessageSegment, Space } from "../types/index.ts";
+import type { Context } from "../types/index.ts";
 import type { ToolApprovalData } from "../types/segment.ts";
 import type Agent from "./Agent.ts";
 
 
-/** 发给模型的一条请求消息（content 可以是字符串，也可以是视觉模型要求的段数组） */
-export interface LlmMessage {
-    role: string;
-    content?: unknown;
-    /** assistant 消息携带：原样回传的调用骨架，与后续 tool 消息配对 */
-    tool_calls?: ToolCall[];
-    /** tool 消息携带：对应的调用 id */
-    tool_call_id?: string;
-}
-
-/** 一条对话历史消息：常规消息 content 已序列化为字符串；工具调用轮回传协议骨架 */
 export interface ChatMessage {
     role: string;
-    /** 常规消息为序列化字符串；工具调用骨架为 null，工具回执为结果文本 */
     content: string | null;
-    /** assistant 消息携带：原样回传的调用骨架，与后续 tool 消息配对 */
     tool_calls?: ToolCall[];
-    /** tool 消息携带：对应的调用 id */
     tool_call_id?: string;
 }
 
@@ -29,33 +15,6 @@ export interface ToolCall {
     id: string;
     function: { name: string; arguments: string };
 }
-
-/** LLM 返回的助手消息 */
-export interface LlmResponseMessage {
-    content?: string | null;
-    tool_calls?: ToolCall[];
-}
-
-export interface LlmUsage {
-    model: string;
-    inputTokens: number;
-    outputTokens: number;
-    cachedTokens: number;
-    totalTokens: number;
-}
-
-export interface LlmResult {
-    message: LlmResponseMessage;
-    usage: LlmUsage | null;
-}
-
-export interface SessionUsageStats {
-    requests: number;
-    inputTokens: number;
-    cachedTokens: number;
-}
-
-
 
 
 export interface ToolDefinition {
@@ -71,32 +30,6 @@ export interface ToolDefinition {
 export interface ToolModule<P = unknown> {
     definition: ToolDefinition;
     execute: (param: P, ctx?: ToolContext) => Promise<string>;
-}
-
-
-export interface ExtensionTool {
-    name: string;
-    source: string;
-    description: string;
-    inputSchema: unknown;
-}
-
-
-export interface ExtensionOverviewEntry {
-    source: string;
-    description: string;
-    tools: number;
-}
-
-
-export interface ExtensionProvider {
-    id: string;
-    init(): Promise<void>;
-    shutdown(): Promise<void>;
-    overview(): Promise<ExtensionOverviewEntry[]>;
-    search(query: string): Promise<ExtensionTool[]>;
-    get(name: string): Promise<ExtensionTool | null>;
-    invoke(name: string, args: Record<string, unknown>, signal?: AbortSignal): Promise<string>;
 }
 
 
@@ -117,73 +50,3 @@ export interface ToolHold extends ToolApprovalData {
 
 /** 单个工具的调用结果：正常为文本输出，被门禁拦截时为挂起信息 */
 export type ToolCallResult = string | ToolHold;
-
-/** 单次工具调用的执行记录；args 为 null 表示参数解析失败 */
-export interface ToolExecution {
-    toolCall: ToolCall;
-    args: Record<string, unknown> | null;
-    output: ToolCallResult;
-}
-
-export interface ToolReceipt {
-    call: ToolCall;
-    output: string;
-}
-
-/** 待确认队列里的挂起项：工具名单独留一份，排队期间不依赖 toolCall 解析 */
-export interface PendingToolCall {
-    toolCall: ToolCall;
-    toolName: string;
-    requestedBy: string;
-    requestedByName: string;
-    space: Space | null;
-    createdAt: number;
-}
-
-
-
-/** 本轮发言：待发送的消息段（空数组 = 本轮不发言） */
-export interface ReplyOutcome {
-    acts: MessageSegment[];
-}
-
-/** 本轮主循环因门禁挂起而中止：等待管理员确认，本轮不发言 */
-export interface HeldOutcome {
-    held: ToolHold[];
-}
-
-/** 本轮主循环被用户中断：不投递任何消息，已发出的部分保留 */
-export interface AbortedOutcome {
-    aborted: true;
-}
-
-/** 主循环一轮的完整结果：发言 / 门禁挂起 / 被中断；模型或通道出错时退化为错误文本 */
-export type AgentRunResult = ReplyOutcome | HeldOutcome | AbortedOutcome | string;
-
-
-export interface WakeTrigger {
-    type: string;
-    id?: string;
-    title?: string;
-    prompt?: string;
-}
-
-export type PlanStatus = "pending" | "in_progress" | "done" | "cancelled";
-
-export interface PlanItem {
-    content: string;
-    status: PlanStatus;
-}
-
-export interface Plan {
-    goal: string;
-    items: PlanItem[];
-}
-
-export type RawTodo = { content?: unknown; status?: unknown } | null | undefined;
-
-
-export interface RecalledMemory {
-    text: string;
-    createdAt: number;
-}
