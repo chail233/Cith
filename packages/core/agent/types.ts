@@ -40,6 +40,12 @@ export interface LlmResult {
     usage: LlmUsage | null;
 }
 
+export interface SessionUsageStats {
+    requests: number;
+    inputTokens: number;
+    cachedTokens: number;
+}
+
 
 
 

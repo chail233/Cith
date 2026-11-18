@@ -25,6 +25,9 @@ export interface AgentInfo {
     chars: number;
     hasSummary: boolean;
     idleMin: number;
+    requests: number;
+    inputTokens: number;
+    cachedTokens: number;
 }
 
 const agents = new Map<string, AgentEntry>();
@@ -68,14 +71,20 @@ export function abortSession(id: string): boolean {
  */
 export function listAgents(): AgentInfo[] {
     const now = Date.now();
-    return [...agents.entries()].map(([id, e]) => ({
-        id,
-        short: e.agent.memory.length,
-        tokens: e.agent.memory.estimatedTokens,
-        chars: e.agent.memory.chars,
-        hasSummary: !!e.agent.memory.getMidSummary(),
-        idleMin: Math.floor((now - e.lastActive) / 60000),
-    }));
+    return [...agents.entries()].map(([id, e]) => {
+        const usage = e.agent.usageStats;
+        return {
+            id,
+            short: e.agent.memory.length,
+            tokens: e.agent.memory.estimatedTokens,
+            chars: e.agent.memory.chars,
+            hasSummary: !!e.agent.memory.getMidSummary(),
+            idleMin: Math.floor((now - e.lastActive) / 60000),
+            requests: usage.requests,
+            inputTokens: usage.inputTokens,
+            cachedTokens: usage.cachedTokens,
+        };
+    });
 }
 
 /**

@@ -6,7 +6,7 @@ import {list as doList} from "../../agent/tool-approval.js";
 import {confirmPending, rejectPending} from "../../agent/approval-runner.ts";
 import { runAgent } from "../agent-runner.ts";
 import { ownerConfigured } from "../../services/preflight.ts";
-import { getUsageSummary } from "../../services/token-usage.ts";
+import { cacheHitRate, getUsageSummary } from "../../services/token-usage.ts";
 import { renderNotes } from "../../services/notes-store.ts";
 import logger from "../../utils/logger.js";
 import { extractText } from "../../utils/extractText.ts";
@@ -192,14 +192,15 @@ const cmds = [
     },
     {
         name: "sessions",
-        description: "列出活跃会话",
+        description: "列出活跃会话（含模型请求与缓存命中率）",
         params: [],
         handler: async (args, ctx) => {
             const list = listAgents();
             if (list.length === 0) return "当前没有活跃会话";
-            const lines = list.map(s =>
-                `${s.id}：短期 ${s.short} 条，约 ${s.chars} 字（${s.tokens} token），${s.hasSummary ? "有概要" : "无概要"}，空闲 ${s.idleMin} 分钟`
-            );
+            const lines = list.map(s => {
+                const rate = cacheHitRate(s);
+                return `${s.id}：短期 ${s.short} 条，约 ${s.chars} 字（${s.tokens} token），${s.hasSummary ? "有概要" : "无概要"}，模型 ${s.requests} 次，缓存命中 ${rate == null ? "-" : `${rate}%`}，空闲 ${s.idleMin} 分钟`;
+            });
             return `活跃会话（${list.length} 个）：\n${lines.join("\n")}`;
         }
     },

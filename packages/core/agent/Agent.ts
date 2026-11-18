@@ -11,7 +11,7 @@ import config from "../config.js";
 import logger from "../utils/logger.js";
 import type { ChatRecorder } from "./recorder.js";
 import type { Context, MessageSegment } from "../types/index.ts";
-import type { AbortedOutcome, AgentRunResult, ChatMessage, ExtensionOverviewEntry, HeldOutcome, LlmResult, ReplyOutcome, ToolCall, ToolContext, ToolDefinition, ToolExecution, ToolHold, WakeTrigger } from "./types.ts";
+import type { AbortedOutcome, AgentRunResult, ChatMessage, ExtensionOverviewEntry, HeldOutcome, LlmResult, ReplyOutcome, SessionUsageStats, ToolCall, ToolContext, ToolDefinition, ToolExecution, ToolHold, WakeTrigger } from "./types.ts";
 import type { ReplyTool, ReplyToolResult } from "../bot/adapters/reply-tool.ts";
 
 export default class Agent extends EventEmitter {
@@ -24,6 +24,9 @@ export default class Agent extends EventEmitter {
     private controller: AbortController | null = null;
     pendingTrigger: WakeTrigger | null = null;
     private extensionOverview: ExtensionOverviewEntry[] = [];
+    private usageRequests = 0;
+    private usageInputTokens = 0;
+    private usageCachedTokens = 0;
 
     constructor(opts: { sessionId: string; memory: ChatRecorder }) {
         super();
@@ -208,7 +211,13 @@ export default class Agent extends EventEmitter {
             tools,
             signal: this.controller?.signal,
         });
-        return result || "AI 服务无响应";
+        if (typeof result === "string") return result || "AI 服务无响应";
+        if (result.usage) {
+            this.usageRequests += 1;
+            this.usageInputTokens += result.usage.inputTokens;
+            this.usageCachedTokens += result.usage.cachedTokens;
+        }
+        return result;
     }
 
 
@@ -315,6 +324,10 @@ export default class Agent extends EventEmitter {
 
     get isRunning(): boolean {
         return this.running;
+    }
+
+    get usageStats(): SessionUsageStats {
+        return { requests: this.usageRequests, inputTokens: this.usageInputTokens, cachedTokens: this.usageCachedTokens };
     }
 
 
