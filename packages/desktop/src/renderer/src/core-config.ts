@@ -57,8 +57,8 @@ export type CoreDraft = {
 
 export type FieldSpec =
     | { kind: 'text' | 'secret' | 'number' | 'csv' | 'kv' | 'json'; key: keyof CoreDraft; label: string; hint?: string; placeholder?: string; showIf?: { key: keyof CoreDraft; equals: string }; wide?: boolean }
-    | { kind: 'switch'; key: keyof CoreDraft; label: string; hint?: string; showIf?: { key: keyof CoreDraft; equals: string } }
-    | { kind: 'option'; key: keyof CoreDraft; label: string; hint?: string; options: Array<{ value: string; label: string }>; showIf?: { key: keyof CoreDraft; equals: string } }
+    | { kind: 'switch'; key: keyof CoreDraft; label: string; hint?: string; showIf?: { key: keyof CoreDraft; equals: string }; wide?: boolean }
+    | { kind: 'option'; key: keyof CoreDraft; label: string; hint?: string; options: Array<{ value: string; label: string }>; showIf?: { key: keyof CoreDraft; equals: string }; wide?: boolean }
 
 export type FieldGroup = { id: string; label: string; desc: string; fields: FieldSpec[] }
 
