@@ -20,11 +20,26 @@ export interface ToolExecution {
     toolCall: ToolCall;
     args: Record<string, unknown> | null;
     output: ToolCallResult;
+    durationMs: number;
+    ok: boolean;
 }
 
 export interface ToolReceipt {
     call: ToolCall;
     output: string;
+}
+
+export interface ToolCallEvent {
+    name: string;
+    args: Record<string, unknown> | null;
+}
+
+export interface ToolResultEvent {
+    name: string;
+    args: Record<string, unknown> | null;
+    output: string;
+    durationMs: number;
+    ok: boolean;
 }
 
 export interface ReplyOutcome {
@@ -346,14 +361,14 @@ export default class Agent extends EventEmitter {
         const executions = await Promise.all(toolCalls.map((toolCall) => this.runTool(toolCall, toolCtx)));
         const holds: ToolHold[] = [];
         const results: ToolReceipt[] = [];
-        for (const { toolCall, args, output } of executions) {
+        for (const { toolCall, args, output, durationMs, ok } of executions) {
             // 挂起调用既不记录也不广播：模型不该知道它悬而未决，确认后的结果由确认链注入上下文
             if (isToolHold(output)) {
                 holds.push(output);
                 continue;
             }
             results.push({ call: toolCall, output });
-            this.broadcast("tool-result", { name: toolCall.function.name, args, result: output });
+            this.broadcast("tool-result", { name: toolCall.function.name, args, output, durationMs, ok });
         }
         return { holds, results };
     }
@@ -362,14 +377,16 @@ export default class Agent extends EventEmitter {
     private async runTool(toolCall: ToolCall, toolCtx: ToolContext): Promise<ToolExecution> {
         const name = toolCall.function.name;
         let args: Record<string, unknown> | null = null;
+        const startedAt = Date.now();
         try {
             args = JSON.parse(toolCall.function.arguments);
             this.broadcast("tool-call", { name, args });
-            return { toolCall, args, output: await callTool(toolCall, toolCtx) };
+            const output = await callTool(toolCall, toolCtx);
+            return { toolCall, args, output, durationMs: Date.now() - startedAt, ok: true };
         }
         catch (err) {
             logger.error("AI 工具调用失败:", name, err);
-            return { toolCall, args, output: `工具 ${name} 执行失败：${errorMessage(err)}` };
+            return { toolCall, args, output: `工具 ${name} 执行失败：${errorMessage(err)}`, durationMs: Date.now() - startedAt, ok: false };
         }
     }
 

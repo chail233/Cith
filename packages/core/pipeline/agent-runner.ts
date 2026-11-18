@@ -9,12 +9,13 @@ import { getAgent } from "../agent/AgentManager.ts";
 import type Agent from "../agent/Agent.ts";
 import type { Context, MessageSegment } from "../types/index.ts";
 import type { ToolHold } from "../agent/types.ts";
-import type { ReplyOutcome } from "../agent/Agent.ts";
+import type { ReplyOutcome, ToolCallEvent, ToolResultEvent } from "../agent/Agent.ts";
 
-/** Agent 事件监听器集合：reply 发回复，tool-call 发工具踩点，approval 发门禁询问 */
+/** Agent 事件监听器集合：reply 发回复，tool-call/tool-result 发工具踩点，approval 发门禁询问 */
 type AgentListeners = {
     reply: (payload: ReplyOutcome) => void;
-    "tool-call": (e: { name: string; args: unknown }) => void;
+    "tool-call": (e: ToolCallEvent) => void;
+    "tool-result": (e: ToolResultEvent) => void;
     approval: (holds: ToolHold[]) => void;
 };
 
@@ -32,9 +33,15 @@ export async function runAgent(ctx: Context): Promise<void> {
             .then(() => deliverReply(ctx, payload))//追加
             .catch((err) => logger.error("AI 回复分发失败:", err));
     };
-    const onToolCall = ({ name, args }: { name: string; args: unknown }) => {
+    const onToolCall = ({ name, args }: ToolCallEvent) => {
         if (config.toolOutput) {
             ctx.adapter.sendMsg(ctx.space, `尝试调用${name}，参数为${JSON.stringify(args)}`);
+        }
+    };
+    const onToolResult = ({ name, durationMs, ok }: ToolResultEvent) => {
+        if (config.toolOutput) {
+            const seconds = (durationMs / 1000).toFixed(1);
+            ctx.adapter.sendMsg(ctx.space, ok ? `${name} 执行完成（${seconds}s）` : `${name} 执行失败（${seconds}s）`);
         }
     };
     // 门禁挂起：Agent 循环已停，由这里经适配器发出确认询问，挂起信息不进模型上下文
@@ -44,7 +51,7 @@ export async function runAgent(ctx: Context): Promise<void> {
             .catch((err) => logger.error("工具确认询问分发失败:", err));
     };
 
-    const listeners: AgentListeners = { reply: onReply, "tool-call": onToolCall, approval: onApproval };
+    const listeners: AgentListeners = { reply: onReply, "tool-call": onToolCall, "tool-result": onToolResult, approval: onApproval };
     attachAgentListeners(agent, listeners);
     try {
         await agent.run(ctx);
@@ -59,12 +66,14 @@ export async function runAgent(ctx: Context): Promise<void> {
 function attachAgentListeners(agent: Agent, listeners: AgentListeners): void {
     agent.on("reply", listeners.reply);
     agent.on("tool-call", listeners["tool-call"]);
+    agent.on("tool-result", listeners["tool-result"]);
     agent.on("approval", listeners.approval);
 }
 
 function detachAgentListeners(agent: Agent, listeners: AgentListeners): void {
     agent.off("reply", listeners.reply);
     agent.off("tool-call", listeners["tool-call"]);
+    agent.off("tool-result", listeners["tool-result"]);
     agent.off("approval", listeners.approval);
 }
 
