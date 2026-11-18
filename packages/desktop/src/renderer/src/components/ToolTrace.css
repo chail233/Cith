@@ -17,7 +17,7 @@
 }
 
 .trace-bar:hover {
-    background: rgba(233, 162, 92, 0.1);
+    background: var(--row-hover);
 }
 
 .trace-bar svg {
@@ -86,7 +86,7 @@
 .trace-body > .trace-pad {
     overflow: hidden;
     min-height: 0;
-    background: rgba(0, 0, 0, 0.18);
+    background: var(--inset-deep);
     padding: 0 14px;
     display: flex;
     flex-direction: column;

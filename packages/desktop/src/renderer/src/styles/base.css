@@ -20,6 +20,16 @@ body {
     overflow: hidden;
 }
 
+/* 环境光斑层：浅色主题铺在页面最底，是玻璃 blur 的景深来源；深色为 none 不画 */
+body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background: var(--bg-0);
+    background-image: var(--blob-layer);
+}
+
 button {
     font: inherit;
     color: inherit;
@@ -35,8 +45,13 @@ input {
 }
 
 a {
-    color: var(--accent-strong);
+    color: var(--accent-ink);
     text-decoration: none;
+}
+
+/* 品牌字的暖白是 ui 包常量，浅底下会融进浅底：消费侧跟随主题墨色 */
+html[data-theme='light'] .brandmark-ith {
+    fill: var(--text-1);
 }
 
 :focus-visible {
@@ -45,7 +60,7 @@ a {
 }
 
 ::selection {
-    background: rgba(233, 162, 92, 0.28);
+    background: var(--selection);
 }
 
 ::-webkit-scrollbar {
@@ -54,14 +69,14 @@ a {
 }
 
 ::-webkit-scrollbar-thumb {
-    background: rgba(243, 237, 228, 0.14);
+    background: var(--scroll-thumb);
     border-radius: 5px;
     border: 3px solid transparent;
     background-clip: content-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(243, 237, 228, 0.24);
+    background-color: var(--scroll-thumb-hover);
 }
 
 ::-webkit-scrollbar-corner {

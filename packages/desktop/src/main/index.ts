@@ -44,6 +44,10 @@ function reconcileBackendTarget(): void {
     if (local) backend.apply(local)
 }
 
+function windowBackground(theme: string): string {
+    return theme === 'light' ? '#f0e5cf' : '#191512'
+}
+
 function createWindow(): void {
     const win = new BrowserWindow({
         width: 1120,
@@ -52,7 +56,7 @@ function createWindow(): void {
         minHeight: 600,
         show: false,
         autoHideMenuBar: true,
-        backgroundColor: '#111418',
+        backgroundColor: windowBackground(loadSettings().theme),
         webPreferences: {
             preload: join(import.meta.dirname, '../preload/index.mjs'),
             sandbox: false
@@ -112,6 +116,9 @@ app.whenReady().then(() => {
     ipcMain.handle('settings:save', (_e, raw: unknown) => {
         const saved = saveSettings(raw)
         applyLoginItem(saved.startAtLogin)
+        // 窗口底色跟随主题，切换后立即刷新
+        const bg = windowBackground(saved.theme)
+        for (const win of BrowserWindow.getAllWindows()) win.setBackgroundColor(bg)
         // 模式切换后收敛通道目标；remote 模式由渲染层随后推送手填配置
         reconcileBackendTarget()
         return saved

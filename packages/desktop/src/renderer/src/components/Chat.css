@@ -3,7 +3,7 @@
     flex-direction: column;
     min-width: 0;
     min-height: 0;
-    background: var(--bg-0);
+    /* 不铺底色：浅色主题下让 body 的环境光斑透上来，深色下与 body 同色不受影响 */
     animation: view-in var(--speed) var(--ease);
 }
 

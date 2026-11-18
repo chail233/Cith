@@ -122,6 +122,15 @@ function InterfacePane({ settings, onChange }: { settings: UiSettings; onChange:
             </header>
 
             <div className="pane-card">
+                <OptionRow
+                    label="主题"
+                    value={settings.theme}
+                    options={[
+                        { value: 'dark', label: '深色' },
+                        { value: 'light', label: '浅色' },
+                    ]}
+                    onChange={(v) => onChange({ theme: v })}
+                />
                 <SliderRow
                     label="文字大小"
                     value={settings.fontSize}

@@ -1,5 +1,6 @@
 /** 桌面端设置：主进程落盘 userData/settings.json，渲染层经 IPC 读写 */
 export type UiSettings = {
+    theme: 'dark' | 'light'
     fontSize: number
     lineHeight: number
     paraGap: number
@@ -17,6 +18,7 @@ export type UiSettings = {
 }
 
 export const defaultSettings: UiSettings = {
+    theme: 'dark',
     fontSize: 14,
     lineHeight: 1.75,
     paraGap: 10,
@@ -46,6 +48,7 @@ export function mergeSettings(raw: unknown): UiSettings {
     }
     if (merged.sendKey !== 'enter' && merged.sendKey !== 'ctrlEnter') merged.sendKey = defaultSettings.sendKey
     if (merged.coreMode !== 'remote' && merged.coreMode !== 'local') merged.coreMode = defaultSettings.coreMode
+    if (merged.theme !== 'dark' && merged.theme !== 'light') merged.theme = defaultSettings.theme
     const limit = Number(merged.historyLimit)
     merged.historyLimit = Number.isFinite(limit)
         ? Math.min(HISTORY_LIMIT_MAX, Math.max(HISTORY_LIMIT_MIN, Math.round(limit)))

@@ -1,3 +1,6 @@
+/* ============ 设计 token 单一真源 ============ */
+/* 深色基准是暖炭琥珀（不透明表面分层）；浅色是 web 面板同款的暖琥珀磨砂毛玻璃：
+   暖纸底铺环境光斑，表面改半透明玻璃，靠 --glass-m 的 blur+saturate 成景深。挂 [data-theme] 切换。 */
 :root {
     /* 基底：暖炭/深咖，三层表面只靠颜色深浅区分，不画线 */
     --bg-0: #191512;
@@ -14,9 +17,30 @@
     --accent-strong: #f4bc7d;
     --accent-dim: rgba(233, 162, 92, 0.14);
     --accent-soft: rgba(233, 162, 92, 0.07);
+    /* 文字/图标级的琥珀（浅色下加深保证可读，深色下就是亮琥珀） */
+    --accent-ink: #f4bc7d;
+    /* 琥珀实底上的字 */
+    --on-accent: #221408;
+
+    --row-hover: rgba(233, 162, 92, 0.1);
+    --danger-soft: rgba(229, 118, 92, 0.12);
+    /* 列表项 hover 的浸染（深色=表面升一档，浅色=暖色压暗，见浅色块） */
+    --hover-fill: var(--bg-2);
+    /* 凹陷区（工具痕迹终端垫底） */
+    --inset-deep: rgba(0, 0, 0, 0.18);
 
     --ok: #9cc48f;
     --danger: #e5765c;
+
+    --selection: rgba(233, 162, 92, 0.28);
+    --scroll-thumb: rgba(243, 237, 228, 0.14);
+    --scroll-thumb-hover: rgba(243, 237, 228, 0.24);
+    /* 全屏遮罩（设置弹窗底下） */
+    --overlay: rgba(12, 9, 6, 0.55);
+
+    /* 环境光斑层（浅色铺在 body::before）与玻璃材质（blur+saturate 成磨砂）；深色都是关的 */
+    --blob-layer: none;
+    --glass-m: none;
 
     --font-body: system-ui, 'MiSans', 'PingFang SC', 'Microsoft YaHei', sans-serif;
     --font-display: 'Space Grotesk Variable', var(--font-body);
@@ -37,4 +61,50 @@
 
     --speed: 180ms;
     --ease: cubic-bezier(0.25, 0.8, 0.4, 1);
+}
+
+/* 浅色：web 面板的暖琥珀毛玻璃浅底变体（palette 取自 packages/web/src/styles/tokens.css） */
+[data-theme='light'] {
+    /* 玻璃阶：暖纸底 + 三层半透明表面；bg-3 是比 bg-2 深一档的暖沙玻璃（hover/选中=变暗，不变亮） */
+    --bg-0: #f0e5cf;
+    --bg-1: rgba(240, 229, 207, 0.5);
+    --bg-2: rgba(253, 249, 238, 0.62);
+    --bg-3: rgba(226, 204, 168, 0.62);
+
+    --text-1: #33261a;
+    --text-2: #7d6b56;
+    /* 比 web 的装饰色深：桌面的 text-3 承担功能性提示文字，太淡会融进浅底 */
+    --text-3: #8d7a5f;
+
+    /* 列表项 hover：中性暖浸染，压暗而非提亮 */
+    --hover-fill: rgba(122, 95, 60, 0.1);
+
+    /* 琥珀实底不变（玻璃后的一盏灯），文字级加深到 4.5:1 */
+    --accent-dim: rgba(233, 162, 92, 0.35);
+    --accent-soft: rgba(233, 162, 92, 0.16);
+    --accent-ink: #9c5a0c;
+    --on-accent: #2b1a08;
+
+    --row-hover: rgba(233, 162, 92, 0.26);
+    --danger-soft: rgba(176, 74, 46, 0.14);
+    --inset-deep: rgba(84, 60, 36, 0.14);
+
+    --ok: #526e2c;
+    --danger: #b04a2e;
+
+    --selection: rgba(233, 162, 92, 0.4);
+    --scroll-thumb: rgba(122, 95, 60, 0.3);
+    --scroll-thumb-hover: rgba(122, 95, 60, 0.45);
+    --overlay: rgba(46, 32, 20, 0.3);
+
+    --blob-layer:
+        radial-gradient(44rem 44rem at 38% 22%, rgba(233, 162, 92, 0.42), transparent 66%),
+        radial-gradient(40rem 40rem at 72% 8%, rgba(244, 188, 125, 0.32), transparent 66%),
+        radial-gradient(48rem 48rem at 82% 82%, rgba(221, 126, 84, 0.26), transparent 66%),
+        radial-gradient(34rem 34rem at 10% 92%, rgba(84, 60, 36, 0.16), transparent 70%);
+    --glass-m: blur(22px) saturate(1.5);
+
+    /* 暖棕调投影：玻璃浮起 */
+    --shadow-s: 0 8px 28px rgba(94, 66, 36, 0.12);
+    --shadow-m: 0 16px 44px rgba(94, 66, 36, 0.18);
 }
