@@ -1,7 +1,6 @@
 import logger from "../../utils/logger.js";
 import type { MessageSegment } from "../../types/index.ts";
 import type { ToolContext, ToolDefinition } from "../../agent/types.ts";
-import type { ReplyOutcome } from "../../agent/Agent.ts";
 
 /** 发言工具名 */
 export const REPLY_TOOL_NAME = "send_message";
@@ -19,8 +18,14 @@ export interface ReplySegmentCap {
     data: Record<string, unknown>;
 }
 
-/** 发言工具产出：成功为待发送消息段（空数组表示本轮不发言），失败为回填给模型的错误说明 */
-export type ReplyToolResult = ReplyOutcome | string;
+/** 发言工具产出：acts 供记忆痕迹，receipt 回填模型；string 为参数/使用错误说明 */
+export type ReplyToolResult = { acts: MessageSegment[]; receipt: string } | string;
+
+/** 发言投递结果：attempts 为实际发起的平台消息条数，failures 为失败描述（空数组 = 全部成功） */
+export interface ReplyDelivery {
+    attempts: number;
+    failures: string[];
+}
 
 /** 适配器对外暴露的发言工具 */
 export interface ReplyTool {
@@ -64,13 +69,13 @@ export function buildReplyTool(caps: ReplySegmentCap[]): ReplyTool {
         },
     };
 
-    async function execute(param: unknown): Promise<ReplyToolResult> {
+    async function execute(param: unknown, ctx?: ToolContext): Promise<ReplyToolResult> {
         const segments = isJsonObject(param) ? param.segments : undefined;
         if (!Array.isArray(segments)) {
             return "缺少参数 segments：需要传入消息段数组，不需要发言时传空数组";
         }
         // 空数组是模型明确选择「本轮不发言」，不是参数错误
-        if (segments.length === 0) return { acts: [] };
+        if (segments.length === 0) return { acts: [], receipt: "已确认本轮不发言" };
         const acts: MessageSegment[] = [];
         const rejected: string[] = [];
         segments.forEach((raw, index) => {
@@ -90,7 +95,15 @@ export function buildReplyTool(caps: ReplySegmentCap[]): ReplyTool {
         if (rejected.length > 0) logger.warn("发言工具丢弃了当前通道不支持的段:", rejected.join("；"));
         // 一条都没剩下才把原因回给模型；部分可用照发，不让一处笔误吞掉整条回复
         if (acts.length === 0) return rejected.join("；") || "没有可发送的消息段";
-        return { acts };
+
+        if (!ctx?.adapter) return "没有可用的发送通道";
+        logger.info("AI 消息内容:", JSON.stringify({ acts }));
+
+        // 执行定义在适配器：合并、节奏、逐段策略由各通道的 sendReply 决定
+        const delivery = await ctx.adapter.sendReply(ctx.space, acts);
+        if (delivery.failures.length === 0) return { acts, receipt: "消息已发送" };
+        if (delivery.failures.length >= delivery.attempts) return `消息全部发送失败：${delivery.failures.join("；")}`;
+        return { acts, receipt: `消息已发送，但部分失败：${delivery.failures.join("；")}` };
     }
 
     return { kind: "reply", definition, execute };

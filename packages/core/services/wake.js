@@ -3,7 +3,6 @@ import config from "../config.js";
 import sleep from "../utils/sleep.js";
 import { nowTime } from "../utils/time.js";
 import { getAgent } from "../agent/AgentManager.ts";
-import { runAgent } from "../pipeline/agent-runner.ts";
 import { resolveAdapter } from "./adapter-registry.js";
 
 
@@ -77,6 +76,6 @@ async function doWake(task, adapter) {
         handled: false,
     };
     logger.info(`定时苏醒：${task.id} ${task.title} → ${task.space.from}:${task.space.id}`);
-    await runAgent(ctx);
+    await getAgent(ctx.space).run(ctx);
     return true;
 }

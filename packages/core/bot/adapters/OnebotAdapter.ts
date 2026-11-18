@@ -1,16 +1,14 @@
 import BaseAdapter from "./BaseAdapter.ts";
 import type { CtxEvent, MessageSegment, Space } from "../../types/index.ts";
 import logger from "../../utils/logger.js";
+import sleep from "../../utils/sleep.js";
 import { mediaBasename, normalizeMedia, resolveSendablePath } from "../../utils/segment-media.ts";
 import { renderApprovalNotice, toApprovalData } from "../../utils/approval-notice.ts";
 import { pathToFileURL } from "node:url";
 import { fileCap, imageCap, textCap, voiceCap } from "./reply-segment-caps.ts";
-import type { ReplySegmentCap } from "./reply-tool.ts";
+import type { ReplyDelivery, ReplySegmentCap } from "./reply-tool.ts";
 
-/**
- * 本适配器支持的消息段能力
- * 只声明 OneBot 发得出去的段
- */
+
 const ONEBOT_CAPS: ReplySegmentCap[] = [
     textCap(),
     imageCap(),
@@ -75,6 +73,39 @@ export default class OnebotAdapter extends BaseAdapter{
                 message: segments
             },
         });
+    }
+
+
+    async sendReply(space: Space, acts: MessageSegment[]): Promise<ReplyDelivery> {
+        const messages: MessageSegment[][] = [];
+        let decorations: MessageSegment[] = [];
+        for (const seg of acts) {
+            if (seg.type === "reply" || seg.type === "mention") {
+                decorations.push(seg);
+                continue;
+            }
+            if (seg.type === "text" && !(seg.data.text ?? "").trim()) continue;
+            messages.push(decorations.length > 0 ? [...decorations, seg] : [seg]);
+            decorations = [];
+        }
+        for (const seg of decorations) {
+            if (seg.type === "mention") messages.push([seg]);
+        }
+
+        const failures: string[] = [];
+        let prev: MessageSegment | null = null;
+        for (const [index, message] of messages.entries()) {
+            if (prev) {
+                await sleep(prev.type === "text" ? 3000 + Math.floor(Math.random() * 1000) : 1200 + Math.floor(Math.random() * 800));
+            }
+            try {
+                await this.sendMsg(space, message);
+                prev = message[message.length - 1];
+            } catch (err) {
+                failures.push(`第 ${index + 1} 条：${err instanceof Error ? err.message : String(err)}`);
+            }
+        }
+        return { attempts: messages.length, failures };
     }
 
     /**

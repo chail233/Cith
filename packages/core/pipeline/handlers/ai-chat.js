@@ -1,4 +1,3 @@
-import { runAgent } from "../agent-runner.ts";
 import logger from "../../utils/logger.js";
 import { getAgent } from "../../agent/AgentManager.ts";
 import {nowTime} from "../../utils/time.js";
@@ -26,7 +25,7 @@ export default async function aiChat(ctx) {
     getAgent(ctx.space).memory.add(msg);
     logger.debug("AI 对话请求:", message);
 
-    await runAgent(ctx);
+    await getAgent(ctx.space).run(ctx);
 
     return true;
 }

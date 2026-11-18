@@ -22,6 +22,10 @@ class FakeAdapter extends BaseAdapter {
 
     async sendMsg() {}
 
+    async sendReply() {
+        return { attempts: 0, failures: [] };
+    }
+
     replyCapabilities() {
         return [];
     }

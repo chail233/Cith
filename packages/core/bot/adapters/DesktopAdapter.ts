@@ -6,7 +6,7 @@ import { renderApprovalNotice, toApprovalData } from "../../utils/approval-notic
 import { mediaBasename, normalizeMedia, resolveSendablePath } from "../../utils/segment-media.ts";
 import { WebSocket } from "ws";
 import { fileCap, imageCap, textCap } from "./reply-segment-caps.ts";
-import type { ReplySegmentCap } from "./reply-tool.ts";
+import type { ReplyDelivery, ReplySegmentCap } from "./reply-tool.ts";
 
 /**
  * 桌面客户端能力
@@ -53,6 +53,21 @@ export default class DesktopAdapter extends BaseAdapter {
 
     protected replyCapabilities(): ReplySegmentCap[] {
         return DESKTOP_CAPS;
+    }
+
+    /** 发言执行（桌面语义）：单帧携带全部段直发，本地 UI 无需拟人节奏；空文本段没有展示价值，出帧前滤掉 */
+    async sendReply(space: Space, acts: MessageSegment[]): Promise<ReplyDelivery> {
+        const segments = acts.filter((seg) => !(seg.type === "text" && !(seg.data.text ?? "").trim()));
+        if (segments.length === 0) return { attempts: 0, failures: [] };
+        if (this.ws.readyState !== WebSocket.OPEN) {
+            return { attempts: 1, failures: ["桌面客户端未连接"] };
+        }
+        try {
+            await this.sendMsg(space, segments);
+            return { attempts: 1, failures: [] };
+        } catch (err) {
+            return { attempts: 1, failures: [err instanceof Error ? err.message : String(err)] };
+        }
     }
 
     async sendMsg(space: Space, message: string | MessageSegment | MessageSegment[]) {

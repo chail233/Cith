@@ -1,4 +1,3 @@
-import { runAgent } from "../agent-runner.ts";
 import { getAgent } from "../../agent/AgentManager.ts";
 import logger from "../../utils/logger.js";
 import config from "../../config.js";
@@ -36,6 +35,6 @@ export default async function proactiveChat(ctx) {
 
     logger.info(`达到主动聊天阈值（${recorder.msgWithoutChat} 条），触发 AI 对话`);
     recorder.msgWithoutChat = 0;
-    await runAgent(ctx);
+    await getAgent(ctx.space).run(ctx);
     return true;
 }

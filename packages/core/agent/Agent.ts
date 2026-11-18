@@ -1,4 +1,3 @@
-import { EventEmitter } from "node:events";
 import { callLLM } from "./client.ts";
 import { callTool, getAllTools } from "./tools.js";
 import { reloadSkills, skills } from "./skill.js";
@@ -29,19 +28,6 @@ export interface ToolReceipt {
     output: string;
 }
 
-export interface ToolCallEvent {
-    name: string;
-    args: Record<string, unknown> | null;
-}
-
-export interface ToolResultEvent {
-    name: string;
-    args: Record<string, unknown> | null;
-    output: string;
-    durationMs: number;
-    ok: boolean;
-}
-
 export interface ReplyOutcome {
     acts: MessageSegment[];
 }
@@ -70,7 +56,7 @@ export interface SessionUsageStats {
     cachedTokens: number;
 }
 
-export default class Agent extends EventEmitter {
+export default class Agent {
     /** 会话 ID（{from}:{id}），同时作为长期记忆的派生键 */
     readonly sessionId: string;
     readonly memory: ChatRecorder;
@@ -85,7 +71,6 @@ export default class Agent extends EventEmitter {
     private usageCachedTokens = 0;
 
     constructor(opts: { sessionId: string; memory: ChatRecorder }) {
-        super();
         this.sessionId = opts.sessionId;
         this.memory = opts.memory;
     }
@@ -106,16 +91,16 @@ export default class Agent extends EventEmitter {
 
             const outcome = await this.runLoop(ctx);
             if (typeof outcome === "string") {
-                this.deliver([{ type: "text", data: { text: `ERROR:${outcome}` } }]);
+                await this.sendPlain(ctx, `ERROR:${outcome}`);
                 return;
             }
             if (isAbortedOutcome(outcome)) return;
-            // 门禁挂起：本轮不再产出回复，询问段交给分发方经适配器发出；挂起信息不进对话记忆
+            // 门禁挂起：本轮不再产出回复，询问段由 Agent 经适配器直接发出；挂起信息不进对话记忆
             if (isHeldOutcome(outcome)) {
-                this.broadcast("approval", outcome.held);
+                await this.deliverApproval(ctx, outcome.held);
                 return;
             }
-            this.deliver(outcome.acts);
+            this.recordReply(outcome.acts);
         }
         finally {
             this.controller = null
@@ -182,6 +167,7 @@ export default class Agent extends EventEmitter {
                     continue;
                 }
                 logger.warn("纠偏后模型仍以纯文本作答，桥接发送:", this.sessionId);
+                await this.sendPlain(toolCtx, text);
                 return { acts: [{ type: "text", data: { text } }] };
             }
 
@@ -221,7 +207,7 @@ export default class Agent extends EventEmitter {
 
             // 还有别的活没干完：这一轮的话当场发出，然后接着跑，直到只剩发言或没有工具
             if (acts) {
-                this.deliver(acts);
+                this.recordReply(acts);
             }
         }
     }
@@ -312,6 +298,7 @@ export default class Agent extends EventEmitter {
         const text = (final.message.content ?? "").trim();
         if (text !== "") {
             logger.warn("收敛请求得到纯文本，桥接发送:", this.sessionId);
+            await this.sendPlain(toolCtx, text);
             return { acts: [{ type: "text", data: { text } }] };
         }
         logger.info("收敛后模型仍未发言:", this.sessionId);
@@ -351,7 +338,7 @@ export default class Agent extends EventEmitter {
             acceptedArgs.add(call.function.arguments);
             accepted = true;
             acts.push(...output.acts);
-            results.push({ call, output: output.acts.length > 0 ? "消息已发送" : "已确认本轮不发言" });
+            results.push({ call, output: output.receipt });
         }
         return { acts: accepted ? acts : [], accepted, results };
     }
@@ -368,7 +355,11 @@ export default class Agent extends EventEmitter {
                 continue;
             }
             results.push({ call: toolCall, output });
-            this.broadcast("tool-result", { name: toolCall.function.name, args, output, durationMs, ok });
+            if (config.toolOutput) {
+                const seconds = (durationMs / 1000).toFixed(1);
+                const label = toolCall.function.name;
+                this.trace(toolCtx, ok ? `${label} 执行完成（${seconds}s）` : `${label} 执行失败（${seconds}s）`);
+            }
         }
         return { holds, results };
     }
@@ -380,7 +371,7 @@ export default class Agent extends EventEmitter {
         const startedAt = Date.now();
         try {
             args = JSON.parse(toolCall.function.arguments);
-            this.broadcast("tool-call", { name, args });
+            if (config.toolOutput) this.trace(toolCtx, `尝试调用${name}，参数为${JSON.stringify(args)}`);
             const output = await callTool(toolCall, toolCtx);
             return { toolCall, args, output, durationMs: Date.now() - startedAt, ok: true };
         }
@@ -414,29 +405,53 @@ export default class Agent extends EventEmitter {
     }
 
 
-    private broadcast(event: string, payload: unknown): void {
-        try {
-            this.emit(event, payload);
-        }
-        catch (err) {
-            logger.error(`Agent 事件监听器异常 (${event}):`, err);
-        }
-    }
 
-    /**
-     * 产出一轮回复：广播 "reply" 事件供分发方消费
-     * 空消息段 = 模型选择本轮不发言：不广播（分发方无内容可发），但留一条记忆痕迹
-     */
-    private deliver(acts: MessageSegment[]): void {
+    private recordReply(acts: MessageSegment[]): void {
         if (acts.length === 0) {
             logger.info("本轮选择不发言:", this.sessionId);
             this.memory.add({ role: "assistant", content: { action: [], note: "本轮选择不发言" } });
             return;
         }
-        const payload: ReplyOutcome = { acts };
-        this.broadcast("reply", payload);
         this.memory.add({ role: "assistant", content: { action: acts } });
         this.memory.msgWithoutChat = 0;
+    }
+
+    /** 无发言回执可走的单条纯文本（模型/通道出错退化、收敛桥接）：Agent 直发并留痕 */
+    private async sendPlain(ctx: Context, text: string): Promise<void> {
+        try {
+            await ctx.adapter.sendMsg(ctx.space, text);
+        } catch (err) {
+            logger.error("文本发送失败:", err);
+        }
+        this.recordReply([{ type: "text", data: { text } }]);
+    }
+
+    /** 门禁挂起询问：逐个转成 tool_approval 段直接投递；适配器自行决定如何渲染（@ 发起人、纯文本等） */
+    private async deliverApproval(ctx: Context, holds: ToolHold[]): Promise<void> {
+        for (const hold of holds) {
+            try {
+                await ctx.adapter.sendMsg(ctx.space, {
+                    type: "tool_approval",
+                    data: {
+                        id: hold.id,
+                        toolName: hold.toolName,
+                        requestedBy: hold.requestedBy,
+                        requestedByName: hold.requestedByName,
+                        reason: hold.reason,
+                        summary: hold.summary,
+                    },
+                });
+            } catch (err) {
+                logger.error("工具确认询问分发失败:", err);
+            }
+        }
+    }
+
+    /** 工具踩点：toolOutput 开启时直发，不等待不阻塞主循环 */
+    private trace(toolCtx: ToolContext, text: string): void {
+        void toolCtx.adapter.sendMsg(toolCtx.space, text).catch((err) => {
+            logger.warn("工具踩点发送失败:", err);
+        });
     }
 }
 

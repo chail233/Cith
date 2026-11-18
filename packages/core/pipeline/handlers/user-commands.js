@@ -4,7 +4,6 @@ import {skills} from "../../agent/skill.js";
 import {getAllTools} from "../../agent/tools.js";
 import {list as doList} from "../../agent/tool-approval.ts";
 import {confirmPending, rejectPending} from "../../agent/approval-runner.ts";
-import { runAgent } from "../agent-runner.ts";
 import { ownerConfigured } from "../../services/preflight.ts";
 import { cacheHitRate, getUsageSummary } from "../../services/token-usage.ts";
 import { renderNotes } from "../../services/notes-store.ts";
@@ -246,7 +245,7 @@ const cmds = [
                 outcomes.push(await confirmPending(id, ctx));
             }
             if (outcomes.some(o => o.ok)) {
-                runAgent(ctx).catch(err => {
+                getAgent(ctx.space).run(ctx).catch(err => {
                     logger.error("AI 回复失败:", err);
                 });
             }

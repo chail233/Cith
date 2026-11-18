@@ -133,9 +133,16 @@ test("多轮请求前缀稳定，cached_tokens 正确进统计", async () => {
 
     const replyTool = buildReplyTool([textCap(), imageCap()]);
     const agent = new Agent({ sessionId: "test:cache", memory });
-    const replies = [];
-    agent.on("reply", (payload) => replies.push(payload));
-    await agent.run({ adapter: { replyTool: () => replyTool } });
+    const sent = [];
+    await agent.run({
+        adapter: {
+            replyTool: () => replyTool,
+            async sendReply(_space, acts) {
+                sent.push(acts);
+                return { attempts: acts.length, failures: [] };
+            },
+        },
+    });
 
     // 两轮请求：轮 1 调工具、轮 2 发言收尾
     assert.equal(received.length, 2);
@@ -156,8 +163,7 @@ test("多轮请求前缀稳定，cached_tokens 正确进统计", async () => {
     ], "工具调用与结果应以标准角色字段成对回填在尾部");
 
     // 发言已交付
-    assert.equal(replies.length, 1);
-    assert.deepEqual(replies[0].acts, [{ type: "text", data: { text: "查好了，晴" } }]);
+    assert.deepEqual(sent, [[{ type: "text", data: { text: "查好了，晴" } }]]);
 
     // cached_tokens 采集与命中率：两轮各 cached 800 / input 1000 → 累计 1600/2000 = 80%
     // recordUsage 异步落账，轮询到统计就位再断言

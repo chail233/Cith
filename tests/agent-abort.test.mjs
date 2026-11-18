@@ -68,7 +68,14 @@ function fakeMemory() {
     };
 }
 
-const adapter = { replyTool: () => buildReplyTool([textCap()]) };
+const sent = [];
+const adapter = {
+    replyTool: () => buildReplyTool([textCap()]),
+    async sendReply(_space, acts) {
+        sent.push(acts);
+        return { attempts: acts.length, failures: [] };
+    },
+};
 
 test("工具执行期间中断：本轮立即收尾，不再请求模型也不发言", async () => {
     calls = 0;
@@ -78,12 +85,10 @@ test("工具执行期间中断：本轮立即收尾，不再请求模型也不�
     const agent = new Agent({ sessionId: "t1", memory });
     abortNow = () => agent.abort();
 
-    const replies = [];
-    agent.on("reply", (p) => replies.push(p));
     await agent.run({ adapter });
 
     assert.equal(calls, 1, "中断后不应再发起模型请求");
-    assert.deepEqual(replies, [], "中断后不应投递任何消息");
+    assert.equal(sent.length, 0, "中断后不应投递任何消息");
     assert.ok(signals[0] instanceof AbortSignal, "callLLM 应收到中断信号");
     assert.ok(
         memory.added.some((m) => String(m.content?.text ?? "").includes("被用户中断")),
@@ -99,8 +104,6 @@ test("模型请求在途时中断：立即结束，不等请求返回", async ()
     const agent = new Agent({ sessionId: "t2", memory });
     abortNow = () => {};
 
-    const replies = [];
-    agent.on("reply", (p) => replies.push(p));
     const run = agent.run({ adapter });
     // 等模型请求真正发出后再中断
     await new Promise((r) => setTimeout(r, 10));
@@ -112,7 +115,7 @@ test("模型请求在途时中断：立即结束，不等请求返回", async ()
     ]);
 
     assert.equal(calls, 1);
-    assert.deepEqual(replies, [], "中断后不应投递任何消息");
+    assert.equal(sent.length, 0, "中断后不应投递任何消息");
     assert.ok(memory.added.some((m) => String(m.content?.text ?? "").includes("被用户中断")));
     waitForAbort = false;
 });

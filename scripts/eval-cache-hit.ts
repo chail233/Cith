@@ -171,8 +171,7 @@ async function runOnce(budget: number): Promise<{ rows: RoundRow[]; avg: number 
         ? JSON.stringify([replyTool.definition, ...(await getAllTools())]).length / CHARS_PER_TOKEN
         : 0;
     const agent = new Agent({ sessionId: `cache-eval:${budget}`, memory });
-    agent.on("reply", () => {});
-    await agent.run({ adapter: { replyTool: () => replyTool } });
+    await agent.run({ adapter: { replyTool: () => replyTool, async sendReply() { return { attempts: 0, failures: [] }; } } });
 
     if (received.length !== ROUNDS) {
         console.log(`  ⚠ 实际收到 ${received.length} 轮请求（预期 ${ROUNDS}），结果可能不完整`);

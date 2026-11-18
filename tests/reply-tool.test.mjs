@@ -3,7 +3,7 @@
  *
  * 覆盖四件事：
  * - 工具 schema 由各适配器自己的能力集生成：OneBot 有 mention/reply，微信没有，两边互不影响
- * - Agent 见到发言工具调用即视为「本轮回复」：当场交付消息段，回执以 assistant.tool_calls + tool 消息成对写回
+ * - Agent 见到发言工具调用即视为「本轮回复」：当场直发消息段，真实发送结果以 assistant.tool_calls + tool 消息成对回写
  * - 同一轮还有其它工具时，话照发、工具照跑，跑完继续循环，直到只剩发言或没有工具
  * - 工具链打满后的收敛请求只带发言工具
  * - 发言是唯一出口：不调工具时的纯文本先纠偏重试一次，仍犯则桥接发送；没有适配器直接报错
@@ -39,8 +39,43 @@ test("OneBot 与微信的能力集各自独立", () => {
     assert.equal(onebot.replyTool().kind, "reply");
 });
 
+/** 群聊 Space 替身 */
+const groupSpace = { from: "group", id: "g1", channel: "onebot" };
+
+test("OneBot 发言执行：reply/mention 攒到下一个内容段合并发送", async () => {
+    const frames = [];
+    const adapter = new OnebotAdapter(noop, { send: (payload) => frames.push(JSON.parse(payload)) });
+
+    await adapter.sendReply(groupSpace, [
+        { type: "reply", data: { id: "m1" } },
+        { type: "mention", data: { id: "u1" } },
+        { type: "text", data: { text: "收到" } },
+    ]);
+
+    assert.equal(frames.length, 1, "三段合成一条 OneBot 消息");
+    assert.deepEqual(frames[0].params.message, [
+        { type: "reply", data: { id: "m1" } },
+        { type: "at", data: { qq: "u1" } },
+        { type: "text", data: { text: "收到" } },
+    ]);
+});
+
+test("OneBot 发言执行：reply 落单丢弃，mention 落单单发", async () => {
+    const frames = [];
+    const adapter = new OnebotAdapter(noop, { send: (payload) => frames.push(JSON.parse(payload)) });
+
+    await adapter.sendReply(groupSpace, [
+        { type: "reply", data: { id: "m1" } },
+        { type: "mention", data: { id: "u1" } },
+    ]);
+
+    assert.equal(frames.length, 1);
+    assert.deepEqual(frames[0].params.message, [{ type: "at", data: { qq: "u1" } }]);
+});
+
 test("发言工具部分段不合法时照发合法段", async () => {
     const tool = buildReplyTool([textCap(), imageCap()]);
+    const adapter = fakeAdapter();
 
     const mixed = await tool.execute({
         segments: [
@@ -48,14 +83,19 @@ test("发言工具部分段不合法时照发合法段", async () => {
             { type: "mention", data: { id: "1" } },
             { type: "image", data: { media: { localPath: "core/stickers/images/S1/001.jpg" } } },
         ],
-    });
+    }, { adapter });
     assert.deepEqual(mixed, {
         acts: [
             { type: "text", data: { text: "你好" } },
             // 字段原样透传，不再在这一层补 uri/改名，怎么发由适配器决定
             { type: "image", data: { media: { localPath: "core/stickers/images/S1/001.jpg" } } },
         ],
+        receipt: "消息已发送",
     });
+    assert.deepEqual(adapter.sent, [[
+        { type: "text", data: { text: "你好" } },
+        { type: "image", data: { media: { localPath: "core/stickers/images/S1/001.jpg" } } },
+    ]], "mention 被过滤，其余整组交给适配器执行");
 });
 
 test("只按通道过滤段类型，字段原样透传", async () => {
@@ -67,12 +107,13 @@ test("只按通道过滤段类型，字段原样透传", async () => {
             { type: "text", data: { text: "", extra: 1 } },
             { type: "image", data: { media: { uri: "core/a.jpg" } } },
         ],
-    });
+    }, { adapter: fakeAdapter() });
     assert.deepEqual(out, {
         acts: [
             { type: "text", data: { text: "", extra: 1 } },
             { type: "image", data: { media: { uri: "core/a.jpg" } } },
         ],
+        receipt: "消息已发送",
     });
 });
 
@@ -94,7 +135,7 @@ test("空数组 = 明确不发言，不是参数错误", async () => {
     // schema 不再限制最小长度，否则模型无法表达「本轮不说话」
     assert.equal(tool.definition.function.parameters.properties.segments.minItems, undefined);
 
-    assert.deepEqual(await tool.execute({ segments: [] }), { acts: [] });
+    assert.deepEqual(await tool.execute({ segments: [] }), { acts: [], receipt: "已确认本轮不发言" });
 });
 
 // ---------------------------------------------------------------- Agent 集成
@@ -158,19 +199,26 @@ function toolCall(name) {
     };
 }
 
-/** 当前会话的适配器替身：只有 text / image 两种能力 */
+/** 当前会话的适配器替身：只有 text / image 两种能力，记录全部直发内容（发言整组段 + 桥接纯文本） */
 function fakeAdapter() {
     const tool = buildReplyTool([textCap(), imageCap()]);
-    return { replyTool: () => tool };
+    const sent = [];
+    return {
+        replyTool: () => tool,
+        sent,
+        async sendReply(_space, acts) {
+            sent.push(acts);
+            return { attempts: acts.length, failures: [] };
+        },
+        async sendMsg(_space, message) { sent.push(message); },
+    };
 }
 
-/** 跑一轮 Agent，返回捕获到的 reply 事件 */
+/** 跑一轮 Agent，返回适配器替身（含 sent 直发记录） */
 async function runOnce(memory, ctx = { adapter: fakeAdapter() }) {
     const agent = new Agent({ sessionId: "test", memory });
-    const replies = [];
-    agent.on("reply", (payload) => replies.push(payload));
     await agent.run(ctx);
-    return replies;
+    return ctx.adapter;
 }
 
 beforeEach(() => {
@@ -182,12 +230,13 @@ test("发言工具调用即本轮回复：回执成对写回，消息正常交�
     // 模型在 tool_calls 前夹带的自由文本应被忽略
     responses = [replyToolCall({ segments: [{ type: "text", data: { text: "在" } }] }, "我马上说")];
     const memory = fakeMemory();
+    const adapter = fakeAdapter();
 
-    const replies = await runOnce(memory);
+    await runOnce(memory, { adapter });
 
     assert.equal(calls.length, 1, "发言即结束本轮，不应再请求模型");
     assert.equal(calls[0].tools[0].function.name, REPLY_TOOL_NAME, "发言工具应排在工具表首位");
-    assert.deepEqual(replies[0].acts, [{ type: "text", data: { text: "在" } }]);
+    assert.deepEqual(adapter.sent, [[{ type: "text", data: { text: "在" } }]], "消息经适配器实际发出");
 
     const skeleton = memory.added.find((m) => m.role === "assistant" && m.tool_calls);
     assert.ok(skeleton, "调用应以 assistant.tool_calls 骨架回传");
@@ -207,14 +256,14 @@ test("发言参数不合法时回填错误并继续，下一轮正常发出", as
     ];
     const memory = fakeMemory();
 
-    const replies = await runOnce(memory);
+    const adapter = await runOnce(memory);
 
     assert.equal(calls.length, 2, "参数不合法不应吞掉整轮，应回填错误让模型重来");
     assert.ok(
         memory.added.some((m) => m.role === "tool" && String(m.content).includes("当前通道不支持")),
         "错误原因应随 tool 回执写回上下文",
     );
-    assert.deepEqual(replies[0].acts, [{ type: "text", data: { text: "换个说法" } }]);
+    assert.deepEqual(adapter.sent, [[{ type: "text", data: { text: "换个说法" } }]]);
 });
 
 test("同一轮既有工具又有发言时，话当场发出并继续跑工具", async () => {
@@ -239,7 +288,7 @@ test("同一轮既有工具又有发言时，话当场发出并继续跑工具",
     ];
     const memory = fakeMemory();
 
-    const replies = await runOnce(memory);
+    const adapter = await runOnce(memory);
 
     assert.equal(calls.length, 2, "工具跑完应继续下一轮，而不是直接收尾");
     assert.ok(
@@ -251,7 +300,7 @@ test("同一轮既有工具又有发言时，话当场发出并继续跑工具",
         "普通工具的执行结果随 tool 回执写回",
     );
     // 同轮说的那句当场发出，末尾的结论再发一条，共两条
-    assert.deepEqual(replies.map((r) => r.acts), [
+    assert.deepEqual(adapter.sent, [
         [{ type: "text", data: { text: "我先查一下" } }],
         [{ type: "text", data: { text: "查完了" } }],
     ]);
@@ -281,24 +330,25 @@ test("同轮发言参数不合法时工具照跑，改好后再发", async () =>
     ];
     const memory = fakeMemory();
 
-    const replies = await runOnce(memory);
+    const adapter = await runOnce(memory);
 
     assert.equal(calls.length, 2, "发言失败不该中断循环");
     assert.ok(
         memory.added.some((m) => m.role === "tool" && String(m.content).includes("当前通道不支持")),
         "错误应随 tool 回执回填给模型",
     );
-    assert.deepEqual(replies.map((r) => r.acts), [[{ type: "text", data: { text: "查完了" } }]]);
+    assert.deepEqual(adapter.sent, [[{ type: "text", data: { text: "查完了" } }]]);
 });
 
-test("模型传空数组时不发言：不广播 reply，但留一条记忆痕迹", async () => {
+test("模型传空数组时不发言：零发送，但留一条记忆痕迹", async () => {
     responses = [replyToolCall({ segments: [] })];
     const memory = fakeMemory();
+    const adapter = fakeAdapter();
 
-    const replies = await runOnce(memory);
+    await runOnce(memory, { adapter });
 
     assert.equal(calls.length, 1, "不发言也是本轮结论，不应再请求模型");
-    assert.equal(replies.length, 0, "没有内容可发，不应广播 reply 事件");
+    assert.equal(adapter.sent.length, 0, "空数组不应触发任何发送");
     const silent = memory.added.find((m) => Array.isArray(m.content?.action));
     assert.ok(silent, "应写入一条 assistant 痕迹");
     assert.deepEqual(silent.content.action, []);
@@ -313,10 +363,10 @@ test("模型没调任何工具且正文为空时本轮不发言", async () => {
     responses = [{ message: { content: null }, usage: null }];
     const memory = fakeMemory();
 
-    const replies = await runOnce(memory);
+    const adapter = await runOnce(memory);
 
     assert.equal(calls.length, 1, "真沉默就是本轮结论，不该再追问");
-    assert.equal(replies.length, 0, "没有内容不该广播 reply 事件");
+    assert.equal(adapter.sent.length, 0, "没有内容不该触发发送");
     assert.ok(memory.added.some((m) => Array.isArray(m.content?.action)), "仍应留下「本轮没说话」的记忆痕迹");
 });
 
@@ -327,14 +377,14 @@ test("纯文本作答时先纠偏重试，改用发言工具后正常发出", as
     ];
     const memory = fakeMemory();
 
-    const replies = await runOnce(memory);
+    const adapter = await runOnce(memory);
 
     assert.equal(calls.length, 2, "纯文本应回填纠偏后再请求一次");
     assert.ok(
         memory.added.some((m) => String(m.content?.text ?? "").includes("没有调用 send_message")),
         "纠偏原因应写回上下文",
     );
-    assert.deepEqual(replies[0].acts, [{ type: "text", data: { text: "这个话题确实有意思" } }]);
+    assert.deepEqual(adapter.sent, [[{ type: "text", data: { text: "这个话题确实有意思" } }]]);
 });
 
 test("纠偏后仍纯文本时桥接成文本段发出", async () => {
@@ -344,10 +394,10 @@ test("纠偏后仍纯文本时桥接成文本段发出", async () => {
     ];
     const memory = fakeMemory();
 
-    const replies = await runOnce(memory);
+    const adapter = await runOnce(memory);
 
     assert.equal(calls.length, 2, "桥接前只纠偏一次，不再无限重试");
-    assert.deepEqual(replies[0].acts, [{ type: "text", data: { text: "第二版答案" } }], "把最后一次正文当发言发出");
+    assert.deepEqual(adapter.sent, ["第二版答案"], "把最后一次正文当发言发出");
     assert.ok(memory.added.some((m) => Array.isArray(m.content?.action)), "桥接的发言照常写入 assistant 记忆");
 });
 
@@ -359,22 +409,23 @@ test("收敛请求得到纯文本时直接桥接", async () => {
     ];
     const memory = fakeMemory();
 
-    const replies = await runOnce(memory);
+    const adapter = await runOnce(memory);
 
     assert.equal(calls.length, max + 2, "打满后应多一次收敛请求");
     assert.equal(calls.at(-1).tools.length, 1, "收敛请求只保留发言工具");
-    assert.deepEqual(replies[0].acts, [{ type: "text", data: { text: "收敛答复" } }]);
+    assert.deepEqual(adapter.sent, ["收敛答复"]);
 });
 
 test("当前通道没有发言工具时直接报错，不退回文本", async () => {
     responses = [{ message: { content: "随便说点什么" }, usage: null }];
     const memory = fakeMemory();
 
-    const replies = await runOnce(memory, {});
+    await runOnce(memory, {});
 
     assert.equal(calls.length, 0, "拿不到发言工具就不该请求模型");
-    assert.equal(replies.length, 1);
-    assert.match(replies[0].acts[0].data.text, /^ERROR:/);
+    const errorTrace = memory.added.find((m) => Array.isArray(m.content?.action));
+    assert.ok(errorTrace, "应留一条 assistant 记忆痕迹");
+    assert.match(errorTrace.content.action[0].data.text, /^ERROR:/);
 });
 
 test("工具链打满后的收敛请求只带发言工具", async () => {
@@ -385,11 +436,11 @@ test("工具链打满后的收敛请求只带发言工具", async () => {
     ];
     const memory = fakeMemory();
 
-    const replies = await runOnce(memory);
+    const adapter = await runOnce(memory);
 
     assert.equal(calls.length, max + 2, "打满后应多一次收敛请求");
     const converge = calls.at(-1);
     assert.equal(converge.tools.length, 1, "收敛请求只保留发言工具");
     assert.equal(converge.tools[0].function.name, REPLY_TOOL_NAME);
-    assert.deepEqual(replies[0].acts, [{ type: "text", data: { text: "收" } }]);
+    assert.deepEqual(adapter.sent, [[{ type: "text", data: { text: "收" } }]]);
 });

@@ -1,12 +1,13 @@
 import BaseAdapter from "./BaseAdapter.ts";
 import type { CtxEvent, MessageSegment, Space } from "../../types/index.ts";
 import logger from "../../utils/logger.js";
+import sleep from "../../utils/sleep.js";
 import { mediaBasename, normalizeMedia, resolveSendablePath } from "../../utils/segment-media.ts";
 import { renderApprovalNotice, toApprovalData } from "../../utils/approval-notice.ts";
 import { readFile } from "node:fs/promises";
 import {WeChatBot} from "@wechatbot/wechatbot";
 import { fileCap, imageCap, textCap } from "./reply-segment-caps.ts";
-import type { ReplySegmentCap } from "./reply-tool.ts";
+import type { ReplyDelivery, ReplySegmentCap } from "./reply-tool.ts";
 
 /**
  * 本适配器支持的消息段能力
@@ -39,6 +40,27 @@ export default class WechatBotAdapter extends BaseAdapter{
                 logger.error("WechatBot 发送消息段失败:", err);
             }
         }
+    }
+
+    /** 发言执行（微信语义）：逐段发送，单段失败不中断后续且计入回执；空文本跳过。首条立即发，后续保留拟人间隔 */
+    async sendReply(space: Space, acts: MessageSegment[]): Promise<ReplyDelivery> {
+        const failures: string[] = [];
+        let attempts = 0;
+        let prev: MessageSegment | null = null;
+        for (const seg of acts) {
+            if (seg.type === "text" && !(seg.data.text ?? "").trim()) continue;
+            if (prev) {
+                await sleep(prev.type === "text" ? 3000 + Math.floor(Math.random() * 1000) : 1200 + Math.floor(Math.random() * 800));
+            }
+            attempts++;
+            try {
+                await this.sendSegment(space.id, seg);
+                prev = seg;
+            } catch (err) {
+                failures.push(`第 ${attempts} 条：${err instanceof Error ? err.message : String(err)}`);
+            }
+        }
+        return { attempts, failures };
     }
 
     /** 单个消息段 → 微信发送动作；SDK SendContent 仅支持文本/图片/文件/视频/链接，其余类型跳过 */
