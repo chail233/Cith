@@ -55,8 +55,9 @@ export async function execute(param: GetMemoryParams, ctx?: ToolContext): Promis
         const shortTermMessages = agent.memory.getAll();
         if (shortTermMessages.length === 0) return "没有对话记录，无法搜索记忆";
 
+        // 工具调用骨架（content 为 null）对向量检索没有文本贡献，一并排除
         const userMessages = shortTermMessages
-            .filter((m) => m.role === "user" || m.role === "assistant")
+            .filter((m) => m.role === "user" || (m.role === "assistant" && m.content))
             .slice(-20);
 
         if (userMessages.length === 0) return "没有有效对话记录";

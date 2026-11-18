@@ -147,11 +147,13 @@ test("多轮请求前缀稳定，cached_tokens 正确进统计", async () => {
         assert.deepEqual(second[i], first[i], `第 ${i} 条消息应与上一轮逐字相同`);
     }
 
-    // 追加发生在尾部：工具结果以 system 痕迹回填
+    // 追加发生在尾部：调用以 assistant.tool_calls 骨架回传，结果用标准 tool 角色配对
+    // lookup 由测试 mock 返回固定结果 "ok"
     const tail = second.slice(first.length);
-    assert.equal(tail.length, 1);
-    assert.equal(tail[0].role, "system");
-    assert.ok(tail[0].content.includes("调用了工具 lookup"), "工具痕迹应回填在尾部");
+    assert.deepEqual(tail, [
+        { role: "assistant", content: null, tool_calls: [{ id: "c1", type: "function", function: { name: "lookup", arguments: '{"q":"天气"}' } }] },
+        { role: "tool", tool_call_id: "c1", content: "ok" },
+    ], "工具调用与结果应以标准角色字段成对回填在尾部");
 
     // 发言已交付
     assert.equal(replies.length, 1);

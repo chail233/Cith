@@ -15,7 +15,9 @@ const SUMMARY_PROMPT =
     "role 为 user 时 content 含 name（发言人昵称）、id（发言人账号）、time（发言时间）、" +
     "message（消息段数组，正文在 type 为 text 的段的 data.text 里，图片等非文本段没有正文）；" +
     "role 为 assistant 时 content.action 是我自己发出的消息段；" +
-    "role 为 system 时 content.text 是工具调用记录。" +
+    "role 为 assistant 且带 tool_calls 的消息是我发起的工具调用；" +
+    "role 为 tool 时 content 是对应工具的返回结果；" +
+    "role 为 system 时 content.text 是系统注入的说明（如中断、纠偏）。" +
     "消息可能被截断，残缺处不要臆测补全。" +
     "概要将来会被我自己读回，所以要一律以第一人称自述：" +
     "assistant 消息里我说过的话、做过的决定、答应过的事，主语都用「我」；" +
@@ -76,13 +78,6 @@ export class ChatRecorder {
     msgWithoutChat = 0;
 
 
-    get isSummarizing() {
-        return this._summarizing;
-    }
-
-
-
-
     add(msg) {
         if (msg.role === "user") {
             const segs = Array.isArray(msg.content?.message) ? msg.content.message : [];
@@ -97,12 +92,19 @@ export class ChatRecorder {
     }
 
     /**
-     * 全部消息序列化为 {role, content:string} 形态
+     * 全部消息序列化为请求消息形态：常规消息为 {role, content:string}；
+     * 工具调用轮回传协议骨架
      * @returns {import("./types.ts").ChatMessage[]}
      */
     getAll() {
         return this._messages.map((msg) => {
-            return {role: msg.role, content: JSON.stringify(msg.content)};
+            if (msg.role === "assistant" && msg.tool_calls) {
+                return { role: msg.role, content: msg.content ?? null, tool_calls: msg.tool_calls };
+            }
+            if (msg.role === "tool") {
+                return { role: "tool", tool_call_id: msg.tool_call_id, content: msg.content };
+            }
+            return { role: msg.role, content: JSON.stringify(msg.content) };
         });
     }
 
@@ -125,12 +127,7 @@ export class ChatRecorder {
         return Math.ceil(this._chars / CHARS_PER_TOKEN);
     }
 
-    /**
-     * 工作阈值守护：超出预算时，从最旧的开始把 system 消息（工具调用痕迹）折叠成首尾摘要
-     * 折叠是纯内存操作、不调模型；折到预算一半以下即停
-     * @param {number} tokenBudget 工作阈值（token）
-     * @returns {number} 本次折叠的消息条数
-     */
+
     compactIfNeeded(tokenBudget) {
         const budget = tokenBudget * CHARS_PER_TOKEN;
         if (!Number.isFinite(budget) || budget <= 0) return 0;
@@ -140,6 +137,27 @@ export class ChatRecorder {
         let folded = 0;
         for (const msg of this._messages) {
             if (this._chars <= target) break;
+            if (msg.role === "tool") {
+                const next = foldText(msg.content);
+                if (next === msg.content) continue;
+                const before = this._msgChars(msg);
+                msg.content = next;
+                this._chars += this._msgChars(msg) - before;
+                folded++;
+                continue;
+            }
+            if (msg.role === "assistant" && msg.tool_calls) {
+                for (const call of msg.tool_calls) {
+                    if (this._chars <= target) break;
+                    const next = foldText(call.function.arguments);
+                    if (next === call.function.arguments) continue;
+                    const before = this._msgChars(msg);
+                    call.function.arguments = next;
+                    this._chars += this._msgChars(msg) - before;
+                    folded++;
+                }
+                continue;
+            }
             if (msg.role !== "system") continue;
             const text = msg.content?.text;
             const next = foldText(text);
@@ -289,9 +307,10 @@ export class ChatRecorder {
         this._chars = chars;
     }
 
-    /** 判断一条消息是否计入消息条数：工具、系统消息不计入 */
+    /** 判断一条消息是否计入消息条数：工具回执、系统消息、工具调用骨架不计入 */
     _isCounted(msg) {
-        return msg.role !== "tool" && msg.role !== "system";
+        if (msg.role === "tool" || msg.role === "system") return false;
+        return !(msg.role === "assistant" && msg.tool_calls);
     }
 
     /** 当前计入条数的消息数量 */
@@ -303,8 +322,9 @@ export class ChatRecorder {
         return n;
     }
 
-    /** 单条消息序列化后的字符数 */
+    /** 单条消息序列化后的字符数（工具调用参数也计入体积） */
     _msgChars(msg) {
-        return JSON.stringify(msg.content).length;
+        const base = JSON.stringify(msg.content ?? null).length;
+        return msg.tool_calls ? base + JSON.stringify(msg.tool_calls).length : base;
     }
 }

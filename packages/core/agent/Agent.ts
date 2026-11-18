@@ -11,7 +11,7 @@ import config from "../config.js";
 import logger from "../utils/logger.js";
 import type { ChatRecorder } from "./recorder.js";
 import type { Context, MessageSegment } from "../types/index.ts";
-import type { AbortedOutcome, AgentRunResult, ChatMessage, ExtensionOverviewEntry, HeldOutcome, LlmResult, ReplyOutcome, SessionUsageStats, ToolCall, ToolContext, ToolDefinition, ToolExecution, ToolHold, WakeTrigger } from "./types.ts";
+import type { AbortedOutcome, AgentRunResult, ChatMessage, ExtensionOverviewEntry, HeldOutcome, LlmResult, ReplyOutcome, SessionUsageStats, ToolCall, ToolContext, ToolDefinition, ToolExecution, ToolHold, ToolReceipt, WakeTrigger } from "./types.ts";
 import type { ReplyTool, ReplyToolResult } from "../bot/adapters/reply-tool.ts";
 
 export default class Agent extends EventEmitter {
@@ -138,24 +138,33 @@ export default class Agent extends EventEmitter {
             // 先把普通工具跑完（并行执行），有门禁挂起则立即中断本轮
             const replyCalls = pickReplyCalls(calls, replyTool);
             const otherCalls = calls.filter((call) => !replyCalls.includes(call));
+            const receipts: ToolReceipt[] = [];
             if (otherCalls.length > 0) {
-                const holds = await this.runTools(otherCalls, toolCtx);
+                const { holds, results } = await this.runTools(otherCalls, toolCtx);
                 if (holds.length > 0) return { held: holds };
-                if (this.aborted) return this.abortedOutcome();
+                receipts.push(...results);
             }
 
-            // 发言：参数合法就是一段可发的消息；全部不合法则错误已回填，继续循环让模型自修
-            const acts = replyCalls.length > 0 ? await this.speak(replyCalls, replyTool, toolCtx) : null;
+            let acts: MessageSegment[] | null = null;
+            let spokenAccepted = false;
+            if (replyCalls.length > 0) {
+                const spoken = await this.speak(replyCalls, replyTool, toolCtx);
+                receipts.push(...spoken.results);
+                acts = spoken.acts.length > 0 ? spoken.acts : null;
+                spokenAccepted = spoken.accepted;
+            }
+
+            for (const receipt of receipts) this.recordToolResult(receipt.call, receipt.output);
             if (this.aborted) return this.abortedOutcome();
 
-            //  没有别的活了：发言就是本轮结论，交给 run() 统一投递
+            //  没有别的活了：发言就是本轮结论（含「明确不发言」），交给 run() 统一投递
             if (otherCalls.length === 0) {
-                if (acts) return { acts };
+                if (spokenAccepted) return { acts: acts ?? [] };
                 continue;
             }
 
             // 还有别的活没干完：这一轮的话当场发出，然后接着跑，直到只剩发言或没有工具
-            if (acts && acts.length > 0) {
+            if (acts) {
                 this.deliver(acts);
             }
         }
@@ -239,8 +248,9 @@ export default class Agent extends EventEmitter {
         }
         const replyCalls = pickReplyCalls(final.message.tool_calls ?? [], replyTool);
         if (replyCalls.length > 0) {
-            const acts = await this.speak(replyCalls, replyTool, toolCtx);
-            if (acts) return { acts };
+            // 收敛轮直接收尾，不再请求模型，回执无需写回
+            const { acts, accepted } = await this.speak(replyCalls, replyTool, toolCtx);
+            if (accepted) return { acts };
         }
         // 收敛轮没有纠偏预算：正文若已含答复文本，直接桥接成发言
         const text = (final.message.content ?? "").trim();
@@ -263,48 +273,48 @@ export default class Agent extends EventEmitter {
 
     /**
      * 执行发言工具调用：按调用顺序规范化消息段
-     * 规范化失败则把原因回填给模型自修
-     * @returns 待发送消息段（空数组 = 模型选择本轮不发言）；全部调用都失败时返回 null（错误已回填）
+     * 规范化失败的原因随回执回填给模型自修
+     * @returns 本轮消息段（空数组 = 模型明确本轮不发言）、是否至少受理了一个调用（决定是否收尾）与各调用的结果回执
      */
-    private async speak(calls: ToolCall[], replyTool: ReplyTool, toolCtx: ToolContext): Promise<MessageSegment[] | null> {
+    private async speak(calls: ToolCall[], replyTool: ReplyTool, toolCtx: ToolContext): Promise<{ acts: MessageSegment[]; accepted: boolean; results: ToolReceipt[] }> {
         const acts: MessageSegment[] = [];
+        const results: ToolReceipt[] = [];
         let accepted = false;
         /** 本轮已成功受理的发言参数：端点偶发重复下发同一 tool_call 时，避免同一句话发两遍 */
         const acceptedArgs = new Set<string>();
         for (const call of calls) {
             if (acceptedArgs.has(call.function.arguments)) {
-                this.recordToolCall(call.function.name, call.function.arguments, "与本轮已发送的发言调用完全相同，已忽略，消息只发一次");
+                results.push({ call, output: "与本轮已发送的发言调用完全相同，已忽略，消息只发一次" });
                 continue;
             }
             const output = await runReplyCall(replyTool, call, toolCtx);
             if (typeof output === "string") {
-                this.recordToolCall(call.function.name, call.function.arguments, output);
+                results.push({ call, output });
                 continue;
             }
             acceptedArgs.add(call.function.arguments);
             accepted = true;
             acts.push(...output.acts);
+            results.push({ call, output: output.acts.length > 0 ? "消息已发送" : "已确认本轮不发言" });
         }
-        return accepted ? acts : null;
+        return { acts: accepted ? acts : [], accepted, results };
     }
 
-    /**
-     * 执行同一轮的多个工具调用：并行执行，并按 tool_calls 原顺序回填痕迹、广播结果
-     * @returns 被门禁挂起的调用；非空时调用方必须中断本轮
-     */
-    private async runTools(toolCalls: ToolCall[], toolCtx: ToolContext): Promise<ToolHold[]> {
+
+    private async runTools(toolCalls: ToolCall[], toolCtx: ToolContext): Promise<{ holds: ToolHold[]; results: ToolReceipt[] }> {
         const executions = await Promise.all(toolCalls.map((toolCall) => this.runTool(toolCall, toolCtx)));
         const holds: ToolHold[] = [];
+        const results: ToolReceipt[] = [];
         for (const { toolCall, args, output } of executions) {
             // 挂起调用既不记录也不广播：模型不该知道它悬而未决，确认后的结果由确认链注入上下文
             if (isToolHold(output)) {
                 holds.push(output);
                 continue;
             }
-            this.recordToolCall(toolCall.function.name, JSON.stringify(args ?? toolCall.function.arguments), output);
+            results.push({ call: toolCall, output });
             this.broadcast("tool-result", { name: toolCall.function.name, args, result: output });
         }
-        return holds;
+        return { holds, results };
     }
 
 
@@ -331,20 +341,18 @@ export default class Agent extends EventEmitter {
     }
 
 
-    recordToolCall(toolName: string, argsText: string, result: string): void {
-        this.memory.add({ role: "system", content: { text: `调用了工具 ${toolName}，参数：${argsText}，结果：${result}` } });
-        logger.info("调用工具:", toolName, " 参数：", argsText, " 结果：", result);
+
+    recordToolResult(call: ToolCall, output: string): void {
+        this.memory.add({ role: "assistant", content: null, tool_calls: [{ id: call.id, type: "function", function: call.function }] });
+        this.memory.add({ role: "tool", tool_call_id: call.id, content: output });
+        logger.info("调用工具:", call.function.name, " 参数：", call.function.arguments, " 结果：", output);
     }
 
-    /**
-     * 记录一次被拒绝的工具调用
-     * 让模型知道该操作已有结论且未运行，避免反复发起同一操作
-     */
-    recordToolDenial(toolName: string, argsText: string, byName: string): void {
+
+    recordToolDenial(call: ToolCall, byName: string): void {
         const who = byName.trim() || "管理员";
-        const text = `工具 ${toolName} 的调用被${who}拒绝执行，参数：${argsText}，操作未运行。不要重复发起同一操作，除非用户明确要求。`;
-        this.memory.add({ role: "system", content: { text } });
-        logger.info("工具调用被拒绝:", toolName, " 参数：", argsText);
+        this.recordToolResult(call, `工具 ${call.function.name} 的调用被${who}拒绝执行，操作未运行。不要重复发起同一操作，除非用户明确要求。`);
+        logger.info("工具调用被拒绝:", call.function.name, " 参数：", call.function.arguments);
     }
 
 

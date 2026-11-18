@@ -26,7 +26,7 @@ export async function confirmPending(id: string, ctx: Context): Promise<{ ok: bo
         if (typeof result !== "string") {
             return { ok: false, text: `#${id} ${entry.toolName} 未能执行：${result.reason}` };
         }
-        target.recordToolCall(entry.toolName, toolCall.function.arguments, result);
+        target.recordToolResult(toolCall, result);
         return { ok: true, text: `#${id} ${entry.toolName} 已执行，结果已注入对话上下文` };
     }
     catch (err) {
@@ -42,6 +42,6 @@ export function rejectPending(id: string, ctx: Context): { ok: boolean; text: st
     logger.info(`已拒绝的危险操作 #${id}: ${entry.toolName}`);
     // 与确认执行对称：结果写回发起会话；会话已被回收时按发起空间重建
     const target = getAgent(entry.space ?? ctx.space);
-    target.recordToolDenial(entry.toolName, entry.toolCall.function.arguments, ctx.senderName);
+    target.recordToolDenial(entry.toolCall, ctx.senderName);
     return { ok: true, text: `#${id} ${entry.toolName} 已拒绝，未执行，结果已写回对话上下文` };
 }

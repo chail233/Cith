@@ -7,9 +7,10 @@
  * provider 端实际命中 ≤ 此值（还受缓存块粒度与 TTL 影响）。
  *
  * 用法：
- *   node scripts/eval-cache-hit.ts                                  # 生产默认预算 24000，12 轮
+ *   node scripts/eval-cache-hit.ts                                  # 真实 system.md + tools 定义入分母，12 轮
  *   node scripts/eval-cache-hit.ts --budgets=24000,8000,4000,2000   # 对比不同工作预算下的命中率
  *   node scripts/eval-cache-hit.ts --rounds=16 --tool-chars=2000    # 更多轮 / 更重的工具输出
+ *   node scripts/eval-cache-hit.ts --prompt=bare --count-tools=0    # 退回轻量口径对照
  *
  * 阈值即 config.contextBudgetTokens（工作预算）：超预算时最旧的 system 工具痕迹被折叠改写，
  * 前缀随之断裂，命中率下降——--budgets 对比的就是这个效应。
@@ -32,12 +33,16 @@ function argOf(name: string, fallback: string): string {
 /** 模拟的工具调用轮数（含最后一轮发言收尾；上限 = toolChainMaxLength 30） */
 const ROUNDS = Math.max(2, Math.min(Number(argOf("rounds", "12")) || 12, 30));
 /** 每轮工具调用参数里填充的字符数（决定工具痕迹的重量） */
-const TOOL_CHARS = Math.max(50, Number(argOf("tool-chars", "600")) || 600);
+const TOOL_CHARS = Math.max(50, Number(argOf("tool-chars", "1200")) || 1200);
 /** 工作预算对比组（逗号分隔） */
 const BUDGETS = argOf("budgets", "24000")
     .split(",")
     .map((s) => Number(s.trim()))
     .filter((n) => Number.isFinite(n) && n > 0);
+/** 系统提示词：real = 拷贝生产 packages/core/prompts/system.md，bare = 短占位 */
+const PROMPT_KIND = argOf("prompt", "real");
+/** tools 定义是否计入分母（provider 的 prompt cache 会缓存 tools + messages 前缀，默认计入） */
+const COUNT_TOOLS = argOf("count-tools", "1") !== "0";
 
 const CHARS_PER_TOKEN = 2.5;
 
@@ -103,16 +108,20 @@ function tokensOf(msgs: unknown[]): number[] {
     return msgs.map((m) => JSON.stringify(m).length / CHARS_PER_TOKEN);
 }
 
-/** 与上一轮的最长公共前缀（逐条消息严格相等） */
-function prefixStats(prev: unknown[], cur: unknown[]): { shared: number; hit: number; total: number; rate: number; intact: boolean } {
+/** 与上一轮的最长公共前缀（逐条消息严格相等）；tools 定义每轮不变、全命中 */
+function prefixStats(
+    prev: unknown[],
+    cur: unknown[],
+    toolsTokens: number,
+): { shared: number; hit: number; total: number; rate: number; intact: boolean } {
     let shared = 0;
     while (shared < Math.min(prev.length, cur.length)
         && JSON.stringify(prev[shared]) === JSON.stringify(cur[shared])) {
         shared++;
     }
     const tokens = tokensOf(cur);
-    const hit = tokens.slice(0, shared).reduce((a, b) => a + b, 0);
-    const total = tokens.reduce((a, b) => a + b, 0);
+    const hit = toolsTokens + tokens.slice(0, shared).reduce((a, b) => a + b, 0);
+    const total = toolsTokens + tokens.reduce((a, b) => a + b, 0);
     // 上一轮的消息全部保留（只在尾部追加）= 前缀完整；少了/变了 = 折叠改写导致断裂
     const intact = shared >= prev.length;
     return { shared, hit, total, rate: total > 0 ? hit / total : 0, intact };
@@ -140,6 +149,7 @@ async function runOnce(budget: number): Promise<{ rows: RoundRow[]; avg: number 
     const { default: config } = await import("../packages/core/config.js");
     const { buildReplyTool } = await import("../packages/core/bot/adapters/reply-tool.ts");
     const { textCap, imageCap } = await import("../packages/core/bot/adapters/reply-segment-caps.ts");
+    const { getAllTools } = await import("../packages/core/agent/tools.js");
 
     // 阈值作为变量：热改 config（Proxy 会写回临时 config.json，无污染）
     (config as unknown as Record<string, unknown>).contextBudgetTokens = budget;
@@ -156,6 +166,10 @@ async function runOnce(budget: number): Promise<{ rows: RoundRow[]; avg: number 
     });
 
     const replyTool = buildReplyTool([textCap(), imageCap()]);
+    // 常驻前缀里最大的一块：工具定义随每轮请求原样重发，provider 端计入缓存前缀
+    const toolsTokens = COUNT_TOOLS
+        ? JSON.stringify([replyTool.definition, ...(await getAllTools())]).length / CHARS_PER_TOKEN
+        : 0;
     const agent = new Agent({ sessionId: `cache-eval:${budget}`, memory });
     agent.on("reply", () => {});
     await agent.run({ adapter: { replyTool: () => replyTool } });
@@ -166,7 +180,7 @@ async function runOnce(budget: number): Promise<{ rows: RoundRow[]; avg: number 
 
     const rows: RoundRow[] = [];
     for (let i = 1; i < received.length; i++) {
-        const s = prefixStats(received[i - 1], received[i]);
+        const s = prefixStats(received[i - 1], received[i], toolsTokens);
         rows.push({
             round: i + 1,
             hit: s.hit,
@@ -191,14 +205,23 @@ async function main(): Promise<void> {
     const port = await startServer();
     console.log(`假端点 http://127.0.0.1:${port}/v1/chat/completions（无真实 API 请求）`);
     console.log(`场景：单次对话 ${ROUNDS} 轮（前 ${ROUNDS - 1} 轮工具调用，每轮痕迹约 ${Math.round((TOOL_CHARS + 120) / CHARS_PER_TOKEN)} tok，最后发言收尾）`);
-    console.log(`token 按 CHARS_PER_TOKEN=${CHARS_PER_TOKEN} 估算；命中率 = 与上一轮公共前缀的 token 占比（理论值，实际 ≤ 此值）\n`);
+    console.log(`token 按 CHARS_PER_TOKEN=${CHARS_PER_TOKEN} 估算${COUNT_TOOLS ? "；tools 定义计入分母（provider 缓存覆盖 tools + messages 前缀）" : ""}；命中率 = 与上一轮公共前缀的 token 占比（理论值，实际 ≤ 此值）\n`);
 
     // 配置与数据根指进临时目录后再加载项目模块
     const dataRoot = mkdtempSync(join(tmpdir(), "cith-cache-eval-data-"));
     const configDir = mkdtempSync(join(tmpdir(), "cith-cache-eval-cfg-"));
     mkdirSync(join(dataRoot, "skills"), { recursive: true });
     mkdirSync(join(dataRoot, "prompts"), { recursive: true });
-    writeFileSync(join(dataRoot, "prompts", "system.md"), "你是测试助手", "utf-8");
+    if (PROMPT_KIND === "real") {
+        const { readFileSync: rf, copyFileSync: cf } = await import("node:fs");
+        const prodPrompt = new URL("../packages/core/prompts/system.md", import.meta.url);
+        cf(prodPrompt, join(dataRoot, "prompts", "system.md"));
+        console.log(`系统提示词：生产 packages/core/prompts/system.md（${rf(prodPrompt, "utf-8").length} 字）`);
+    }
+    else {
+        writeFileSync(join(dataRoot, "prompts", "system.md"), "你是测试助手", "utf-8");
+        console.log("系统提示词：短占位（--prompt=real 可用生产版本）");
+    }
     writeFileSync(join(configDir, "config.json"), JSON.stringify({
         chatModel: "test-model",
         llmApiUrl: `http://127.0.0.1:${port}/v1/chat/completions`,

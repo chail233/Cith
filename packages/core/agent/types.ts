@@ -7,12 +7,21 @@ import type Agent from "./Agent.ts";
 export interface LlmMessage {
     role: string;
     content?: unknown;
+    /** assistant 消息携带：原样回传的调用骨架，与后续 tool 消息配对 */
+    tool_calls?: ToolCall[];
+    /** tool 消息携带：对应的调用 id */
+    tool_call_id?: string;
 }
 
-/** 一条对话历史消息：content 已序列化为字符串（上下文组装与摘要都用这个形状） */
+/** 一条对话历史消息：常规消息 content 已序列化为字符串；工具调用轮回传协议骨架 */
 export interface ChatMessage {
     role: string;
-    content: string;
+    /** 常规消息为序列化字符串；工具调用骨架为 null，工具回执为结果文本 */
+    content: string | null;
+    /** assistant 消息携带：原样回传的调用骨架，与后续 tool 消息配对 */
+    tool_calls?: ToolCall[];
+    /** tool 消息携带：对应的调用 id */
+    tool_call_id?: string;
 }
 
 /** 模型返回的待执行工具调用 */
@@ -114,6 +123,11 @@ export interface ToolExecution {
     toolCall: ToolCall;
     args: Record<string, unknown> | null;
     output: ToolCallResult;
+}
+
+export interface ToolReceipt {
+    call: ToolCall;
+    output: string;
 }
 
 /** 待确认队列里的挂起项：工具名单独留一份，排队期间不依赖 toolCall 解析 */

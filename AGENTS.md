@@ -66,7 +66,7 @@ NapCat(反向WS) / 微信(长轮询) / 桌面客户端(自开WS, DesktopServer)
 
 `Agent` 是 EventEmitter，每会话一实例，由 `AgentManager` 池管理（空闲 24 小时回收、上限 50）。**Agent 只"想"不"说"**：只广播 `reply` / `tool-call` / `tool-result` / `approval` 等事件，`pipeline/agent-runner.ts` 订阅后经适配器按拟人节奏发送。同一会话同时只允许一个模型请求。
 
-每轮流程：`Agent.buildMessages` 组装上下文（系统提示 + 技能列表 + 扩展来源目录 + 全局笔记 + 记忆概要 + 历史 + 尾部易变项：活跃计划/唤醒说明）→ 带全量工具定义调 LLM → 同轮多个工具调用**并行执行** → 结果以 `role:"system"` 消息回填 → 再请求。最多 `toolChainMaxLength`（30）轮；达到上限后补发一次**只带发言工具**的请求强制收敛。**发言是工具调用，不是文本格式**：每轮工具表首位是由适配器能力集生成的 `send_message`（`bot/adapters/reply-tool.ts`），词表由适配器声明（OneBot 为 text / image / file / voice / mention / reply，微信没有 voice / mention / reply；表情包不设独立段：`list_stickers` 工具返回画面描述+文件路径，模型挑好直接走 image 段），与接收方向统一段同构。发言调用成功即交付消息（若本轮还有其它工具，则当场发出后继续循环，直到只剩发言或没有工具）；传空数组表示**本轮不发言**；模型不调用任何工具时正文为空才算不发言，正文有内容则回填 system 纠偏痕迹后重试一次，仍以纯文本作答就桥接成 text 段按正常发言投递（收敛轮不重试、直接桥接；正常路径依然没有纯文本通道，旧 `replyParser.ts` 已删除）。agent-runner 按段顺序逐个发送，reply/mention 攒到下一个内容段合并为一条（OneBot 语义）；平台不支持的段类型由 Adapter 自行跳过（微信不支持 mention/reply），字段翻译与纠错（如本地路径被填进 `uri`）也在适配器侧由 `utils/segment-media.ts` 完成。
+每轮流程：`Agent.buildMessages` 组装上下文（系统提示 + 技能列表 + 扩展来源目录 + 全局笔记 + 记忆概要 + 历史 + 尾部易变项：活跃计划/唤醒说明）→ 带全量工具定义调 LLM → 同轮多个工具调用**并行执行** → 调用以 `assistant.tool_calls` 骨架原样回传、结果用标准 `role:"tool"` 消息配对回填（每次调用一对消息，协议要求每个 tool_call_id 都有回复，缺一条下轮请求会被端点拒绝；门禁挂起时整轮不回填）→ 再请求。最多 `toolChainMaxLength`（30）轮；达到上限后补发一次**只带发言工具**的请求强制收敛。**发言是工具调用，不是文本格式**：每轮工具表首位是由适配器能力集生成的 `send_message`（`bot/adapters/reply-tool.ts`），词表由适配器声明（OneBot 为 text / image / file / voice / mention / reply，微信没有 voice / mention / reply；表情包不设独立段：`list_stickers` 工具返回画面描述+文件路径，模型挑好直接走 image 段），与接收方向统一段同构。发言调用成功即交付消息（若本轮还有其它工具，则当场发出后继续循环，直到只剩发言或没有工具）；传空数组表示**本轮不发言**；模型不调用任何工具时正文为空才算不发言，正文有内容则回填 system 纠偏痕迹后重试一次，仍以纯文本作答就桥接成 text 段按正常发言投递（收敛轮不重试、直接桥接；正常路径依然没有纯文本通道，旧 `replyParser.ts` 已删除）。agent-runner 按段顺序逐个发送，reply/mention 攒到下一个内容段合并为一条（OneBot 语义）；平台不支持的段类型由 Adapter 自行跳过（微信不支持 mention/reply），字段翻译与纠错（如本地路径被填进 `uri`）也在适配器侧由 `utils/segment-media.ts` 完成。
 
 技能目录在**每次 `Agent.run()` 开头重扫**，没有 `#reloadskls` 命令。计划状态在 `agent/plan.ts` 的 `PlanBoard`（Agent 只持有引用，`#plan` 命令与 `Agent.buildMessages` 共用同一份存储与渲染逻辑）。
 
@@ -84,10 +84,10 @@ NapCat(反向WS) / 微信(长轮询) / 桌面客户端(自开WS, DesktopServer)
 
 按"预估 token 体积"守护而非消息条数（`CHARS_PER_TOKEN = 2.5`）：
 
-- **短期**：会话消息，超过 `chatSummaryThresholdTokens`（12000）→ 一轮 run 结束后**后台静默摘要**（不阻塞下一轮）；事实抽取按 `KEEP_TAIL_RATIO = 0.3` 保留最新尾部，一条事实一条记忆写入 rememori。摘要提示词（`recorder.js` 的 `SUMMARY_PROMPT`）交代输入是带序号的结构化 JSON 消息（user 的 name/id/time/message 段、assistant 的 action、system 的工具痕迹），要求事实以第一人称「我」自述（概要下一轮会被模型自己读回）、对方用 name/id 指名、相对时间换算成具体日期；消息按 500 字符截断送入，提示词已声明残缺处不要臆测。
+- **短期**：会话消息，超过 `chatSummaryThresholdTokens`（12000）→ 一轮 run 结束后**后台静默摘要**（不阻塞下一轮）；事实抽取按 `KEEP_TAIL_RATIO = 0.3` 保留最新尾部，一条事实一条记忆写入 rememori。摘要提示词（`recorder.js` 的 `SUMMARY_PROMPT`）交代输入是带序号的结构化 JSON 消息（user 的 name/id/time/message 段、assistant 的 action、assistant.tool_calls 与 tool 的调用及结果、system 的注入说明），要求事实以第一人称「我」自述（概要下一轮会被模型自己读回）、对方用 name/id 指名、相对时间换算成具体日期；消息按 500 字符截断送入，提示词已声明残缺处不要臆测。
 - **中期**：滚动保留最近 `MAX_SUMMARY_FACTS = 60` 条事实（`#sm` 查看）。
 - **长期**：`services/memory-store.ts` 每进程只打开一次 rememori 文件；embedding 由 `memoryEmbedProvider` 选 `ollama`（本地）或 `openai`（任意兼容 `/embeddings` 端点）。**无 tag，全会话共享**；模型经 `get_memory` 工具检索（`queries` 最多 5 个，缺省从近期消息自动派生）。还有容量淘汰（`memory-eviction.ts`）与定期维护修剪。
-- **工作预算**：`compactIfNeeded(contextBudgetTokens = 24000)` 在每次请求前把最旧的 system 工具痕迹折叠成 `[已折叠]…` 摘要（纯内存、幂等、不动 user/assistant 消息——模型可重新调用工具找回内容）。
+- **工作预算**：`compactIfNeeded(contextBudgetTokens = 24000)` 在每次请求前把最旧的工具调用参数与结果折叠成 `[已折叠]…` 摘要（纯内存、幂等；协议骨架 `assistant.tool_calls` 与对应 `tool` 消息原样保留、只压缩大文本字段——整条删除会破坏调用配对，模型可重新调用工具找回内容）。
 
 ⚠️ rememori **没有文件锁**：绝不要从第二个进程打开同一个 `.mem` 文件。切换 embedding provider/model 会使已存向量全部失效（删 `.mem` 重建）。
 

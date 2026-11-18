@@ -3,7 +3,7 @@
  *
  * 覆盖四件事：
  * - 工具 schema 由各适配器自己的能力集生成：OneBot 有 mention/reply，微信没有，两边互不影响
- * - Agent 见到发言工具调用即视为「本轮回复」：当场交付消息段，不写工具痕迹
+ * - Agent 见到发言工具调用即视为「本轮回复」：当场交付消息段，回执以 assistant.tool_calls + tool 消息成对写回
  * - 同一轮还有其它工具时，话照发、工具照跑，跑完继续循环，直到只剩发言或没有工具
  * - 工具链打满后的收敛请求只带发言工具
  * - 发言是唯一出口：不调工具时的纯文本先纠偏重试一次，仍犯则桥接发送；没有适配器直接报错
@@ -178,7 +178,7 @@ beforeEach(() => {
     responses = [];
 });
 
-test("发言工具调用即本轮回复：不写工具痕迹、不回填结果", async () => {
+test("发言工具调用即本轮回复：回执成对写回，消息正常交付", async () => {
     // 模型在 tool_calls 前夹带的自由文本应被忽略
     responses = [replyToolCall({ segments: [{ type: "text", data: { text: "在" } }] }, "我马上说")];
     const memory = fakeMemory();
@@ -189,8 +189,14 @@ test("发言工具调用即本轮回复：不写工具痕迹、不回填结果",
     assert.equal(calls[0].tools[0].function.name, REPLY_TOOL_NAME, "发言工具应排在工具表首位");
     assert.deepEqual(replies[0].acts, [{ type: "text", data: { text: "在" } }]);
 
-    const traces = memory.added.filter((m) => String(m.content?.text ?? "").includes("调用了工具"));
-    assert.deepEqual(traces, [], "成功的发言不应留下工具痕迹");
+    const skeleton = memory.added.find((m) => m.role === "assistant" && m.tool_calls);
+    assert.ok(skeleton, "调用应以 assistant.tool_calls 骨架回传");
+    assert.equal(skeleton.tool_calls[0].id, "call_1");
+    assert.deepEqual(
+        memory.added.filter((m) => m.role === "tool"),
+        [{ role: "tool", tool_call_id: "call_1", content: "消息已发送" }],
+        "每个调用都应有配对的 tool 回执",
+    );
     assert.ok(memory.added.some((m) => Array.isArray(m.content?.action)), "发言应写入 assistant 记忆");
 });
 
@@ -205,8 +211,8 @@ test("发言参数不合法时回填错误并继续，下一轮正常发出", as
 
     assert.equal(calls.length, 2, "参数不合法不应吞掉整轮，应回填错误让模型重来");
     assert.ok(
-        memory.added.some((m) => String(m.content?.text ?? "").includes("当前通道不支持")),
-        "错误原因应写回上下文",
+        memory.added.some((m) => m.role === "tool" && String(m.content).includes("当前通道不支持")),
+        "错误原因应随 tool 回执写回上下文",
     );
     assert.deepEqual(replies[0].acts, [{ type: "text", data: { text: "换个说法" } }]);
 });
@@ -237,8 +243,12 @@ test("同一轮既有工具又有发言时，话当场发出并继续跑工具",
 
     assert.equal(calls.length, 2, "工具跑完应继续下一轮，而不是直接收尾");
     assert.ok(
-        memory.added.some((m) => String(m.content?.text ?? "").includes("调用了工具 run_shell")),
-        "普通工具的执行痕迹照旧写回",
+        memory.added.some((m) => m.tool_calls?.[0]?.function.name === "run_shell"),
+        "普通工具的调用骨架照旧写回",
+    );
+    assert.ok(
+        memory.added.some((m) => m.role === "tool" && m.content === "ok"),
+        "普通工具的执行结果随 tool 回执写回",
     );
     // 同轮说的那句当场发出，末尾的结论再发一条，共两条
     assert.deepEqual(replies.map((r) => r.acts), [
@@ -275,8 +285,8 @@ test("同轮发言参数不合法时工具照跑，改好后再发", async () =>
 
     assert.equal(calls.length, 2, "发言失败不该中断循环");
     assert.ok(
-        memory.added.some((m) => String(m.content?.text ?? "").includes("当前通道不支持")),
-        "错误应回填给模型",
+        memory.added.some((m) => m.role === "tool" && String(m.content).includes("当前通道不支持")),
+        "错误应随 tool 回执回填给模型",
     );
     assert.deepEqual(replies.map((r) => r.acts), [[{ type: "text", data: { text: "查完了" } }]]);
 });
@@ -292,6 +302,10 @@ test("模型传空数组时不发言：不广播 reply，但留一条记忆痕�
     const silent = memory.added.find((m) => Array.isArray(m.content?.action));
     assert.ok(silent, "应写入一条 assistant 痕迹");
     assert.deepEqual(silent.content.action, []);
+    assert.ok(
+        memory.added.some((m) => m.role === "tool" && m.content === "已确认本轮不发言"),
+        "不发言的选择也应有回执",
+    );
     assert.equal(memory.msgWithoutChat, 0, "不发言不该重置主动聊天计数");
 });
 
