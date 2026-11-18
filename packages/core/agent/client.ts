@@ -4,45 +4,30 @@ import logger from "../utils/logger.js";
 import type { LlmMessage, LlmResponseMessage, LlmResult, LlmUsage, ToolDefinition } from "./types.ts";
 import { recordUsage } from "../services/token-usage.ts";
 
-/** callLLM 入参 */
+export type LlmMode = "chat" | "vision" | "guard";
+
 export interface CallLlmOptions {
-    /** 模型名 */
     model: string;
-    /** 消息列表（OpenAI 消息格式） */
     messages: LlmMessage[];
-    /** 温度 */
     temperature?: number;
-    /** 响应格式，如 { type: "json_object" } */
     responseFormat?: { type: "json_object" | "text" };
-    /** 工具列表（OpenAI function calling 格式） */
     tools?: ToolDefinition[];
-    /** 中断信号：触发时立即取消请求 */
     signal?: AbortSignal;
-    /** 请求模式："chat"（默认）、"vision" 或 "guard"（run_shell 安全审查） */
-    mode?: "chat" | "vision" | "guard";
+    mode?: LlmMode;
 }
 
-/** 按 (baseURL, apiKey) 缓存客户端实例；配置热更新后首次调用会按新配置重建 */
+
 const clients = new Map<string, OpenAI>();
 
-/**
- * 获取指定模式的 SDK 客户端
- */
-function getClient(mode: "chat" | "vision" | "guard"): OpenAI {
-    const url = mode === "chat" ? config.llmApiUrl
-        : mode === "vision" ? config.llmVisionApiUrl
-        : (config.guardApiUrl || config.llmApiUrl);
-    const apiKey = mode === "chat" ? config.aiApiKey
-        : mode === "vision" ? config.visionApiKey
-        : (config.guardApiKey || config.aiApiKey);
-    const baseURL = normalizeBaseURL(url);
-    const key = `${baseURL}|${apiKey}`;
-    let client = clients.get(key);
-    if (!client) {
-        client = new OpenAI({ baseURL, apiKey, timeout: config.llmTimeout });
-        clients.set(key, client);
+function resolveEndpoint(mode: LlmMode): { url: string; apiKey: string } {
+    switch (mode) {
+        case "vision":
+            return { url: config.llmVisionApiUrl, apiKey: config.visionApiKey };
+        case "guard":
+            return { url: config.guardApiUrl || config.llmApiUrl, apiKey: config.guardApiKey || config.aiApiKey };
+        default:
+            return { url: config.llmApiUrl, apiKey: config.aiApiKey };
     }
-    return client;
 }
 
 /** 把配置里的完整 endpoint 地址归一化为 SDK 需要的 baseURL（去掉尾部 /chat/completions 与多余斜杠） */
@@ -50,54 +35,39 @@ function normalizeBaseURL(url: string): string {
     return url.replace(/\/chat\/completions\/?$/, "").replace(/\/+$/, "");
 }
 
-/**
- * 调用 LLM 聊天补全接口
- * @returns 成功返回 { message, usage }，失败返回错误字符串
- */
-export async function callLLM({ model, messages, temperature, responseFormat, tools, signal, mode = "chat" }: CallLlmOptions): Promise<LlmResult | string> {
-    try {
-        const body = {
-            model,
-            messages: messages as unknown as OpenAI.Chat.ChatCompletionMessageParam[],
-            ...(temperature !== undefined && { temperature }),
-            ...(responseFormat && { response_format: responseFormat }),
-            ...(tools && { tools: tools as unknown as OpenAI.Chat.ChatCompletionTool[] }),
-        };
-        const completion = await getClient(mode).chat.completions.create(body, { signal });
-
-        const message = completion.choices[0]?.message;
-        if (!message) {
-            logger.error("LLM 返回格式异常:", JSON.stringify(completion));
-            return "LLM 返回格式异常";
-        }
-
-        logger.debug("LLM 响应:", completion);
-        // 归一化服务商 usage：输入/输出/缓存命中，统计模块统一累加（识图、摘要等链路同样覆盖）
-        const u = completion.usage;
-        const usage: LlmUsage | null = u
-            ? {
-                model,
-                inputTokens: u.prompt_tokens ?? 0,
-                outputTokens: u.completion_tokens ?? 0,
-                cachedTokens: u.prompt_tokens_details?.cached_tokens ?? 0,
-                totalTokens: u.total_tokens ?? (u.prompt_tokens ?? 0) + (u.completion_tokens ?? 0),
-            }
-            : null;
-        if (usage && usage.totalTokens > 0) recordUsage(usage);
-        return {
-            message: toLlmMessage(message),
-            usage,
-        };
+function getClient(mode: LlmMode): OpenAI {
+    const { url, apiKey } = resolveEndpoint(mode);
+    const baseURL = normalizeBaseURL(url);
+    const cacheKey = `${baseURL}|${apiKey}`;
+    let client = clients.get(cacheKey);
+    if (!client) {
+        client = new OpenAI({ baseURL, apiKey, timeout: config.llmTimeout });
+        clients.set(cacheKey, client);
     }
-    catch (err) {
-        if (signal?.aborted) {
-            logger.info("LLM 请求已被中断");
-            return "已中断";
-        }
-        const detail = err instanceof Error ? err.message : String(err);
-        logger.error("LLM API 调用失败:", detail);
-        return "LLM API 调用失败:" + detail;
-    }
+    return client;
+}
+
+function buildRequestBody({ model, messages, temperature, responseFormat, tools }: CallLlmOptions) {
+    return {
+        model,
+        messages: messages as unknown as OpenAI.Chat.ChatCompletionMessageParam[],
+        ...(temperature !== undefined && { temperature }),
+        ...(responseFormat && { response_format: responseFormat }),
+        ...(tools && { tools: tools as unknown as OpenAI.Chat.ChatCompletionTool[] }),
+    };
+}
+
+function normalizeUsage(model: string, u: OpenAI.Chat.ChatCompletion["usage"]): LlmUsage | null {
+    if (!u) return null;
+    const inputTokens = u.prompt_tokens ?? 0;
+    const outputTokens = u.completion_tokens ?? 0;
+    return {
+        model,
+        inputTokens,
+        outputTokens,
+        cachedTokens: u.prompt_tokens_details?.cached_tokens ?? 0,
+        totalTokens: u.total_tokens ?? inputTokens + outputTokens,
+    };
 }
 
 /** SDK 返回消息 → 项目内 LlmResponseMessage */
@@ -113,4 +83,41 @@ function toLlmMessage(message: OpenAI.Chat.ChatCompletionMessage): LlmResponseMe
             }));
     }
     return result;
+}
+
+function toErrorText(err: unknown): string {
+    return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * 调用 LLM 聊天补全接口
+ * @returns 成功返回 { message, usage }，失败返回错误字符串
+ */
+export async function callLLM(options: CallLlmOptions): Promise<LlmResult | string> {
+    const { signal, mode = "chat" } = options;
+    try {
+        const completion = await getClient(mode).chat.completions.create(buildRequestBody(options), { signal });
+
+        const rawMessage = completion.choices[0]?.message;
+        if (!rawMessage) {
+            logger.error("LLM 返回格式异常:", JSON.stringify(completion));
+            return "LLM 返回格式异常";
+        }
+        logger.debug("LLM 响应:", completion);
+
+        // 归一化 usage 后交给统计模块统一累加（识图、摘要等链路同样覆盖）
+        const usage = normalizeUsage(options.model, completion.usage);
+        if (usage && usage.totalTokens > 0) recordUsage(usage);
+
+        return { message: toLlmMessage(rawMessage), usage };
+    }
+    catch (err) {
+        if (signal?.aborted) {
+            logger.info("LLM 请求已被中断");
+            return "已中断";
+        }
+        const detail = toErrorText(err);
+        logger.error("LLM API 调用失败:", detail);
+        return "LLM API 调用失败:" + detail;
+    }
 }
