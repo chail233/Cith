@@ -1,7 +1,7 @@
 import { EventEmitter } from "node:events";
 import { callLLM } from "./client.ts";
 import { callTool, getAllTools } from "./tools.js";
-import { reloadSkills, skills, forceSkills } from "./skill.js";
+import { reloadSkills, skills } from "./skill.js";
 import { extensionRegistry } from "./extensions/registry.ts";
 import { runNotesMaintenance } from "./notes.ts";
 import { renderPlanBlock, PlanBoard } from "./plan.ts";
@@ -164,12 +164,6 @@ export default class Agent extends EventEmitter {
         const systemPrompt = readSystemPrompt();
         if (systemPrompt !== "") messages.push({ role: "system", content: systemPrompt });
 
-        if (forceSkills.length > 0) {
-            const forceBlock = forceSkills
-                .map(s => `### ${s.name}\n${s.content}`)
-                .join("\n\n");
-            messages.push({ role: "system", content: `强加载技能:\n${forceBlock}` });
-        }
         messages.push({ role: "system", content: `技能列表：${JSON.stringify(skills)}` });
 
         if (this.extensionOverview.length > 0) {

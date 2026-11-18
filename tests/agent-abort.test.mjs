@@ -51,7 +51,7 @@ mock.module("../packages/core/agent/tools.js", {
     },
 });
 mock.module("../packages/core/agent/skill.js", {
-    namedExports: { reloadSkills: async () => {}, skills: [], forceSkills: [] },
+    namedExports: { reloadSkills: async () => {}, skills: [] },
 });
 
 const { default: Agent } = await import("../packages/core/agent/Agent.ts");

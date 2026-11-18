@@ -1,6 +1,6 @@
 import { getAgent, listAgents } from "../../agent/AgentManager.ts";
 import config from "../../config.js";
-import {skills, forceSkills} from "../../agent/skill.js";
+import {skills} from "../../agent/skill.js";
 import {getAllTools} from "../../agent/tools.js";
 import {list as doList} from "../../agent/tool-approval.js";
 import {confirmPending, rejectPending} from "../../agent/approval-runner.ts";
@@ -171,15 +171,6 @@ const cmds = [
         params: [],
         handler: async (args, ctx) => {
             return "技能列表：\n" + skills.map(skill => skill.name).join("\n");
-        }
-    },
-    {
-        name: "forceskills",
-        description: "列出当前强加载技能",
-        params: [],
-        handler: async (args, ctx) => {
-            if (forceSkills.length === 0) return "当前没有强加载技能";
-            return "强加载技能：\n" + forceSkills.map(s => `${s.name} —— ${s.description}`).join("\n");
         }
     },
     {
