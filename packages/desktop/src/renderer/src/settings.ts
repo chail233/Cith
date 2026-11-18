@@ -10,4 +10,5 @@ export function applySettings(s: UiSettings): void {
     root.setProperty('--para-gap', `${s.paraGap}px`)
     root.setProperty('--msg-gap', `${s.msgGap}px`)
     root.setProperty('--content-width', `${s.contentWidth}px`)
+    root.setProperty('--sidebar-width', `${s.sidebarWidth}px`)
 }

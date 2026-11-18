@@ -90,6 +90,10 @@ export default function App() {
         setView(view === 'settings' ? 'chat' : 'settings')
     }
 
+    function handleSidebarResize(width: number) {
+        void handleSaveSettings({ ...settings, sidebarWidth: width })
+    }
+
     async function handleSaveSettings(next: UiSettings) {
         let saved = next
         try {
@@ -149,6 +153,7 @@ export default function App() {
                 onArchive={conv.archive}
                 onDelete={conv.remove}
                 onRestore={handleRestore}
+                onSidebarResize={handleSidebarResize}
             />
             {conv.active ? (
                 <ChatArea

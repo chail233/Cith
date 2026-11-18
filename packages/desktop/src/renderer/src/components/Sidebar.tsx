@@ -1,6 +1,7 @@
-import { useEffect, useState, type MouseEvent } from 'react'
+import { useEffect, useState, type MouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import type { Conversation } from '../types'
 import type { BackendStatus } from '../../../preload/api.ts'
+import { SIDEBAR_WIDTH_MAX, SIDEBAR_WIDTH_MIN, defaultSettings } from '../../../shared/settings.ts'
 import { STATUS_LABEL } from './Settings'
 import { BrandMark } from '@cith/ui'
 import { MoreIcon, PlusIcon, SlidersIcon } from './icons'
@@ -19,11 +20,36 @@ type Props = {
     onArchive: (id: string) => void
     onDelete: (id: string) => void
     onRestore: (id: string) => void
+    onSidebarResize: (width: number) => void
 }
 
-export function Sidebar({ conversations, archived, activeId, version, settingsOpen, backendStatus, onSelect, onNew, onOpenSettings, onArchive, onDelete, onRestore }: Props) {
+export function Sidebar({ conversations, archived, activeId, version, settingsOpen, backendStatus, onSelect, onNew, onOpenSettings, onArchive, onDelete, onRestore, onSidebarResize }: Props) {
     const [menuId, setMenuId] = useState<string | null>(null)
     const [menuFlip, setMenuFlip] = useState(false)
+
+    // 拖拽调宽：指针捕获跟手，期间直接写 CSS 变量，松手才落设置
+    function startResize(e: ReactPointerEvent<HTMLDivElement>) {
+        e.preventDefault()
+        const el = e.currentTarget
+        el.setPointerCapture(e.pointerId)
+        document.body.style.userSelect = 'none'
+        const clampWidth = (x: number) => Math.min(SIDEBAR_WIDTH_MAX, Math.max(SIDEBAR_WIDTH_MIN, x))
+        let width = clampWidth(e.clientX)
+        const move = (ev: PointerEvent) => {
+            width = clampWidth(ev.clientX)
+            document.documentElement.style.setProperty('--sidebar-width', `${width}px`)
+        }
+        const finish = () => {
+            el.removeEventListener('pointermove', move)
+            el.removeEventListener('pointerup', finish)
+            el.removeEventListener('pointercancel', finish)
+            document.body.style.userSelect = ''
+            onSidebarResize(width)
+        }
+        el.addEventListener('pointermove', move)
+        el.addEventListener('pointerup', finish)
+        el.addEventListener('pointercancel', finish)
+    }
 
     // 菜单开着时点 Esc 收起
     useEffect(() => {
@@ -147,6 +173,13 @@ export function Sidebar({ conversations, archived, activeId, version, settingsOp
                 </button>
                 {version && <span className="side-version">v{version}</span>}
             </div>
+
+            <div
+                className="sidebar-resizer"
+                title="拖拽调节宽度，双击复位"
+                onPointerDown={startResize}
+                onDoubleClick={() => onSidebarResize(defaultSettings.sidebarWidth)}
+            />
         </aside>
     )
 }

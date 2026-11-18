@@ -55,6 +55,7 @@
     --para-gap: 10px;
     --msg-gap: 24px;
     --content-width: 760px;
+    --sidebar-width: 262px;
 
     --shadow-s: 0 2px 10px rgba(0, 0, 0, 0.22);
     --shadow-m: 0 10px 30px rgba(0, 0, 0, 0.32);

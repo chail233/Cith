@@ -1,4 +1,5 @@
 .sidebar {
+    position: relative;
     display: flex;
     flex-direction: column;
     min-height: 0;
@@ -264,4 +265,20 @@
     font-size: 11px;
     color: var(--text-3);
     opacity: 0.8;
+}
+
+/* 拖拽调宽手柄：贴右缘的透明条，探进聊天区好抓，悬停显琥珀浸染 */
+.sidebar-resizer {
+    position: absolute;
+    top: 0;
+    right: -4px;
+    width: 8px;
+    height: 100%;
+    cursor: col-resize;
+    border-radius: 4px;
+    transition: background var(--speed) var(--ease);
+}
+
+.sidebar-resizer:hover {
+    background: var(--accent-soft);
 }

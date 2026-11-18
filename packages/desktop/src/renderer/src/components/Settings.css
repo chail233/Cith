@@ -18,8 +18,9 @@
 }
 
 .settings {
-    width: min(880px, 100%);
-    height: min(620px, 100%);
+    /* 随窗口缩放（视口占比），给个宽上限避免超宽屏上拉得太开 */
+    width: min(84vw, 1200px);
+    height: min(84vh, 820px);
     display: flex;
     flex-direction: column;
     min-width: 0;
@@ -153,7 +154,7 @@
 .settings-pane {
     flex: 1;
     min-width: 0;
-    max-width: 620px;
+    max-width: 720px;
     overflow-y: auto;
     padding: 6px 4px 12px;
     animation: rise var(--speed) var(--ease);

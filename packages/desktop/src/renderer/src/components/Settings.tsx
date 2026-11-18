@@ -4,6 +4,8 @@ import {
     defaultSettings,
     HISTORY_LIMIT_MAX,
     HISTORY_LIMIT_MIN,
+    SIDEBAR_WIDTH_MAX,
+    SIDEBAR_WIDTH_MIN,
     type UiSettings,
 } from '../../../shared/settings.ts'
 import type { BackendStatus, DesktopApi } from '../../../preload/api.ts'
@@ -175,6 +177,15 @@ function InterfacePane({ settings, onChange }: { settings: UiSettings; onChange:
                     step={10}
                     format={(v) => `${v} px`}
                     onChange={(v) => onChange({ contentWidth: v })}
+                />
+                <SliderRow
+                    label="侧栏宽度"
+                    value={settings.sidebarWidth}
+                    min={SIDEBAR_WIDTH_MIN}
+                    max={SIDEBAR_WIDTH_MAX}
+                    step={10}
+                    format={(v) => `${v} px`}
+                    onChange={(v) => onChange({ sidebarWidth: v })}
                 />
             </div>
 

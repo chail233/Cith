@@ -6,6 +6,7 @@ export type UiSettings = {
     paraGap: number
     msgGap: number
     contentWidth: number
+    sidebarWidth: number
     startAtLogin: boolean
     sendKey: 'enter' | 'ctrlEnter'
     historyLimit: number
@@ -24,6 +25,7 @@ export const defaultSettings: UiSettings = {
     paraGap: 10,
     msgGap: 24,
     contentWidth: 760,
+    sidebarWidth: 262,
     startAtLogin: false,
     sendKey: 'enter',
     historyLimit: 400,
@@ -37,6 +39,8 @@ export const defaultSettings: UiSettings = {
 
 export const HISTORY_LIMIT_MIN = 60
 export const HISTORY_LIMIT_MAX = 600
+export const SIDEBAR_WIDTH_MIN = 200
+export const SIDEBAR_WIDTH_MAX = 420
 
 
 export function mergeSettings(raw: unknown): UiSettings {
@@ -53,5 +57,9 @@ export function mergeSettings(raw: unknown): UiSettings {
     merged.historyLimit = Number.isFinite(limit)
         ? Math.min(HISTORY_LIMIT_MAX, Math.max(HISTORY_LIMIT_MIN, Math.round(limit)))
         : defaultSettings.historyLimit
+    const sidebar = Number(merged.sidebarWidth)
+    merged.sidebarWidth = Number.isFinite(sidebar)
+        ? Math.min(SIDEBAR_WIDTH_MAX, Math.max(SIDEBAR_WIDTH_MIN, Math.round(sidebar)))
+        : defaultSettings.sidebarWidth
     return merged as UiSettings
 }

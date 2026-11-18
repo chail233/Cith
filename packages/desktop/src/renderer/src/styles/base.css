@@ -83,10 +83,10 @@ html[data-theme='light'] .brandmark-ith {
     background: none;
 }
 
-/* 应用骨架布局 */
+/* 应用骨架布局：侧栏宽度跟随设置（拖拽手柄与设置页共用同一变量） */
 .app {
     display: grid;
-    grid-template-columns: 262px minmax(0, 1fr);
+    grid-template-columns: var(--sidebar-width, 262px) minmax(0, 1fr);
     height: 100%;
 }
 

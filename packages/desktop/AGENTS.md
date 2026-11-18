@@ -42,7 +42,7 @@ src/renderer/src/
 │   ├── tokens.css            设计 token 单一真源（色板 / 圆角 / 缓动 / 可调变量）
 │   └── base.css              reset + 滚动条 + .app 骨架 + 跨组件共享动画帧（rise / view-in / breathe）
 └── components/
-    ├── Sidebar.tsx/.css      会话列表 + 悬停 ⋯ 菜单（归档/删除，靠底自动上翻）+ 已归档分组 + 品牌行连接状态点
+    ├── Sidebar.tsx/.css      会话列表 + 悬停 ⋯ 菜单（归档/删除，靠底自动上翻）+ 已归档分组 + 品牌行连接状态点 + 右缘拖拽调宽（双击复位）
     ├── Chat.tsx/.css         视图编排：头部 / 消息列表（自动滚底）/ 思考点 / 空状态
     ├── Message.tsx/.css      段渲染器：文本段拆段落 + 行内 code；image 段气泡内图片；file 段文件卡（保存 / 打开链接）；trace 段转交 ToolTrace
     ├── ToolTrace.tsx/.css    工具痕迹卡片（签名组件，grid-rows 平滑展开终端输出）
@@ -77,7 +77,7 @@ src/renderer/src/
 - **段建模**：出站段在 `useConversations.sendOutgoing` 缝内构建（text + Composer 传来的 image/file 附件段），返回值直接装帧、不做二次转换；trace 是桌面本地展示段，将来由 `tool-*` 事件在缝里转换生成，不进传输协议
 - **媒体段**（占位协议扩展，与统一段同构）：image/file 段的 `data` 携带 `{media?, base64?, mime?, name?, size?}`。出站方向 core 侧 `DesktopAdapter` 把 localPath 读成 base64 随帧携带（http 引用原样透传）；入站方向客户端随帧带 base64，core 侧 `DesktopServer` 落地进 `data/desktop/` 并改写成 `media.localPath`（base64 不进上下文，识图等链路照常按路径取用）。体积上限：发送 50MB / 上传 25MB，超出跳过
 - 待办：正式协议握手版本号与 `chat.*` 事件集、trace / 审批卡片事件、跨端历史同步、voice 段
-- **设置项已全部开放**（无占位分类），每一项都落到真实行为：`startAtLogin` → 主进程 `app.setLoginItemSettings`；`sendKey` → `Composer` 的键位与提示文案；`historyLimit` → `snapshotOf` 存盘截断（60~600，`HISTORY_LIMIT_MIN/MAX` 单一真源在 `shared/settings.ts`）；`notifyOnReply` → 主进程 `Notification`。其余为视觉项（字号 / 行高 / 段间距 / 消息间距 / 内容宽度）与后端连接（地址 / token）、频道身份（`userId`）
+- **设置项已全部开放**（无占位分类），每一项都落到真实行为：`startAtLogin` → 主进程 `app.setLoginItemSettings`；`sendKey` → `Composer` 的键位与提示文案；`historyLimit` → `snapshotOf` 存盘截断（60~600，`HISTORY_LIMIT_MIN/MAX` 单一真源在 `shared/settings.ts`）；`notifyOnReply` → 主进程 `Notification`。其余为视觉项（`theme` 主题 → 根节点 `[data-theme]` + 主进程窗口底色；字号 / 行高 / 段间距 / 消息间距 / 内容宽度；侧栏宽度 `sidebarWidth` → `--sidebar-width`，侧栏右缘拖拽实时调、松手落同一设置）与后端连接（地址 / token）、频道身份（`userId`）
 
 ## 本地内置核心
 
