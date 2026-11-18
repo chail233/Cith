@@ -75,6 +75,16 @@ export function CloseIcon({ size = 14 }: IconProps) {
     )
 }
 
+export function ChipIcon({ size = 14 }: IconProps) {
+    return (
+        <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <rect x="4" y="4" width="8" height="8" rx="1.5" />
+            <rect x="6.7" y="6.7" width="2.6" height="2.6" rx="0.7" />
+            <path d="M6 1.9V4M10 1.9V4M6 12v2.1M10 12v2.1M1.9 6H4M1.9 10H4M12 6h2.1M12 10h2.1" />
+        </svg>
+    )
+}
+
 export function ImageIcon({ size = 15 }: IconProps) {
     return (
         <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

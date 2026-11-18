@@ -233,12 +233,19 @@
 
 .side-foot {
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    gap: 2px;
     margin-top: 12px;
     padding: 8px 6px 2px;
 }
 
-.side-setting {
+.side-foot-row {
+    display: flex;
+    align-items: center;
+}
+
+/* 底部入口按钮：设置与本地核心共用 */
+.side-btn {
     display: flex;
     align-items: center;
     gap: 9px;
@@ -249,12 +256,12 @@
     transition: color var(--speed) var(--ease), background var(--speed) var(--ease);
 }
 
-.side-setting:hover {
+.side-btn:hover {
     color: var(--text-1);
     background: var(--hover-fill);
 }
 
-.side-setting.active {
+.side-btn.active {
     color: var(--text-1);
     background: var(--bg-2);
 }

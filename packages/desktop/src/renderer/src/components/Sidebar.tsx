@@ -4,7 +4,7 @@ import type { BackendStatus } from '../../../preload/api.ts'
 import { SIDEBAR_WIDTH_MAX, SIDEBAR_WIDTH_MIN, defaultSettings } from '../../../shared/settings.ts'
 import { STATUS_LABEL } from './Settings'
 import { BrandMark } from '@cith/ui'
-import { MoreIcon, PlusIcon, SlidersIcon } from './icons'
+import { ChipIcon, MoreIcon, PlusIcon, SlidersIcon } from './icons'
 import './Sidebar.css'
 
 type Props = {
@@ -13,17 +13,19 @@ type Props = {
     activeId: string
     version: string
     settingsOpen: boolean
+    coreOpen: boolean
     backendStatus: BackendStatus
     onSelect: (id: string) => void
     onNew: () => void
     onOpenSettings: () => void
+    onOpenCore: () => void
     onArchive: (id: string) => void
     onDelete: (id: string) => void
     onRestore: (id: string) => void
     onSidebarResize: (width: number) => void
 }
 
-export function Sidebar({ conversations, archived, activeId, version, settingsOpen, backendStatus, onSelect, onNew, onOpenSettings, onArchive, onDelete, onRestore, onSidebarResize }: Props) {
+export function Sidebar({ conversations, archived, activeId, version, settingsOpen, coreOpen, backendStatus, onSelect, onNew, onOpenSettings, onOpenCore, onArchive, onDelete, onRestore, onSidebarResize }: Props) {
     const [menuId, setMenuId] = useState<string | null>(null)
     const [menuFlip, setMenuFlip] = useState(false)
 
@@ -167,11 +169,17 @@ export function Sidebar({ conversations, archived, activeId, version, settingsOp
             </nav>
 
             <div className="side-foot">
-                <button className={`side-setting${settingsOpen ? ' active' : ''}`} onClick={onOpenSettings}>
-                    <SlidersIcon />
-                    <span>设置</span>
+                <button className={`side-btn${coreOpen ? ' active' : ''}`} onClick={onOpenCore}>
+                    <ChipIcon />
+                    <span>本地核心</span>
                 </button>
-                {version && <span className="side-version">v{version}</span>}
+                <div className="side-foot-row">
+                    <button className={`side-btn${settingsOpen ? ' active' : ''}`} onClick={onOpenSettings}>
+                        <SlidersIcon />
+                        <span>设置</span>
+                    </button>
+                    {version && <span className="side-version">v{version}</span>}
+                </div>
             </div>
 
             <div

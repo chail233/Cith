@@ -8,6 +8,7 @@ import { useBackendChat } from './useBackendChat'
 import { Sidebar } from './components/Sidebar'
 import { ChatArea } from './components/Chat'
 import { SettingsView } from './components/Settings'
+import { LocalCoreView } from './components/LocalCore'
 import './styles/tokens.css'
 import './styles/base.css'
 
@@ -33,7 +34,7 @@ function migrateLegacy(stored: UiSettings): UiSettings {
 }
 
 export default function App() {
-    const [view, setView] = useState<'chat' | 'settings'>('chat')
+    const [view, setView] = useState<'chat' | 'settings' | 'core'>('chat')
     const [version, setVersion] = useState('')
     const [settings, setSettings] = useState<UiSettings>(defaultSettings)
     const [backendStatus, setBackendStatus] = useState<BackendStatus>({ state: 'idle' })
@@ -90,6 +91,10 @@ export default function App() {
         setView(view === 'settings' ? 'chat' : 'settings')
     }
 
+    function toggleCore() {
+        setView(view === 'core' ? 'chat' : 'core')
+    }
+
     function handleSidebarResize(width: number) {
         void handleSaveSettings({ ...settings, sidebarWidth: width })
     }
@@ -130,7 +135,7 @@ export default function App() {
     }
 
     useEffect(() => {
-        if (view !== 'settings') return
+        if (view !== 'settings' && view !== 'core') return
         const onKey = (e: KeyboardEvent) => {
             if (e.key === 'Escape') setView('chat')
         }
@@ -146,10 +151,12 @@ export default function App() {
                 activeId={conv.active?.id ?? ''}
                 version={version}
                 settingsOpen={view === 'settings'}
+                coreOpen={view === 'core'}
                 backendStatus={backendStatus}
                 onSelect={handleSelect}
                 onNew={handleNew}
                 onOpenSettings={toggleSettings}
+                onOpenCore={toggleCore}
                 onArchive={conv.archive}
                 onDelete={conv.remove}
                 onRestore={handleRestore}
@@ -183,6 +190,13 @@ export default function App() {
                     onClearLocal={conv.clearAll}
                     onOpenDataDir={handleOpenDataDir}
                     onTestNotify={handleTestNotify}
+                    onClose={() => setView('chat')}
+                />
+            )}
+            {view === 'core' && (
+                <LocalCoreView
+                    settings={settings}
+                    onSaveSettings={handleSaveSettings}
                     onClose={() => setView('chat')}
                 />
             )}

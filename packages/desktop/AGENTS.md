@@ -42,12 +42,14 @@ src/renderer/src/
 │   ├── tokens.css            设计 token 单一真源（色板 / 圆角 / 缓动 / 可调变量）
 │   └── base.css              reset + 滚动条 + .app 骨架 + 跨组件共享动画帧（rise / view-in / breathe）
 └── components/
-    ├── Sidebar.tsx/.css      会话列表 + 悬停 ⋯ 菜单（归档/删除，靠底自动上翻）+ 已归档分组 + 品牌行连接状态点 + 右缘拖拽调宽（双击复位）
+    ├── Sidebar.tsx/.css      会话列表 + 悬停 ⋯ 菜单（归档/删除，靠底自动上翻）+ 已归档分组 + 品牌行连接状态点 + 右缘拖拽调宽（双击复位）+ 底部「设置 / 本地核心」入口
     ├── Chat.tsx/.css         视图编排：头部 / 消息列表（自动滚底）/ 思考点 / 空状态
     ├── Message.tsx/.css      段渲染器：文本段拆段落 + 行内 code；image 段气泡内图片；file 段文件卡（保存 / 打开链接）；trace 段转交 ToolTrace
     ├── ToolTrace.tsx/.css    工具痕迹卡片（签名组件，grid-rows 平滑展开终端输出）
     ├── Composer.tsx/.css     自适应高度输入框（键位随 sendKey 设置：Enter 发送 / Shift+Enter 换行，或 Ctrl+Enter 发送 / Enter 换行）+ 附件入口（图片 / 文件）与待发附件条；等回复期间右侧额外多一个中断键，输入与发送都不锁
-    ├── Settings.tsx/.css     设置弹窗（全屏遮罩 + 居中面板，Esc / 遮罩 / × 关闭）：分类导航 + 界面滑组 + 通用（开机自启 / 发送快捷键）+ 会话（保留条数 / 打开数据目录 / 清空本地记录）+ 通知（系统通知开关）+ 用户（频道身份）+ 本地核心（模式切换 / 启停 / 配置表单 / 启动日志 / 微信扫码卡）+ 后端连接（地址 / token / 连接状态，状态文案与侧栏共用）+ 实时预览；行组件三种：`SliderRow` / `SwitchRow` / `OptionRow`，带按钮的行另有 `ActionRow`（danger 需点两次，4s 自动复位）
+    ├── Settings.tsx/.css     设置弹窗（全屏遮罩 + 居中面板，Esc / 遮罩 / × 关闭）：分类导航 + 界面滑组 + 通用（开机自启 / 发送快捷键）+ 会话（保留条数 / 打开数据目录 / 清空本地记录）+ 通知（系统通知开关）+ 用户（频道身份）+ 后端连接（地址 / token / 连接状态，状态文案与侧栏共用）+ 实时预览；行组件的样式类都挂在这份 css（全局类，LocalCore 复用）
+    ├── LocalCore.tsx/.css    本地核心独立界面（侧栏入口，全屏遮罩 + 横向三页）：运行（消息通道切换 / 随启动 / 状态 / 启停动作 / 微信扫码卡，开关即时落设置）+ 配置（config.json 表单，草稿 + 保存）+ 日志
+    ├── rows.tsx              设置与本地核心共用的行组件：`SliderRow` / `SwitchRow` / `OptionRow` / `ActionRow`（danger 需点两次，4s 自动复位）/ `FieldRow`
     ├── BrandMark.tsx/.css    品牌标组件：徽章双色调（C 罩 + ith 焰心）；`orbit` 变体即加载态（C 沿 ith 公转）；侧栏 / 空态 / 关于 / 思考指示共用
     └── icons.tsx             手写 SVG，不引图标库
 ```
@@ -62,7 +64,7 @@ src/renderer/src/
 - 颜色 / 圆角 / 缓动不写魔法值，进 `tokens.css`；组件私有样式与组件同名同目录，跨组件的动画帧进 `styles/base.css`；**不画边框线**，分层靠表面色阶和软阴影（用户审美红线：冷色、线条堆结构）
 - **视觉纪律（去 AI 味，用户红线）**：禁发光（任何彩色 box-shadow halo）、禁弹簧过冲（`--ease-spring` 已删，一律 `--ease`）、禁 blur 入场；动效只回应操作（`--speed` 180ms），进场帧全站只有 `rise` / `view-in`，不做 stagger；状态点一律实色无光环；琥珀只用于品牌标（BrandMark 徽章）、主发送按钮、range 轨道与 active 标记（菱形仅作列表标记语言）；Space Grotesk 仅品牌标使用；思考指示是品牌标公转（`orbit`），不是三点弹跳
 - 加消息段类型：`types.ts` 加类型 → `Message.tsx` 加分支 → 必要时新组件一个
-- 加界面设置项：`shared/settings.ts` 加字段（类型 + 默认值 + `mergeSettings` 校验）→ `settings.ts` 的 apply 写变量（仅视觉类需要）→ `Settings.tsx` 挑合适的行组件（`SliderRow` 滑块 / `SwitchRow` 开关 / `OptionRow` 分段 / `ActionRow` 按钮）→ CSS 里用 `var(--xxx)` 做作用点。**非视觉项（如开机自启、系统通知）不加 apply，改在主进程读设置时生效**
+- 加界面设置项：`shared/settings.ts` 加字段（类型 + 默认值 + `mergeSettings` 校验）→ `settings.ts` 的 apply 写变量（仅视觉类需要）→ `components/rows.tsx` 挑合适的行组件（`SliderRow` 滑块 / `SwitchRow` 开关 / `OptionRow` 分段 / `ActionRow` 按钮）→ CSS 里用 `var(--xxx)` 做作用点。**非视觉项（如开机自启、系统通知）不加 apply，改在主进程读设置时生效**
 - 加 `window.desktop` 能力：`preload/api.ts` 加方法 + `index.d.ts` 类型自动跟随，渲染层可选链调用；需要主进程做事的（系统级副作用、文件操作）走 IPC handler，不要塞进渲染层
 - 每轮请求 UI 改动后：`npm run typecheck` + `npm run build`，视觉改动用 `dev:web` 截图自查（改动后导航要带时间戳参数穿透缓存）
 
@@ -81,7 +83,7 @@ src/renderer/src/
 
 ## 本地内置核心
 
-设置页「本地核心」分类：客户端可以自带一个编译好的 core 在本机跑，GUI 完成配置、启停、看日志；`coreMode: 'remote' | 'local'`（`shared/settings.ts`）决定消息通道指向，默认 remote 行为不变。
+侧栏底部「本地核心」入口打开的独立管理界面（运行 / 配置 / 日志横向三页）：客户端可以自带一个编译好的 core 在本机跑，GUI 完成配置、启停、看日志；`coreMode: 'remote' | 'local'`（`shared/settings.ts`）决定消息通道指向，默认 remote 行为不变；运行页的消息通道与随启动开关改动即时经 `settings:save` 落盘。
 
 - **进程**：`src/main/local-core.ts` 的 `LocalCoreManager` 用 `spawn(process.execPath, [core入口], { ELECTRON_RUN_AS_NODE: '1' })` 复用 Electron 自带 Node 跑 `dist/` 产物（系统无需装 Node）；状态机 `stopped / starting / running / stopping / crashed`（稳定存活 1.5s 才报 running），stdio 按行收 2000 行环形缓冲，经 `core:status` / `core:log` 广播给渲染层；停止走面板 API `shutdown` 动作（Windows 的 `child.kill()` 是强杀，不走 core 的 SIGTERM 清理），4s 超时才强杀；app `before-quit` 有兜底停止
 - **配置与数据**：`src/main/local-config.ts`（不 import electron，根 `tests/local-config.test.mjs` 直接测）管 `userData/core/` 布局——`ensureCoreData()` 首次播种 config.json（随机生成 `token` 与 `web.token`、`wechatStorageDir` 写绝对路径）并从 bundle 复制 prompts / skills / stickers（**幂等，存在即跳过**）；`saveCoreConfig()` 深合并 + 原子写（tmp+rename）。core 子进程以 `CITH_CONFIG=<userData>/core/config.json`、`CITH_DATA=<userData>/core` 启动（`CITH_DATA` 是 core 侧的包外数据根逃生口）
