@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState, type MutableRefObject } from 'react'
+import { Fragment, useEffect, useRef, useState, type MutableRefObject, type ReactNode } from 'react'
 import QRCode from 'qrcode'
 import type { UiSettings } from '../../../shared/settings.ts'
 import type { DesktopApi } from '../../../preload/api.ts'
-import type { CoreConfig, CoreLogLine, CoreStatus } from '../../../shared/core-types.ts'
+import type { CoreLogLine, CoreStatus } from '../../../shared/core-types.ts'
+import { CFG_GROUPS, loadCoreDraft, toCorePatch, type CoreDraft, type FieldSpec } from '../core-config.ts'
 import { ActionRow, FieldRow, OptionRow, SwitchRow } from './rows'
 import { CloseIcon } from './icons'
 import './LocalCore.css'
@@ -18,7 +19,7 @@ function bridgeMissing(method: keyof DesktopApi): Error {
     return new Error(`客户端缺少 ${method} 能力——请重启客户端或重新构建后再试`)
 }
 
-
+/** core 进程状态 → 复用现有状态点/状态文案的 CSS 类与展示词 */
 const CORE_STATUS_VIEW: Record<CoreStatus['state'], { dot: string; label: string }> = {
     stopped: { dot: 'idle', label: '未启动' },
     starting: { dot: 'connecting', label: '正在启动…' },
@@ -27,82 +28,7 @@ const CORE_STATUS_VIEW: Record<CoreStatus['state'], { dot: string; label: string
     crashed: { dot: 'reconnecting', label: '已崩溃' },
 }
 
-
-type CoreDraft = {
-    llmApiUrl: string
-    chatModel: string
-    aiApiKey: string
-    owner: string
-    selfId: string
-    enableLongTermMemory: boolean
-    enableOnebot: boolean
-    wsPort: string
-    enableWechat: boolean
-    desktopPort: string
-    webPort: string
-    mcpServers: string
-}
-
-
-function loadCoreDraft(cfg: CoreConfig): CoreDraft {
-    const web = (typeof cfg.web === 'object' && cfg.web !== null ? cfg.web : {}) as Record<string, unknown>
-    return {
-        llmApiUrl: String(cfg.llmApiUrl ?? ''),
-        chatModel: String(cfg.chatModel ?? ''),
-        aiApiKey: String(cfg.aiApiKey ?? ''),
-        owner: Array.isArray(cfg.owner) ? cfg.owner.map(String).join(', ') : '',
-        selfId: String(cfg.selfId ?? ''),
-        enableLongTermMemory: cfg.enableLongTermMemory === true,
-        enableOnebot: cfg.enableOnebot !== false,
-        wsPort: String(cfg.wsPort ?? 8080),
-        enableWechat: cfg.enableWechat !== false,
-        desktopPort: String(cfg.desktopPort ?? 2147),
-        webPort: String(web.port ?? 2145),
-        mcpServers: Array.isArray(cfg.mcpServers) ? JSON.stringify(cfg.mcpServers, null, 2) : '',
-    }
-}
-
-
-function toCorePatch(draft: CoreDraft): { patch: CoreConfig } | { error: string } {
-    const patch: CoreConfig = {
-        llmApiUrl: draft.llmApiUrl.trim(),
-        chatModel: draft.chatModel.trim(),
-        aiApiKey: draft.aiApiKey.trim(),
-        selfId: draft.selfId.trim(),
-        enableLongTermMemory: draft.enableLongTermMemory,
-        enableOnebot: draft.enableOnebot,
-        enableWechat: draft.enableWechat,
-    }
-    if (draft.owner.trim() !== '') {
-        patch.owner = draft.owner.split(/[,，\s]+/).filter(Boolean)
-    }
-    for (const [key, text] of [['wsPort', draft.wsPort], ['desktopPort', draft.desktopPort], ['webPort', draft.webPort]] as const) {
-        const port = Number(text)
-        if (!Number.isInteger(port) || port <= 0 || port > 65535) {
-            return { error: `${key} 需要是 1~65535 的整数` }
-        }
-        if (key === 'webPort') {
-            patch.web = { ...(typeof patch.web === 'object' ? patch.web : {}), port }
-        }
-        else {
-            patch[key] = port
-        }
-    }
-    if (draft.mcpServers.trim() !== '') {
-        let parsed: unknown
-        try {
-            parsed = JSON.parse(draft.mcpServers)
-        }
-        catch (err) {
-            return { error: `mcpServers 不是合法 JSON：${err instanceof Error ? err.message : String(err)}` }
-        }
-        if (!Array.isArray(parsed)) return { error: 'mcpServers 需要是 JSON 数组' }
-        patch.mcpServers = parsed
-    }
-    return { patch }
-}
-
-
+/** 从日志行里提取微信登录二维码（URL 字符串），扫码成功后清除 */
 function extractWechatQr(text: string, setQr: (url: string) => void): void {
     const match = text.match(/WechatBot(?:重新登录)?二维码:\s*(\S+)/)
     if (match) setQr(match[1])
@@ -123,7 +49,6 @@ type Props = {
     onClose: () => void
 }
 
-
 export function LocalCoreView({ settings, onSaveSettings, onClose }: Props) {
     const [tab, setTab] = useState<TabId>('run')
     const [status, setStatus] = useState<CoreStatus>({ state: 'stopped' })
@@ -131,10 +56,12 @@ export function LocalCoreView({ settings, onSaveSettings, onClose }: Props) {
     const [qrUrl, setQrUrl] = useState('')
     const [qrImage, setQrImage] = useState('')
     const [draft, setDraft] = useState<CoreDraft | null>(null)
+    const initialRef = useRef<CoreDraft | null>(null)
     const [configError, setConfigError] = useState('')
     const [savedHint, setSavedHint] = useState('')
     const logBoxRef = useRef<HTMLDivElement | null>(null)
-    
+
+    // 状态与日志：视图打开期间持续订阅，切页不断，日志在缓冲尾部捞微信二维码
     useEffect(() => {
         let alive = true
         window.desktop?.getCoreStatus?.().then((s) => { if (alive) setStatus(s) })
@@ -166,7 +93,12 @@ export function LocalCoreView({ settings, onSaveSettings, onClose }: Props) {
     // 配置草稿只加载一次（保存后由返回的合并结果刷新）
     useEffect(() => {
         let alive = true
-        window.desktop?.getCoreConfig?.().then((cfg) => { if (alive) setDraft(loadCoreDraft(cfg)) })
+        window.desktop?.getCoreConfig?.().then((cfg) => {
+            if (!alive) return
+            const d = loadCoreDraft(cfg)
+            initialRef.current = d
+            setDraft(d)
+        })
         return () => { alive = false }
     }, [])
 
@@ -197,7 +129,7 @@ export function LocalCoreView({ settings, onSaveSettings, onClose }: Props) {
 
     async function saveConfig(): Promise<void> {
         if (!draft) return
-        const parsed = toCorePatch(draft)
+        const parsed = toCorePatch(draft, initialRef.current)
         if ('error' in parsed) {
             setConfigError(parsed.error)
             return
@@ -205,7 +137,9 @@ export function LocalCoreView({ settings, onSaveSettings, onClose }: Props) {
         try {
             if (!window.desktop?.saveCoreConfig) throw bridgeMissing('saveCoreConfig')
             const merged = await window.desktop.saveCoreConfig(parsed.patch)
-            setDraft(loadCoreDraft(merged))
+            const d = loadCoreDraft(merged)
+            initialRef.current = d
+            setDraft(d)
             setSavedHint(status.state === 'running' || status.state === 'starting' ? '已保存——重启核心后生效' : '已保存')
         }
         catch (err) {
@@ -233,7 +167,7 @@ export function LocalCoreView({ settings, onSaveSettings, onClose }: Props) {
                         </button>
                     ))}
                 </nav>
-                <div className={tab === 'logs' ? 'core-body logs' : 'core-body'} key={tab}>
+                <div className={tab === 'logs' ? 'core-body logs' : tab === 'config' ? 'core-body config' : 'core-body'} key={tab}>
                     {tab === 'run' && (
                         <RunTab settings={settings} onSaveSettings={onSaveSettings} status={status} onStatus={setStatus} qrImage={qrImage} />
                     )}
@@ -337,6 +271,7 @@ function RunTab({ settings, onSaveSettings, status, onStatus, qrImage }: {
     )
 }
 
+/** 配置页：左侧分组导航 + 右侧表单；字段全部由 CFG_GROUPS 声明式驱动 */
 function ConfigTab({ draft, onEdit, onSave, configError, savedHint }: {
     draft: CoreDraft | null
     onEdit: (patch: Partial<CoreDraft>) => void
@@ -344,114 +279,100 @@ function ConfigTab({ draft, onEdit, onSave, configError, savedHint }: {
     configError: string
     savedHint: string
 }) {
+    const [group, setGroup] = useState(CFG_GROUPS[0])
+    const active = CFG_GROUPS.find((g) => g.id === group.id) ?? CFG_GROUPS[0]
+
+    function renderField(field: FieldSpec) {
+        if (field.showIf && String(draft?.[field.showIf.key]) !== field.showIf.equals) return null
+        const value = String(draft?.[field.key] ?? '')
+        let control: ReactNode
+        if (field.kind === 'switch') {
+            control = (
+                <SwitchRow
+                    label={field.label}
+                    hint={field.hint}
+                    checked={Boolean(draft?.[field.key])}
+                    onChange={(v) => onEdit({ [field.key]: v } as Partial<CoreDraft>)}
+                />
+            )
+        }
+        else if (field.kind === 'option') {
+            control = (
+                <OptionRow
+                    label={field.label}
+                    hint={field.hint}
+                    value={value}
+                    options={field.options}
+                    onChange={(v) => onEdit({ [field.key]: v } as Partial<CoreDraft>)}
+                />
+            )
+        }
+        else if (field.kind === 'json' || field.kind === 'kv') {
+            control = (
+                <FieldRow label={field.label} hint={field.hint}>
+                    <textarea
+                        className="field-input core-textarea"
+                        value={value}
+                        placeholder={field.kind === 'kv' ? '10000=张三' : field.placeholder}
+                        spellCheck={false}
+                        onChange={(e) => onEdit({ [field.key]: e.target.value } as Partial<CoreDraft>)}
+                    />
+                </FieldRow>
+            )
+        }
+        else {
+            control = (
+                <FieldRow label={field.label} hint={field.hint}>
+                    <input
+                        className="field-input"
+                        type={field.kind === 'secret' ? 'password' : 'text'}
+                        inputMode={field.kind === 'number' ? 'decimal' : undefined}
+                        value={value}
+                        placeholder={field.placeholder}
+                        autoComplete="off"
+                        spellCheck={false}
+                        onChange={(e) => onEdit({ [field.key]: e.target.value } as Partial<CoreDraft>)}
+                    />
+                </FieldRow>
+            )
+        }
+        // 双列网格里，标 wide 的字段横跨两列
+        if (field.wide) return <div className="field-wide" key={field.key}>{control}</div>
+        return <Fragment key={field.key}>{control}</Fragment>
+    }
+
     return (
         <>
-            {draft && (
-                <div className="pane-card">
-                    <FieldRow label="模型地址 (llmApiUrl)">
-                        <input
-                            className="field-input"
-                            value={draft.llmApiUrl}
-                            placeholder="https://api.example.com/v1"
-                            spellCheck={false}
-                            onChange={(e) => onEdit({ llmApiUrl: e.target.value })}
-                        />
-                    </FieldRow>
-                    <FieldRow label="对话模型 (chatModel)">
-                        <input
-                            className="field-input"
-                            value={draft.chatModel}
-                            placeholder="模型名称"
-                            spellCheck={false}
-                            onChange={(e) => onEdit({ chatModel: e.target.value })}
-                        />
-                    </FieldRow>
-                    <FieldRow label="API Key (aiApiKey)">
-                        <input
-                            className="field-input"
-                            type="password"
-                            value={draft.aiApiKey}
-                            placeholder="sk-…"
-                            autoComplete="off"
-                            onChange={(e) => onEdit({ aiApiKey: e.target.value })}
-                        />
-                    </FieldRow>
-                    <FieldRow label="管理员 QQ (owner，逗号分隔)">
-                        <input
-                            className="field-input"
-                            value={draft.owner}
-                            placeholder="10000, 10001"
-                            spellCheck={false}
-                            onChange={(e) => onEdit({ owner: e.target.value })}
-                        />
-                    </FieldRow>
-                    <FieldRow label="机器人 QQ (selfId)">
-                        <input
-                            className="field-input"
-                            value={draft.selfId}
-                            placeholder="机器人自己的 QQ 号"
-                            spellCheck={false}
-                            onChange={(e) => onEdit({ selfId: e.target.value })}
-                        />
-                    </FieldRow>
-                    <SwitchRow
-                        label="长期记忆"
-                        hint="需 Ollama 或兼容 embedding 接口"
-                        checked={draft.enableLongTermMemory}
-                        onChange={(v) => onEdit({ enableLongTermMemory: v })}
-                    />
-                    <SwitchRow
-                        label="QQ 接入 (OneBot)"
-                        hint="NapCat 反向 WS 填 ws://本机IP:<端口>/onebot/v11/ws"
-                        checked={draft.enableOnebot}
-                        onChange={(v) => onEdit({ enableOnebot: v })}
-                    />
-                    <FieldRow label="NapCat 端口 (wsPort)">
-                        <input
-                            className="field-input"
-                            value={draft.wsPort}
-                            inputMode="numeric"
-                            onChange={(e) => onEdit({ wsPort: e.target.value })}
-                        />
-                    </FieldRow>
-                    <SwitchRow
-                        label="微信接入"
-                        hint="首次启动在「运行」页扫码登录"
-                        checked={draft.enableWechat}
-                        onChange={(v) => onEdit({ enableWechat: v })}
-                    />
-                    <FieldRow label="桌面端口 (desktopPort)">
-                        <input
-                            className="field-input"
-                            value={draft.desktopPort}
-                            inputMode="numeric"
-                            onChange={(e) => onEdit({ desktopPort: e.target.value })}
-                        />
-                    </FieldRow>
-                    <FieldRow label="面板端口 (web.port)">
-                        <input
-                            className="field-input"
-                            value={draft.webPort}
-                            inputMode="numeric"
-                            onChange={(e) => onEdit({ webPort: e.target.value })}
-                        />
-                    </FieldRow>
-                    <FieldRow label="MCP 服务器 (mcpServers，JSON 数组)">
-                        <textarea
-                            className="field-input core-textarea"
-                            value={draft.mcpServers}
-                            placeholder={'[{ "name": "websearch", "command": "$NODE", "args": ["node_modules/open-websearch/build/index.js"] }]'}
-                            spellCheck={false}
-                            onChange={(e) => onEdit({ mcpServers: e.target.value })}
-                        />
-                    </FieldRow>
+            <div className="cfg-nav">
+                {CFG_GROUPS.map((g) => (
+                    <button
+                        key={g.id}
+                        className={`set-cat${g.id === active.id ? ' active' : ''}`}
+                        onClick={() => setGroup(g)}
+                    >
+                        <span>{g.label}</span>
+                    </button>
+                ))}
+            </div>
+            <div className="cfg-pane" key={active.id}>
+                <header className="pane-head">
+                    <h2 className="pane-title">{active.label}</h2>
+                    <p className="pane-desc">{active.desc}</p>
+                </header>
+                {draft ? (
+                    <div className="pane-card">
+                        {active.fields.map(renderField)}
+                    </div>
+                ) : (
+                    <div className="pane-card">
+                        <span className="field-hint">配置加载中…（浏览器预览没有主进程，读不到核心配置）</span>
+                    </div>
+                )}
+                <div className="pane-foot">
+                    <button className="reset-btn" onClick={onSave}>保存核心配置</button>
+                    {configError && <span className="field-hint failure">{configError}</span>}
+                    {savedHint && <span className="field-hint">{savedHint}</span>}
                 </div>
-            )}
-
-            <div className="pane-foot">
-                <button className="reset-btn" onClick={onSave}>保存核心配置</button>
-                {configError && <span className="field-hint failure">{configError}</span>}
-                {savedHint && <span className="field-hint">{savedHint}</span>}
             </div>
         </>
     )

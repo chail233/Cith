@@ -161,12 +161,13 @@ export function ActionRow({ label, hint, actionLabel, doneLabel = '已完成', d
     )
 }
 
-export function FieldRow({ label, children }: { label: string; children: ReactNode }) {
+export function FieldRow({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
     return (
         <div className="field-row">
             <div className="field-head">
                 <span className="field-label">{label}</span>
             </div>
+            {hint && <span className="field-hint">{hint}</span>}
             {children}
         </div>
     )

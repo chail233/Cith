@@ -48,7 +48,7 @@ src/renderer/src/
     ├── ToolTrace.tsx/.css    工具痕迹卡片（签名组件，grid-rows 平滑展开终端输出）
     ├── Composer.tsx/.css     自适应高度输入框（键位随 sendKey 设置：Enter 发送 / Shift+Enter 换行，或 Ctrl+Enter 发送 / Enter 换行）+ 附件入口（图片 / 文件）与待发附件条；等回复期间右侧额外多一个中断键，输入与发送都不锁
     ├── Settings.tsx/.css     设置弹窗（全屏遮罩 + 居中面板，Esc / 遮罩 / × 关闭）：分类导航 + 界面滑组 + 通用（开机自启 / 发送快捷键）+ 会话（保留条数 / 打开数据目录 / 清空本地记录）+ 通知（系统通知开关）+ 用户（频道身份）+ 后端连接（地址 / token / 连接状态，状态文案与侧栏共用）+ 实时预览；行组件的样式类都挂在这份 css（全局类，LocalCore 复用）
-    ├── LocalCore.tsx/.css    本地核心独立界面（侧栏入口，全屏遮罩 + 横向三页）：运行（消息通道切换 / 随启动 / 状态 / 启停动作 / 微信扫码卡，开关即时落设置）+ 配置（config.json 表单，草稿 + 保存）+ 日志
+    ├── LocalCore.tsx/.css    本地核心独立界面（侧栏入口，全屏遮罩 + 横向三页）：运行（消息通道切换 / 随启动 / 状态 / 启停动作 / 微信扫码卡，开关即时落设置）+ 配置（config.json 全量键表单，左侧分组导航——OneBot / 微信 / 桌面 / 面板 / 身份 / 模型 / 对话 / 记忆 / 外部，字段由 CFG_GROUPS 声明式驱动，保存做差量只写改动键）+ 日志（终端盒撑满）
     ├── rows.tsx              设置与本地核心共用的行组件：`SliderRow` / `SwitchRow` / `OptionRow` / `ActionRow`（danger 需点两次，4s 自动复位）/ `FieldRow`
     ├── BrandMark.tsx/.css    品牌标组件：徽章双色调（C 罩 + ith 焰心）；`orbit` 变体即加载态（C 沿 ith 公转）；侧栏 / 空态 / 关于 / 思考指示共用
     └── icons.tsx             手写 SVG，不引图标库

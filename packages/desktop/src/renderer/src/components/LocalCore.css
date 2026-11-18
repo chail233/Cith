@@ -1,7 +1,7 @@
 /* 本地核心独立界面：复用设置弹窗的遮罩/卡片/行组件语言（类在 Settings.css 与 base.css），这里只定义面板壳与横向分页 */
 .core-view {
-    width: min(84vw, 1200px);
-    height: min(84vh, 820px);
+    width: min(94vw, 1520px);
+    height: min(92vh, 940px);
     display: flex;
     flex-direction: column;
     min-width: 0;
@@ -37,8 +37,6 @@
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-    width: min(100%, 760px);
-    margin: 0 auto;
     padding: 16px 26px 26px;
     animation: rise var(--speed) var(--ease);
 }
@@ -62,6 +60,41 @@
     flex: 1;
     min-height: 160px;
     max-height: none;
+}
+
+/* 配置页：左侧分组导航 + 右侧表单，各自独立滚动 */
+.core-body.config {
+    display: flex;
+    gap: 16px;
+    overflow: hidden;
+}
+
+.cfg-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 128px;
+    flex-shrink: 0;
+    overflow-y: auto;
+    padding: 2px;
+}
+
+.cfg-pane {
+    flex: 1;
+    min-width: 0;
+    overflow-y: auto;
+    padding: 2px;
+}
+
+/* 配置表单双列排布，标 wide 的长字段横跨两列 */
+.cfg-pane .pane-card {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 24px;
+}
+
+.cfg-pane .field-wide {
+    grid-column: 1 / -1;
 }
 
 /* 配置表单的 JSON 编辑区（field-input 的等宽加高变体） */
