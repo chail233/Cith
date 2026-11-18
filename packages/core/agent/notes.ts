@@ -14,17 +14,15 @@ const NOTES_PASS_PROMPT = [
     "请回顾这段对话，用笔记工具维护你的全局笔记：",
     "- 自我认知：对自己性格、说话与做事方式、与各成员关系的新认识；",
     "- 想亲自记住的事：承诺、约定、重要事实、经验教训；",
-    "- 已有笔记与现实不符、已经过时的、不再需要的，用 update_note 修正或 delete_note 删除。笔记最好维护在100条以内。",
+    "- 已有笔记与现实不符、已经过时的、不再需要的，用 update_note 修正或 delete_note 删除。笔记维护在50条以内。",
     "笔记一条只写一件事，简洁、能脱离上下文单独理解；不要记琐碎闲聊、转瞬即逝的话题和临时的内容。",
     "没有需要变动的内容时，不要调用任何工具，直接结束。",
 ].join("\n");
 
-/** add_note 入参：模型生成的 JSON 字段类型不可信，交给 notes-store 归一化 */
 export interface NoteContentParams {
     content?: unknown;
 }
 
-/** update_note / delete_note 定位笔记的入参 */
 export interface NoteIdParams {
     id?: unknown;
 }
