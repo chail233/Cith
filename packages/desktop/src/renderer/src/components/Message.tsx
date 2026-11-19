@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ChatMessage, MediaSegmentData } from '../types'
 import { fmtSize } from '../format'
 import { FileIcon } from './icons'
@@ -40,13 +40,23 @@ export function Message({ msg }: { msg: ChatMessage }) {
     )
 }
 
-/** 图片段：base64 优先（本机产生的或随帧携带的），否则回退 http 引用 */
+
 function ImageSegment({ data }: { data: MediaSegmentData }) {
-    const src = data.base64
-        ? `data:${data.mime ?? 'image/png'};base64,${data.base64}`
-        : data.media?.uri
-    // 重启后从本地快照恢复的大图已被裁掉 base64，用文件卡做占位而不是空泡
+    const [blobUrl, setBlobUrl] = useState<string>()
+    const { bytes, mime } = data
+    useEffect(() => {
+        if (!bytes) return
+        const url = URL.createObjectURL(new Blob([bytes], { type: mime ?? 'image/png' }))
+        setBlobUrl(url)
+        return () => URL.revokeObjectURL(url)
+    }, [bytes, mime])
+
+    let src = data.media?.uri
+    if (bytes) src = blobUrl
+    else if (data.base64) src = `data:${mime ?? 'image/png'};base64,${data.base64}`
     if (!src) {
+        if (bytes) return null
+        // 从快照恢复的超限图片只有元信息，显示文件卡占位
         return (
             <div className="msg-file">
                 <span className="msg-file-icon"><FileIcon size={17} /></span>

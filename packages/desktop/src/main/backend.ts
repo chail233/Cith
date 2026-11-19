@@ -98,6 +98,7 @@ export class BackendConnection {
             return
         }
         this.ws = ws
+        ws.binaryType = 'arraybuffer'
         this.setStatus(this.attempt === 0 ? { state: 'connecting' } : { state: 'reconnecting', message: this.lastError })
 
         ws.onopen = () => {
@@ -109,14 +110,16 @@ export class BackendConnection {
         }
         ws.onmessage = (ev) => {
             if (this.ws !== ws) return
-            let frame: unknown
+            let frame: IncomingMessageFrame | null
             try {
-                frame = JSON.parse(String(ev.data))
+                frame = typeof ev.data === 'string'
+                    ? parseMessageFrame(ev.data)
+                    : ev.data instanceof ArrayBuffer ? decodeBinaryFrame(ev.data) : null
             }
             catch {
                 return
             }
-            if (isMessageFrame(frame)) this.handlers.onMessage(frame)
+            if (frame) this.handlers.onMessage(frame)
         }
         ws.onclose = (ev) => {
             if (this.ws !== ws) return
@@ -193,9 +196,34 @@ function describeClose(code: number): string {
     return `连接关闭（代码 ${code}）`
 }
 
-/** 占位协议只认 type === 'message' 的帧，其余（握手/心跳）等正式协议定型 */
-function isMessageFrame(frame: unknown): frame is IncomingMessageFrame {
-    if (typeof frame !== 'object' || frame === null) return false
-    const f = frame as Record<string, unknown>
-    return f.type === 'message' && Array.isArray(f.segments)
+function parseMessageFrame(json: string): IncomingMessageFrame | null {
+    const frame = JSON.parse(json) as Partial<IncomingMessageFrame> | null
+    if (frame?.type !== 'message' || !frame.space || typeof frame.space !== 'object'
+        || !Array.isArray(frame.segments) || !frame.segments.every((seg) => typeof seg?.type === 'string')) return null
+    return frame as IncomingMessageFrame
+}
+
+/** 二进制消息由 4 字节大端头部长度、UTF-8 JSON 头部及按段顺序排列的图片字节组成 */
+function decodeBinaryFrame(buffer: ArrayBuffer): IncomingMessageFrame | null {
+    const prefixLength = 4
+    if (buffer.byteLength <= prefixLength) return null
+    const headerLength = new DataView(buffer).getUint32(0, false)
+    let offset = prefixLength + headerLength
+    if (offset >= buffer.byteLength) return null
+
+    const header = Buffer.from(buffer, prefixLength, headerLength).toString('utf8')
+    const frame = parseMessageFrame(header)
+    if (!frame) return null
+
+    for (const segment of frame.segments) {
+        if (segment.type !== 'image' || !segment.data || !Object.hasOwn(segment.data, 'binaryLength')) continue
+        const { binaryLength, ...data } = segment.data
+        if (typeof binaryLength !== 'number' || !Number.isSafeInteger(binaryLength)
+            || binaryLength <= 0 || binaryLength > buffer.byteLength - offset) return null
+
+        const end = offset + binaryLength
+        segment.data = { ...data, size: binaryLength, bytes: buffer.slice(offset, end) }
+        offset = end
+    }
+    return offset === buffer.byteLength ? frame : null
 }

@@ -6,6 +6,8 @@ import { HISTORY_LIMIT_MAX, HISTORY_LIMIT_MIN } from '../../shared/settings.ts'
 const MAX_CONVERSATIONS = 200
 /** 单段 base64 的体积上限：超出只留元信息（重启后渲染成「未缓存」占位，不让图片把快照撑爆） */
 const MAX_SEGMENT_BASE64 = 1536 * 1024
+/** 快照随会话状态反复生成，同一张图片只编码一次 */
+const snapshotImages = new WeakMap<ArrayBuffer, string>()
 
 const TRACE_STATUSES: TraceStatus[] = ['ok', 'error', 'running']
 
@@ -47,9 +49,28 @@ function snapshotConversation(conv: Conversation, limit: number): Conversation {
 
 function snapshotSegment(seg: Segment): Segment {
     if (seg.type !== 'image' && seg.type !== 'file') return seg
-    const data = seg.data
+    const { bytes, ...data } = seg.data
+    if (bytes) {
+        const fits = Math.ceil(bytes.byteLength / 3) * 4 <= MAX_SEGMENT_BASE64
+        return { type: seg.type, data: { ...data, base64: fits ? encodeSnapshotImage(bytes) : undefined } }
+    }
     if (!data.base64 || data.base64.length <= MAX_SEGMENT_BASE64) return seg
     return { type: seg.type, data: { ...data, base64: undefined } }
+}
+
+function encodeSnapshotImage(buffer: ArrayBuffer): string {
+    const cached = snapshotImages.get(buffer)
+    if (cached !== undefined) return cached
+
+    const bytes = new Uint8Array(buffer)
+    const chunkSize = 8192
+    let binary = ''
+    for (let start = 0; start < bytes.length; start += chunkSize) {
+        binary += String.fromCharCode(...bytes.subarray(start, start + chunkSize))
+    }
+    const base64 = btoa(binary)
+    snapshotImages.set(buffer, base64)
+    return base64
 }
 
 /**

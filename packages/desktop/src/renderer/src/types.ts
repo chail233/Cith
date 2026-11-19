@@ -12,11 +12,11 @@ export type TraceData = {
 
 /**
  * 协议消息段：与 core 统一段同构（{type, data}），只在数据缝内构建，渲染层按 type 分支。
- * trace 是桌面本地展示段，不进传输协议；image/file 的 base64 只存在于传输与渲染态，
- * core 落地后会重写成 media 引用。
+ * trace 是桌面本地展示段，不进传输协议；收到的二进制图片在渲染态保留原始字节。
  */
 export type MediaSegmentData = {
     media?: { uri?: string; localPath?: string }
+    bytes?: ArrayBuffer
     base64?: string
     mime?: string
     name?: string

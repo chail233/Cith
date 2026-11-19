@@ -77,7 +77,7 @@ src/renderer/src/
 - **中断**：等回复期间发送键左侧多一个方块中断键（输入与发送都不锁，连发即可——新消息进记忆后正在跑的那轮循环下一轮请求就会带上），客户端发 `{type:'abort', userId, conversationId}` 帧（不走消息管道），目标取「正在等回复的那条对话」；core 侧 `DesktopServer` 按 `toEventMeta` 推出会话后直接调 `abortSession()`，只查不建——不产生用户消息、不进模型记忆，被中断的轮次也不会再推送回复，所以思考指示当场收掉
 - **会话桥**：`useBackendChat` 装帧/收帧；agent 回复按段拆帧连发（段间 3~4s 拟人间隔），客户端逐帧追加即保节奏；**归属按帧里回传的 `space.conversationId` 直接落回对话**，没带时（主动消息 / 旧后端）才回落到「最近一次发送的对话 → 当前对话」；第一帧收掉思考指示；发送不做互斥（会话内并发请求由 core 的 Agent 自己处理）；桌面频道身份 `userId` 在「用户」设置页可配（缺省 `desktop`，留空回退），随消息帧发送到后端并决定管理员/白名单判定
 - **段建模**：出站段在 `useConversations.sendOutgoing` 缝内构建（text + Composer 传来的 image/file 附件段），返回值直接装帧、不做二次转换；trace 是桌面本地展示段，将来由 `tool-*` 事件在缝里转换生成，不进传输协议
-- **媒体段**（占位协议扩展，与统一段同构）：image/file 段的 `data` 携带 `{media?, base64?, mime?, name?, size?}`。出站方向 core 侧 `DesktopAdapter` 把 localPath 读成 base64 随帧携带（http 引用原样透传）；入站方向客户端随帧带 base64，core 侧 `DesktopServer` 落地进 `data/desktop/` 并改写成 `media.localPath`（base64 不进上下文，识图等链路照常按路径取用）。体积上限：发送 50MB / 上传 25MB，超出跳过
+- **媒体段**：Core 发出的消息含本地图片时走一条 WS 二进制消息，依次包含 4 字节大端 JSON 头部长度、UTF-8 JSON 头部和按段顺序拼接的原始图片字节。每张本地图片的段在头部用 `data.binaryLength` 标明字节数，桌面主进程解包为 `data.bytes`（`ArrayBuffer`），渲染层用 Blob URL 显示。没有本地图片的消息走 JSON 文本，http 引用直接透传。本地普通文件和桌面上传仍用 `data.base64`，上传后由 `DesktopServer` 落地到 `data/desktop/` 并改写为 `media.localPath`。单个本地媒体的体积上限为 Core 发送 50 MiB、客户端上传 25 MiB
 - 待办：正式协议握手版本号与 `chat.*` 事件集、trace / 审批卡片事件、跨端历史同步、voice 段
 - **设置项已全部开放**（无占位分类），每一项都落到真实行为：`startAtLogin` → 主进程 `app.setLoginItemSettings`；`sendKey` → `Composer` 的键位与提示文案；`historyLimit` → `snapshotOf` 存盘截断（60~600，`HISTORY_LIMIT_MIN/MAX` 单一真源在 `shared/settings.ts`）；`notifyOnReply` → 主进程 `Notification`。其余为视觉项（`theme` 主题 → 根节点 `[data-theme]` + 主进程窗口底色；字号 / 行高 / 段间距 / 消息间距 / 内容宽度；侧栏宽度 `sidebarWidth` → `--sidebar-width`，侧栏右缘拖拽实时调、松手落同一设置）与后端连接（地址 / token）、频道身份（`userId`）
 
@@ -96,7 +96,7 @@ src/renderer/src/
 
 - 会话快照走 `userData/sessions.json`（主进程 `src/main/sessions.ts`）：渲染层去抖 500ms 写一次，`beforeunload` / `pagehide` 再单向补写一次；主进程先写 `.tmp` 再改名，超过 16MB 直接丢弃
 - 层级分工：`src/shared/session.ts` 只约定外层形状（`version` / `conversations` / `archived` / `activeId`），段级校验在渲染层 `sessionSnapshot.ts`——快照可能来自旧版本或被外部改坏，坏段整条丢弃
-- 截断规则：会话各 200 条、单会话保留尾部 `historyLimit` 条消息（默认 400，设置页 60~600 可调；读回侧固定按上限 600 截断，调小设置后重启不会立刻丢更早的历史）、单段 base64 超 1.5MB 只留元信息（图片变成「本地未缓存」文件卡，文件卡仍显示名字与体积）
+- 截断规则：会话各 200 条、单会话保留尾部 `historyLimit` 条消息（默认 400，设置页 60~600 可调；读回侧固定按上限 600 截断，调小设置后重启不会立刻丢更早的历史）。二进制图片只在生成快照时按原格式转成 base64。单段 base64 超 1.5 MiB 只留元信息，无法通过链接加载的图片显示「本地未缓存」文件卡
 - 快照只是**本机缓存**：真源仍在 core 的记忆里，跨设备/跨端不共享；用 `conversationId` 与后端会话一一对应（定时苏醒任务也随 `space.conversationId` 落回原对话）；`dev:web` 无主进程时不落盘，只在内存里跑
 
 ## 已知坑

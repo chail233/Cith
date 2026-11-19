@@ -35,7 +35,7 @@ export type OutgoingMessageFrame = {
     segments: FrameSegment[]
 }
 
-/** 入站消息帧：core → 客户端，agent 回复按段逐帧推送 */
+/** 入站消息：主进程解包后，本地图片的原始字节在对应段的 data.bytes 中 */
 export type IncomingMessageFrame = {
     type: 'message'
     space: { from: string; id: string; conversationId?: string }
