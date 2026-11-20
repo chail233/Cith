@@ -1,4 +1,5 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { mkdirSync } from "node:fs";
 import { resolveSrcPath } from "../../utils/file-security.js";
 import config from "../../config.js";
 import type { ToolContext, ToolDefinition, ToolModule } from "../types.ts";
@@ -145,6 +146,14 @@ export async function execute(param: RunShellParams, ctx?: ToolContext): Promise
     const cwdInput = typeof param?.cwd === "string" && param.cwd.trim() ? param.cwd : "workspace";
     const resolved = resolveSrcPath(cwdInput);
     if (resolved.error !== undefined) return resolved.error;
+
+    // cwd 缺失时 spawn 报的 ENOENT 会误指 shell 本体，先确保目录在
+    try {
+        mkdirSync(resolved.fullPath, { recursive: true });
+    }
+    catch {
+        return `工作目录不可用: ${resolved.fullPath}`;
+    }
 
     const child = IS_WIN
         ? spawn(
