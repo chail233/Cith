@@ -61,6 +61,21 @@ jobs:
       - name: 打包 Windows x64 桌面端和内置 Core
         run: npm run bundle:desktop -- --win --x64 --publish never
 
+      - name: 检查安装包中的 Core 和运行依赖
+        shell: pwsh
+        run: |
+          $core = 'packages/desktop/release/win-unpacked/resources/core'
+          if (!(Test-Path -LiteralPath (Join-Path $core 'index.js') -PathType Leaf)) {
+            throw '安装包缺少内置 Core 入口'
+          }
+
+          $manifest = Get-Content -LiteralPath packages/core/package.json -Raw | ConvertFrom-Json
+          foreach ($name in $manifest.dependencies.PSObject.Properties.Name) {
+            if (!(Test-Path -LiteralPath (Join-Path $core "node_modules/$name/package.json") -PathType Leaf)) {
+              throw "安装包缺少内置 Core 的依赖：$name"
+            }
+          }
+
       - name: 上传安装版和便携版
         uses: actions/upload-artifact@v7
         with:

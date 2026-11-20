@@ -1,6 +1,6 @@
 {
     "name": "cith-desktop",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "private": true,
     "description": "Cith desktop client — Electron + React chat UI speaking WebSocket to the core",
     "author": "chail",
@@ -49,7 +49,15 @@
         "extraResources": [
             {
                 "from": "core-bundle",
-                "to": "core"
+                "to": "core",
+                "filter": [
+                    "**/*",
+                    "!node_modules/**"
+                ]
+            },
+            {
+                "from": "core-bundle/node_modules",
+                "to": "core/node_modules"
             }
         ],
         "win": {
