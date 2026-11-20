@@ -26,12 +26,32 @@
 
 ## 快速开始
 
-### 环境要求
+### Windows 桌面版
+
+下载 Windows x64 安装版或便携版，两者都带内置 Core。 [GitHub Releases](https://github.com/chail233/Cith/releases)
+
+- **本地运行**。在 **本地核心 → 运行** 选择「本地内置核心」，到 **配置 → 模型** 填写地址、模型名和 API Key，保存后回到 **运行** 点「启动」。只用桌面聊天可关闭 OneBot 和微信接入。
+- **连接已有 Core**。在 **本地核心 → 运行** 选择「远程后端」，到 **设置 → 后端连接** 填写 `ws://服务器地址:2147` 和 Core 配置中的 `token`。自定义端口时使用 `desktopPort`。
+
+如果 Core 启用了私聊白名单，将 **设置 → 用户** 里的 ID（默认 `desktop`）加入 `targetUserId`。
+
+#### 从无头版迁移到桌面本地核心
+
+1. 在 **本地核心 → 运行** 点「打开核心配置目录」，记下目标位置。停止两个 Core，备份源数据和目标目录。
+2. 将旧 `config.json` 和 `data/` 复制进去，按需复制 `prompts/`、`skills/`、`stickers/` 和 `workspace/`。旧路径默认在 `packages/core/`（`npm start`）或 `dist/`（`npm run start:dist`），有 `CITH_CONFIG` 或 `CITH_DATA` 时以这些配置为准。
+3. 保留原来的 embedding 提供方和模型。自定义 `memoryStorePath` 时，把记忆文件放在新核心目录下，并填入相对路径。迁移微信时，从旧日志找到凭证目录，复制到 `wechatbot/`，并把 `wechatStorageDir` 设为新目录的绝对路径。
+4. 换机器时检查模型、Ollama 和 NapCat 的地址。启动本地核心，发条消息并查看 **日志**。
+
+`data/` 包含长期记忆、笔记和定时任务。QQ、微信的聊天记录不会出现在桌面侧栏。
+
+### 无头版
+
+#### 环境要求
 
 - Node.js **>= 24**（`npm start` 依赖原生 type stripping 直接跑 `.ts`）
 - QQ 接入需要 NapCat 已运行并配置好反向 WebSocket（只用微信 / 桌面端则不需要）
 
-### 一键初始化（推荐）
+#### 一键初始化（推荐）
 
 ```bash
 git clone https://github.com/chail233/Cith
@@ -50,7 +70,7 @@ bash setup.sh
 
 - `npm run setup -- --check`：只读检查；`--no-start`：只写配置不启动；`--force`：备份后重新生成
 
-### 手动配置
+#### 手动配置
 
 ```bash
 git clone https://github.com/chail233/Cith
@@ -76,7 +96,7 @@ NapCat 反向 WebSocket 地址：`ws://127.0.0.1:8080/onebot/v11/ws`（端口随
 
 > `start` 与 `start:dist` 行为一致，差异只是现场转译 vs 预编译纯 JS；`dist/` 不提交。
 
-### 更新
+#### 更新
 
 ```bash
 bash update.sh            # 拉取 + 按需装依赖 + 编译
@@ -86,39 +106,6 @@ bash update.sh --force    # 远端无新提交也重新编译
 ```
 
 只用 `--ff-only` 拉取，本地分叉直接报错；被 gitignore 的本地文件（配置、`mcp/`、`data/`）不会被动。更新后按运行方式重启：`npm start` / `npm run start:dist` / `pm2 restart <应用名>`。
-
-## 使用
-
-### Windows 桌面版
-
-桌面发布包包含 Windows x64 安装版（`Cith-Setup-…-x64.exe`）和便携版（`Cith-Portable-…-x64.exe`），两者都带内置 Core，可直接启动。下载带 `desktop-v` 标签的版本。 [GitHub Releases](https://github.com/chail233/Cith/releases)
-
-也可以在 Windows 上安装 Node.js 和仓库依赖后，从仓库根目录运行 `npm run bundle:desktop -- --win --x64 --publish never`，产物位于 `packages/desktop/release/`。
-
-- **本地内置核心**：打开侧栏 **本地核心 → 运行**，将「消息通道」切换到「本地内置核心」。在 **配置 → 模型** 填写模型地址、对话模型和 API Key，保存后回到 **运行** 点「启动」。客户端会自动连接本机 Core，也可以开启「随应用启动本地核心」。只用桌面聊天时，可在配置页关闭 OneBot 和微信接入。
-- **连接已有 Core**：在 **本地核心 → 运行** 选择「远程后端」，再到 **设置 → 后端连接** 填写服务器地址和 Token。同机可用 `ws://127.0.0.1:2147`，跨设备用 Core 所在机器的地址。端口取旧实例的 `desktopPort`，Token 取 `config.json` 顶层的 `token`。
-
-两种模式都使用 **设置 → 用户** 中的桌面用户 ID，默认是 `desktop`。如果所连 Core 配置了私聊白名单，将该 ID 加入 `targetUserId`。需要从桌面使用管理员命令时，也将该 ID 加入 `owner`。
-
-### 从无头版迁移到桌面本地核心
-
-1. **找到旧实例的数据。** `npm start` 默认从 `packages/core/` 读取配置和数据，`npm run start:dist` 默认从 `dist/` 读取。若旧实例设置了 `CITH_CONFIG` 或 `CITH_DATA`，分别使用它们所指的配置文件和数据根。迁移微信登录时，可从旧实例日志中的「WechatBot凭证目录」找到实际路径。
-2. **打开目标目录并停止两个实例。** 首次打开桌面版后，在 **本地核心 → 运行** 点「打开核心配置目录」。打开的目录就是下表的 `core/`。停掉无头版和桌面本地核心，关闭桌面版，并备份源数据以及目标 `core/` 中已有的文件。
-3. **按下面的对应关系复制。** 对目录复制其中的内容，避免多套一层同名目录。
-
-   | 迁移内容 | 旧实例位置 | 桌面本地核心位置 |
-   | --- | --- | --- |
-   | 用户配置 | `CITH_CONFIG` 指向的文件，默认是 `packages/core/config.json` 或 `dist/config.json` | `core/config.json` |
-   | 运行数据，包括长期记忆、笔记、定时任务和媒体 | 旧数据根下的 `data/` | `core/data/` |
-   | 自定义提示词、技能、表情包及工作文件 | 旧数据根下的 `prompts/`、`skills/`、`stickers/`、`workspace/`（按需） | `core/` 下的同名目录 |
-   | 微信登录凭证（按需） | 旧实例日志中的凭证目录 | `core/wechatbot/` |
-
-4. **检查迁移后的配置。** 用本地核心的配置页检查模型和接入地址。跨机器迁移时，旧配置里的 `127.0.0.1` 或 `localhost` 需要按实际服务位置调整，例如 Ollama 和 NapCat HTTP。迁移了微信凭证时，将 `wechatStorageDir` 设为新 `core/wechatbot/` 的绝对路径。若继续使用 QQ，将 NapCat 的反向 WS 地址指向新 Core，并核对 `token`。
-5. **启动并验证。** 在 **本地核心 → 运行** 选择「本地内置核心」并启动。发一条测试消息，在 **日志** 页查看结果，再验证需要保留的长期记忆、定时任务和渠道登录。
-
-迁移长期记忆时，保留原来的 `memoryEmbedProvider` 和 `memoryEmbedModel`。默认记忆文件是 `core/data/rememori/memory.mem`。如果自定义过 `memoryStorePath`，将文件放到新 `core/` 下并更新为对应的相对路径。每个 `.mem` 文件只能由一个 Core 进程打开。
-
-迁移后，长期记忆可以继续检索。桌面消息列表来自客户端自己的会话记录，QQ 和微信的聊天历史不会导入桌面侧栏。
 
 ## 配置
 
