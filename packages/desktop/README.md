@@ -18,9 +18,9 @@ npm run dist         # 打包 → release/（NSIS 安装包 + portable）
 
 ## 自动打包和发布
 
-推送到 `master` 时，GitHub Actions 会构建包含内置 Core 的 Windows x64 NSIS 安装版和便携版。构建成功后会发布到仓库的 **Releases**，标签为 `desktop-v<版本>`，两个 `.exe` 都可直接下载。同一批文件也可在 **Build Windows desktop** 运行记录的 **Artifacts** 下载。
+推送到 `master` 且改动涉及桌面端、内置 Core、共享 UI 或打包依赖和配置时，GitHub Actions 会构建 Windows x64 NSIS 安装版和便携版。构建成功后会发布到 **Releases**，标签为 `desktop-v<版本>`。两个 `.exe` 也可在 **Build Windows desktop** 的 **Artifacts** 下载。
 
-构建版本保留本包 `package.json` 的主版本号和次版本号，补丁版本号为基准补丁号加工作流运行编号。以 `0.1.1` 为基准时，前两次构建对应 `desktop-v0.1.2` 和 `desktop-v0.1.3`。标签、安装包和应用使用同一个版本号。重跑同一次工作流沿用原版本号，已发布的 Release 会直接复用。
+构建版本保留本包 `package.json` 的主版本号和次版本号，补丁号为基准补丁号加工作流运行编号。标签、安装包和应用使用同一版本号。重跑沿用原版本，失败或取消的运行可能导致跳号。
 
 ## 功能
 

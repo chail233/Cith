@@ -31,7 +31,7 @@
 
 - **AI 编码代理负责迭代桌面版本号**。一批改动如果改变了桌面客户端或内置 Core 的用户可见行为、修复了问题，或改变了安装包的安装和启动行为，就在同一批改动中更新 `packages/desktop/package.json` 的 `version` 和根 `package-lock.json` 的桌面 workspace 版本。修复默认递增补丁版本，新功能和破坏性改动按语义化版本及发布计划选择次版本或主版本。
 - 可在仓库根运行 `npm version patch --workspace packages/desktop --no-git-tag-version`，按需将 `patch` 换成 `minor` 或 `major`，再检查清单和 lockfile 的差异。
-- Windows 工作流以桌面 workspace 的版本为基准，在 CI 中将运行编号加到补丁号上。构建成功后自动发布 `desktop-v<版本>` GitHub Release，Git tag 与安装包使用同一个版本号。
+- Windows 工作流由桌面端、内置 Core、共享 UI 和打包依赖或配置的改动触发。工作流以桌面 workspace 的版本为基准，将运行编号加到补丁号上，构建成功后自动发布 `desktop-v<版本>`。普通文档和测试的改动只提交对应文件，内置 Core 的提示词和 `SKILL.md` 属于运行时资源。
 
 ## 配置系统
 

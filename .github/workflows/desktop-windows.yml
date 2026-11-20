@@ -3,6 +3,24 @@ name: Build Windows desktop
 on:
   push:
     branches: [master]
+    paths:
+      - 'packages/desktop/**'
+      - 'packages/core/**'
+      - 'packages/ui/**'
+      - '!packages/**/*.md'
+      - '!packages/**/docs/**'
+      # 提示词、技能等运行时资源随内置 Core 打包。
+      - 'packages/core/prompts/**'
+      - 'packages/core/skills/**'
+      - 'packages/core/stickers/**'
+      - 'packages/core/workspace/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.npmrc'
+      - 'tsconfig.json'
+      - 'tsconfig.build.json'
+      - 'scripts/copy-assets.js'
+      - 'scripts/stage-desktop-core.js'
 
 permissions:
   contents: read
