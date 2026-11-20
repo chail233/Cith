@@ -1,0 +1,114 @@
+/* 首启解压加载界面：实底全屏盖住应用 */
+.setup-gate {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: grid;
+    place-items: center;
+    padding: 28px;
+    background: var(--bg-0);
+    animation: setup-gate-in var(--speed) var(--ease);
+}
+
+@keyframes setup-gate-in {
+    from {
+        opacity: 0;
+    }
+}
+
+.setup-card {
+    width: min(420px, 90vw);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    text-align: center;
+}
+
+.setup-ring {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 3px solid var(--accent-dim);
+    border-top-color: var(--accent);
+    animation: setup-spin 0.9s linear infinite;
+}
+
+@keyframes setup-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.setup-title {
+    margin: 0;
+    font-size: 18px;
+    color: var(--text-1);
+}
+
+.setup-hint {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-2);
+}
+
+.setup-track {
+    width: 100%;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--bg-3);
+    overflow: hidden;
+}
+
+.setup-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: var(--accent);
+    transition: width 0.25s var(--ease);
+}
+
+/* manifest 缺失拿不到分母，走不定进度 */
+.setup-fill-indeterminate {
+    width: 30%;
+    transition: none;
+    animation: setup-slide 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes setup-slide {
+    from {
+        transform: translateX(-110%);
+    }
+    to {
+        transform: translateX(380%);
+    }
+}
+
+.setup-progress {
+    margin: 0;
+    font-size: 12px;
+    color: var(--text-3);
+    font-variant-numeric: tabular-nums;
+}
+
+.setup-error {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--danger);
+}
+
+.setup-retry {
+    margin-top: 6px;
+    padding: 8px 22px;
+    border: none;
+    border-radius: var(--radius-m);
+    background: var(--accent);
+    color: var(--on-accent);
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.setup-retry:hover {
+    background: var(--accent-strong);
+}

@@ -7,9 +7,10 @@ import { clearSessions, loadSessions, saveSessions } from './sessions'
 import { registerFileHandlers } from './files'
 import { ensureCoreData, readCoreConfig, resolveCorePaths, saveCoreConfig } from './local-config.ts'
 import { LocalCoreManager } from './local-core.ts'
+import { ensureNodeModules } from './node-modules-setup.ts'
 import { registerDesktopUpdates } from './updates.ts'
 import type { BackendConfig } from '../preload/api.ts'
-import type { CoreConfig, CoreLogLine, CoreStatus } from '../shared/core-types.ts'
+import type { CoreConfig, CoreLogLine, CoreSetupState, CoreStatus } from '../shared/core-types.ts'
 
 // 消息通道连接客户端：常驻主进程，状态与消息帧广播给所有窗口
 const backend = new BackendConnection({
@@ -29,6 +30,51 @@ const backend = new BackendConnection({
 let localCore: LocalCoreManager | null = null
 /** 本地核心的数据根（config.json、prompts、skills、微信凭证都在这下面） */
 let coreDataDir = ''
+/** 本地核心的包目录（resources/core） */
+let coreBundleDir = ''
+let coreSetupState: CoreSetupState = { phase: 'idle' }
+let setupRunning = false
+
+function broadcastCoreSetup(): void {
+    for (const win of BrowserWindow.getAllWindows()) {
+        win.webContents.send('core:setup', coreSetupState)
+    }
+}
+
+async function startLocalCore(): Promise<void> {
+    if (!localCore || setupRunning) return
+    setupRunning = true
+    try {
+        if (loadSettings().coreMode === 'local') {
+            const outcome = await ensureNodeModules({
+                coreDir: coreBundleDir,
+                appVersion: app.getVersion(),
+                onProgress: (filesDone, filesTotal) => {
+                    coreSetupState = { phase: 'extracting', filesDone, filesTotal }
+                    broadcastCoreSetup()
+                },
+            })
+            if (!outcome.ok) {
+                coreSetupState = { phase: 'error', message: outcome.message }
+                broadcastCoreSetup()
+                return
+            }
+            if (!outcome.skipped) {
+                coreSetupState = { phase: 'ready' }
+                broadcastCoreSetup()
+            }
+        }
+        try {
+            localCore.start()
+        }
+        catch (err) {
+            console.warn('本地核心启动失败:', err)
+        }
+    }
+    finally {
+        setupRunning = false
+    }
+}
 
 /** 本地模式下自动接线的连接参数：地址与 token 都来自 core 的 config.json */
 function localBackendTarget(): BackendConfig | null {
@@ -83,6 +129,7 @@ app.whenReady().then(() => {
     // ===== 本地内置核心 =====
     coreDataDir = join(app.getPath('userData'), 'core')
     const corePaths = resolveCorePaths(app.isPackaged, process.resourcesPath, resolve(import.meta.dirname, '../../../..', 'dist'))
+    coreBundleDir = corePaths.cwd
     try {
         const created = ensureCoreData(corePaths.cwd, coreDataDir)
         if (created) console.log('本地核心数据目录已初始化:', coreDataDir)
@@ -140,9 +187,15 @@ app.whenReady().then(() => {
     // ===== 本地核心 IPC =====
     ipcMain.handle('core:get-status', () => localCore?.current() ?? { state: 'stopped' as const })
     ipcMain.handle('core:get-logs', () => localCore?.recentLogs(500) ?? [])
+    ipcMain.handle('core:setup:get', () => coreSetupState)
+    ipcMain.handle('core:setup:retry', () => {
+        coreSetupState = { phase: 'idle' }
+        broadcastCoreSetup()
+        void startLocalCore()
+    })
     ipcMain.handle('core:start', () => {
         if (!localCore) throw new Error('本地核心未初始化')
-        localCore.start()
+        void startLocalCore()
         return localCore.current()
     })
     ipcMain.handle('core:stop', async () => {
@@ -177,12 +230,7 @@ app.whenReady().then(() => {
     })
     // 随应用启动本地核心（仅本地模式）
     if (loadSettings().coreMode === 'local' && loadSettings().coreAutoStart) {
-        try {
-            localCore.start()
-        }
-        catch (err) {
-            console.warn('本地核心自动启动失败:', err)
-        }
+        void startLocalCore()
     }
     ipcMain.handle('backend:send', (_e, raw: unknown) => backend.send(raw))
     // 中断帧：不走消息管道，只让 core 停掉该对话进行中的一轮

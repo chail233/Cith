@@ -14,3 +14,10 @@ export type CoreLogLine = { ts: number; text: string }
 
 /** core 用户配置层的宽松形状：键集由 core 的 config.js 定义，这里不做严格校验 */
 export type CoreConfig = Record<string, unknown>
+
+/** 本地核心依赖的首启解压状态（主进程 → 渲染层广播） */
+export type CoreSetupState =
+    | { phase: 'idle' }
+    | { phase: 'extracting'; filesDone: number; filesTotal: number }
+    | { phase: 'ready' }
+    | { phase: 'error'; message: string }

@@ -6,14 +6,15 @@
  * 排除开发机密钥与运行数据（config.json / data / .wechatbot / dev 表情清单），
  * 并按 @cith/core 的生产依赖闭包从根 node_modules 复制依赖包——
  * 内置 core 以 ELECTRON_RUN_AS_NODE 独立进程运行，asar 里的依赖它读不到，
- * 技能脚本的运行时依赖这份 node_modules。
+ * 技能脚本的运行时依赖这份 node_modules。依赖树打成单 tar 随包分发，客户端首启解压。
  *
  * 由根命令 `npm run bundle:desktop` 在 npm run build 之后调用。
  */
 
-import { cpSync, existsSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { cpSync, existsSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { create as tarCreate } from "tar";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, "..");
@@ -26,6 +27,7 @@ const EXCLUDED = new Set([
     "config.json.tmp",
     "data",
     ".wechatbot",
+    "workspace",
     "stickers/manifest.dev.json",
 ]);
 
@@ -58,12 +60,30 @@ for (const name of names) {
     cpSync(from, join(bundle, "node_modules", name), { recursive: true });
     depCount++;
 }
+
+// ===== 3. node_modules 打成单归档：安装包只带一个 tar，客户端首启解压（NSIS 逐文件解压太慢）
+const nmDir = join(bundle, "node_modules");
+const tarFile = join(bundle, "node_modules.tar");
+await tarCreate({ file: tarFile, cwd: bundle, portable: true }, ["node_modules"]);
+const manifest = { files: countFiles(nmDir), bytes: statSync(tarFile).size };
+writeFileSync(join(bundle, "node_modules.tar.json"), `${JSON.stringify(manifest)}\n`);
+rmSync(nmDir, { recursive: true, force: true });
+console.log(`[stage-core] node_modules 已打包: ${tarFile}（${Math.round(manifest.bytes / 1024 / 1024)} MB，${manifest.files} 个文件）`);
+
 console.log(`[stage-core] 完成: ${bundle}（${Math.round(dirSize(bundle) / 1024 / 1024)} MB，依赖包 ${depCount} 个）`);
 
-/**
- * 递归收集 @cith/core 的生产依赖闭包。
- * 返回 names（全部可达包，含 peer/optional）与 hardDeps（仅经 dependencies 边可达的包）。
- */
+/** 递归统计目录内文件数（不含目录本身），供解压校验与进度分母使用 */
+function countFiles(/** @type {string} */ dir) {
+    let total = 0;
+    try {
+        for (const entry of readdirSync(dir, { withFileTypes: true })) {
+            if (entry.isDirectory()) total += countFiles(join(dir, entry.name));
+            else if (entry.isFile()) total++;
+        }
+    }
+    catch { /* 权限不足的条目不计入 */ }
+    return total;
+}
 function collectProdClosure() {
     const corePkg = JSON.parse(readFileSync(resolve(root, "packages", "core", "package.json"), "utf8"));
     const visited = new Set();

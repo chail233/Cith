@@ -3,12 +3,14 @@ import { applySettings } from './settings'
 import { defaultSettings, mergeSettings, type UiSettings } from '../../shared/settings.ts'
 import type { Segment } from './types'
 import type { BackendStatus } from '../../preload/api.ts'
+import type { CoreSetupState } from '../../shared/core-types.ts'
 import { useConversations } from './useConversations'
 import { useBackendChat } from './useBackendChat'
 import { Sidebar } from './components/Sidebar'
 import { ChatArea } from './components/Chat'
 import { SettingsView } from './components/Settings'
 import { LocalCoreView } from './components/LocalCore'
+import { CoreSetupGate } from './components/CoreSetupGate'
 import './styles/tokens.css'
 import './styles/base.css'
 
@@ -38,6 +40,7 @@ export default function App() {
     const [version, setVersion] = useState('')
     const [settings, setSettings] = useState<UiSettings>(defaultSettings)
     const [backendStatus, setBackendStatus] = useState<BackendStatus>({ state: 'idle' })
+    const [coreSetup, setCoreSetup] = useState<CoreSetupState>({ phase: 'idle' })
     const conv = useConversations(settings.historyLimit)
     const chat = useBackendChat(conv, settings.backendUserId)
 
@@ -55,6 +58,17 @@ export default function App() {
         window.desktop?.getBackendStatus?.().then(setBackendStatus).catch(() => {})
         return () => unsub?.()
     }, [])
+
+    // 首启解压状态：先拉快照再订阅增量
+    useEffect(() => {
+        const unsub = window.desktop?.onCoreSetup?.(setCoreSetup)
+        window.desktop?.getCoreSetup?.().then(setCoreSetup).catch(() => {})
+        return () => unsub?.()
+    }, [])
+
+    function retryCoreSetup() {
+        window.desktop?.retryCoreSetup?.().catch(() => {})
+    }
 
     // 设置从主进程取（配置文件在那里懒加载），加载完成后顺带同步连接配置
     useEffect(() => {
@@ -200,6 +214,7 @@ export default function App() {
                     onClose={() => setView('chat')}
                 />
             )}
+            <CoreSetupGate state={coreSetup} onRetry={retryCoreSetup} />
         </div>
     )
 }

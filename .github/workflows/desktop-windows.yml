@@ -76,9 +76,24 @@ jobs:
             throw '安装包缺少客户端更新配置'
           }
 
+          # 依赖树以单 tar 随包分发（客户端首启解压），按 tar 内容校验依赖闭包
+          $tarPath = Join-Path $core 'node_modules.tar'
+          if (!(Test-Path -LiteralPath $tarPath -PathType Leaf)) {
+            throw '安装包缺少内置 Core 依赖归档 node_modules.tar'
+          }
+          if (!(Test-Path -LiteralPath (Join-Path $core 'node_modules.tar.json') -PathType Leaf)) {
+            throw '安装包缺少 node_modules.tar.json 校验清单'
+          }
+
+          $entries = [System.Collections.Generic.HashSet[string]]::new()
+          tar -tf $tarPath | ForEach-Object { [void]$entries.Add($_) }
+          if ($entries.Count -eq 0) {
+            throw 'node_modules.tar 是空的'
+          }
+
           $manifest = Get-Content -LiteralPath packages/core/package.json -Raw | ConvertFrom-Json
           foreach ($name in $manifest.dependencies.PSObject.Properties.Name) {
-            if (!(Test-Path -LiteralPath (Join-Path $core "node_modules/$name/package.json") -PathType Leaf)) {
+            if (!$entries.Contains("node_modules/$name/package.json")) {
               throw "安装包缺少内置 Core 的依赖：$name"
             }
           }

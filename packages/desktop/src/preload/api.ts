@@ -1,7 +1,7 @@
 import { ipcRenderer, type IpcRendererEvent } from 'electron'
 import type { UiSettings } from '../shared/settings.ts'
 import type { PersistedSessions } from '../shared/session.ts'
-import type { CoreConfig, CoreLogLine, CoreStatus } from '../shared/core-types.ts'
+import type { CoreConfig, CoreLogLine, CoreSetupState, CoreStatus } from '../shared/core-types.ts'
 
 /** 消息通道连接状态（主进程 → 渲染层广播） */
 export type BackendStatus = {
@@ -110,6 +110,18 @@ export const desktopApi = {
     getCoreStatus: (): Promise<CoreStatus> => ipcRenderer.invoke('core:get-status'),
     /** 取启动日志缓冲（尾部 500 行） */
     getCoreLogs: (): Promise<CoreLogLine[]> => ipcRenderer.invoke('core:get-logs'),
+    /** 首启解压状态快照（extracting/error 时渲染层显示加载界面） */
+    getCoreSetup: (): Promise<CoreSetupState> => ipcRenderer.invoke('core:setup:get'),
+    /** 重试首启解压并拉起核心 */
+    retryCoreSetup: (): Promise<void> => ipcRenderer.invoke('core:setup:retry'),
+    /** 订阅首启解压状态变化；返回退订函数 */
+    onCoreSetup: (cb: (state: CoreSetupState) => void): (() => void) => {
+        const listener = (_e: IpcRendererEvent, state: CoreSetupState): void => cb(state)
+        ipcRenderer.on('core:setup', listener)
+        return () => {
+            ipcRenderer.removeListener('core:setup', listener)
+        }
+    },
     /** 启动本地核心；已在运行时主进程抛错 */
     startCore: (): Promise<CoreStatus> => ipcRenderer.invoke('core:start'),
     /** 停止本地核心（API 优雅退出 + 超时强杀），等待退出后返回 */
