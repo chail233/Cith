@@ -1,0 +1,123 @@
+name: Build Windows desktop
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 设置桌面构建版本
+        id: version
+        shell: pwsh
+        run: |
+          $manifest = Get-Content -LiteralPath packages/desktop/package.json -Raw | ConvertFrom-Json
+          $base = [version]::Parse($manifest.version)
+          $patch = $base.Build + [int]$env:GITHUB_RUN_NUMBER
+          $version = "$($base.Major).$($base.Minor).$patch"
+
+          npm version $version --workspace packages/desktop --no-git-tag-version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: 打包 Windows x64 桌面端和内置 Core
+        run: npm run bundle:desktop -- --win --x64 --publish never
+
+      - name: 上传安装版和便携版
+        uses: actions/upload-artifact@v7
+        with:
+          name: Cith-Windows-x64-${{ steps.version.outputs.version }}
+          path: packages/desktop/release/*.exe
+          if-no-files-found: error
+          compression-level: 0
+          overwrite: true
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    concurrency:
+      group: desktop-windows-release
+      queue: max
+
+    steps:
+      - name: 下载本轮安装版和便携版
+        uses: actions/download-artifact@v8
+        with:
+          name: Cith-Windows-x64-${{ needs.build.outputs.version }}
+          path: installers
+
+      - name: 发布桌面 GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          DESKTOP_VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          $version = $env:DESKTOP_VERSION
+          $tag = "desktop-v$version"
+          $assetNames = @{
+            "Cith Setup $version.exe" = "Cith-Setup-$version-x64.exe"
+            "Cith $version.exe" = "Cith-Portable-$version-x64.exe"
+          }
+          $assets = foreach ($source in $assetNames.Keys) {
+            $file = Join-Path installers $source
+            (Rename-Item -LiteralPath $file -NewName $assetNames[$source] -PassThru).FullName
+          }
+
+          $refsJson = gh api "repos/$env:GH_REPO/git/matching-refs/tags/desktop-v"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $refs = $refsJson | ConvertFrom-Json
+          $tagRef = $refs | Where-Object { $_.ref -eq "refs/tags/$tag" }
+          if ($tagRef -and $tagRef.object.sha -ne $env:GITHUB_SHA) {
+            throw "标签 $tag 已指向其他提交"
+          }
+
+          # 较早的构建迟到或重跑时，保留较新版本的 Latest 标记。
+          $newerTag = $refs | Where-Object {
+            $_.ref -match '^refs/tags/desktop-v(\d+\.\d+\.\d+)$' -and [version]$Matches[1] -gt [version]$version
+          } | Select-Object -First 1
+          $latest = if ($newerTag) { 'false' } else { 'true' }
+
+          $releaseJson = gh release view $tag --json isDraft,targetCommitish,url 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            $release = $releaseJson | ConvertFrom-Json
+            if (!$tagRef -and $release.targetCommitish -ne $env:GITHUB_SHA) {
+              throw "Release $tag 已指向其他提交"
+            }
+            if (!$release.isDraft) {
+              Write-Output "已发布 ${tag}：$($release.url)"
+              exit 0
+            }
+
+            # 首次上传中断时，GitHub CLI 可能已创建草稿，用同一构建产物补齐后发布。
+            gh release upload $tag @assets --clobber
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            gh release edit $tag --draft=false "--latest=$latest"
+            exit $LASTEXITCODE
+          }
+
+          gh release create $tag @assets --target $env:GITHUB_SHA --title "Cith Desktop $version" --generate-notes "--latest=$latest"
+          exit $LASTEXITCODE

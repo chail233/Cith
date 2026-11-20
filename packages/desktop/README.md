@@ -16,6 +16,12 @@ npm run dist         # 打包 → release/（NSIS 安装包 + portable）
 
 > 改了 `main/` 或 `preload/` 必须完全退出客户端再启动；只靠渲染层热更新会出现「界面是新的、`window.desktop` 是旧的」的半更新状态。
 
+## 自动打包和发布
+
+推送到 `master` 时，GitHub Actions 会构建包含内置 Core 的 Windows x64 NSIS 安装版和便携版。构建成功后会发布到仓库的 **Releases**，标签为 `desktop-v<版本>`，两个 `.exe` 都可直接下载。同一批文件也可在 **Build Windows desktop** 运行记录的 **Artifacts** 下载。
+
+构建版本保留本包 `package.json` 的主版本号和次版本号，补丁版本号为基准补丁号加工作流运行编号。以 `0.1.1` 为基准时，前两次构建对应 `desktop-v0.1.2` 和 `desktop-v0.1.3`。标签、安装包和应用使用同一个版本号。重跑同一次工作流沿用原版本号，已发布的 Release 会直接复用。
+
 ## 功能
 
 - **连接**：core 的 `DesktopServer`（`desktopPort`，默认 2147，Bearer 握手复用 `token`）；地址与 token 在设置页「后端连接」里配，主进程常驻连接、关窗重开后自动恢复。
