@@ -1,6 +1,6 @@
 {
     "name": "cith-desktop",
-    "version": "0.1.2",
+    "version": "0.2.0",
     "private": true,
     "description": "Cith desktop client — Electron + React chat UI speaking WebSocket to the core",
     "author": "chail",
@@ -21,6 +21,7 @@
         "@cith/ui": "*",
         "@fontsource-variable/jetbrains-mono": "^5.3.0",
         "@fontsource-variable/space-grotesk": "^5.3.0",
+        "electron-updater": "^6.8.12",
         "qrcode": "^1.5.4",
         "react": "^18.3.1",
         "react-dom": "^18.3.1"
@@ -40,6 +41,12 @@
     "build": {
         "appId": "dev.sunbatwo.cith",
         "productName": "Cith",
+        "publish": {
+            "provider": "github",
+            "owner": "chail233",
+            "repo": "Cith",
+            "tagNamePrefix": "desktop-v"
+        },
         "directories": {
             "output": "release"
         },
@@ -67,8 +74,12 @@
             ]
         },
         "nsis": {
+            "artifactName": "Cith-Setup-${version}-${arch}.${ext}",
             "oneClick": false,
             "allowToChangeInstallationDirectory": true
+        },
+        "portable": {
+            "artifactName": "Cith-Portable-${version}-${arch}.${ext}"
         }
     }
 }

@@ -48,6 +48,8 @@ export type AbortRequest = { userId: string; conversationId?: string }
 /** 渲染层可用的主进程桥接 API，类型经 index.d.ts 暴露给 renderer */
 export const desktopApi = {
     getVersion: (): Promise<string> => ipcRenderer.invoke('app:get-version'),
+    /** 从发布页检查更新，由主进程处理下载和重启确认 */
+    checkForUpdates: (): Promise<void> => ipcRenderer.invoke('app:check-for-updates'),
     /** 当前生效的设置；主进程从配置文件懒加载 */
     getSettings: (): Promise<UiSettings> => ipcRenderer.invoke('settings:get'),
     /** 保存设置并落盘配置文件，返回合并默认值后的生效状态 */

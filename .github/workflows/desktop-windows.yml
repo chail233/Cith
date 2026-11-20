@@ -59,14 +59,21 @@ jobs:
           "version=$version" >> $env:GITHUB_OUTPUT
 
       - name: 打包 Windows x64 桌面端和内置 Core
+        env:
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
         run: npm run bundle:desktop -- --win --x64 --publish never
 
-      - name: 检查安装包中的 Core 和运行依赖
+      - name: 检查安装包中的 Core 和更新配置
         shell: pwsh
         run: |
-          $core = 'packages/desktop/release/win-unpacked/resources/core'
+          $resources = 'packages/desktop/release/win-unpacked/resources'
+          $core = Join-Path $resources 'core'
           if (!(Test-Path -LiteralPath (Join-Path $core 'index.js') -PathType Leaf)) {
             throw '安装包缺少内置 Core 入口'
+          }
+          if (!(Test-Path -LiteralPath (Join-Path $resources 'app-update.yml') -PathType Leaf)) {
+            throw '安装包缺少客户端更新配置'
           }
 
           $manifest = Get-Content -LiteralPath packages/core/package.json -Raw | ConvertFrom-Json
@@ -76,11 +83,14 @@ jobs:
             }
           }
 
-      - name: 上传安装版和便携版
+      - name: 上传安装包和更新元数据
         uses: actions/upload-artifact@v7
         with:
           name: Cith-Windows-x64-${{ steps.version.outputs.version }}
-          path: packages/desktop/release/*.exe
+          path: |
+            packages/desktop/release/*.exe
+            packages/desktop/release/*.exe.blockmap
+            packages/desktop/release/latest.yml
           if-no-files-found: error
           compression-level: 0
           overwrite: true
@@ -96,7 +106,7 @@ jobs:
       queue: max
 
     steps:
-      - name: 下载本轮安装版和便携版
+      - name: 下载本轮安装包和更新元数据
         uses: actions/download-artifact@v8
         with:
           name: Cith-Windows-x64-${{ needs.build.outputs.version }}
@@ -111,13 +121,17 @@ jobs:
         run: |
           $version = $env:DESKTOP_VERSION
           $tag = "desktop-v$version"
-          $assetNames = @{
-            "Cith Setup $version.exe" = "Cith-Setup-$version-x64.exe"
-            "Cith $version.exe" = "Cith-Portable-$version-x64.exe"
+          $setup = "Cith-Setup-$version-x64.exe"
+          $assets = foreach ($name in @($setup, "Cith-Portable-$version-x64.exe", "$setup.blockmap", 'latest.yml')) {
+            (Get-Item -LiteralPath (Join-Path installers $name)).FullName
           }
-          $assets = foreach ($source in $assetNames.Keys) {
-            $file = Join-Path installers $source
-            (Rename-Item -LiteralPath $file -NewName $assetNames[$source] -PassThru).FullName
+          $metadata = Get-Content -LiteralPath installers/latest.yml -Raw
+          $hashHex = (Get-FileHash -LiteralPath (Join-Path installers $setup) -Algorithm SHA512).Hash
+          $hash = [Convert]::ToBase64String([Convert]::FromHexString($hashHex))
+          if ($metadata -notmatch "(?m)^version: $([regex]::Escape($version))\r?$" -or
+              $metadata -notmatch "(?m)^path: $([regex]::Escape($setup))\r?$" -or
+              $metadata -cnotmatch "(?m)^sha512: $([regex]::Escape($hash))\r?$") {
+            throw '更新元数据的版本、文件名或校验值与安装包不符'
           }
 
           $refsJson = gh api "repos/$env:GH_REPO/git/matching-refs/tags/desktop-v"

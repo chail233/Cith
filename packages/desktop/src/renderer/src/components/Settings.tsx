@@ -414,6 +414,16 @@ function AboutPane({ version }: { version: string }) {
                     <div className="about-line">v{version} · Electron + React</div>
                 </div>
             </div>
+            {window.desktop?.checkForUpdates && (
+                <div className="pane-card">
+                    <ActionRow
+                        label="应用更新"
+                        actionLabel="检查更新"
+                        doneLabel="检查完成"
+                        onAction={() => window.desktop?.checkForUpdates?.()}
+                    />
+                </div>
+            )}
         </>
     )
 }

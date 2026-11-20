@@ -182,7 +182,8 @@
     box-shadow: var(--shadow-s);
 }
 
-.pane-card + .pane-card {
+.pane-card + .pane-card,
+.about + .pane-card {
     margin-top: 12px;
 }
 

@@ -22,6 +22,12 @@ npm run dist         # 打包 → release/（NSIS 安装包 + portable）
 
 构建版本保留本包 `package.json` 的主版本号和次版本号，补丁号为基准补丁号加工作流运行编号。标签、安装包和应用使用同一版本号。重跑沿用原版本，失败或取消的运行可能导致跳号。
 
+### 客户端更新
+
+Windows 发布版启动时检查更新，也可以打开 **设置 → 关于 → 检查更新**。安装版在后台下载新版，用户确认重启后先停止本地 Core，再安装并重新打开应用。便携版会提示前往 Release 下载。
+
+CI 会随安装包上传 `latest.yml` 和 `.blockmap`。如需 Windows 代码签名，在仓库 Actions Secrets 中设置 `WIN_CSC_LINK` 和 `WIN_CSC_KEY_PASSWORD`，让 electron-builder 签名并在更新配置中记录发布者。
+
 ## 功能
 
 - **连接**：core 的 `DesktopServer`（`desktopPort`，默认 2147，Bearer 握手复用 `token`）；地址与 token 在设置页「后端连接」里配，主进程常驻连接、关窗重开后自动恢复。
@@ -44,5 +50,4 @@ src/shared/      主进程与渲染层共用：设置项（含 mergeSettings 校
 ## 待接入
 
 - 正式协议：握手版本号、`chat.*` 事件集、trace / 审批卡片、跨端历史同步
-- electron-builder 自动更新
 

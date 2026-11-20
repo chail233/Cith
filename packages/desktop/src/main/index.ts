@@ -7,6 +7,7 @@ import { clearSessions, loadSessions, saveSessions } from './sessions'
 import { registerFileHandlers } from './files'
 import { ensureCoreData, readCoreConfig, resolveCorePaths, saveCoreConfig } from './local-config.ts'
 import { LocalCoreManager } from './local-core.ts'
+import { registerDesktopUpdates } from './updates.ts'
 import type { BackendConfig } from '../preload/api.ts'
 import type { CoreConfig, CoreLogLine, CoreStatus } from '../shared/core-types.ts'
 
@@ -220,6 +221,7 @@ app.whenReady().then(() => {
         new Notification({ title: 'Cith', body: '通知链路正常：这是一条测试通知' }).show()
     })
     createWindow()
+    registerDesktopUpdates(async () => { await localCore?.stop() })
 
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) createWindow()
