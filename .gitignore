@@ -44,6 +44,9 @@
 # token-usage 运行数据（与 data 路径问题一族，待统一治理）
 /packages/core/data/token-usage.json
 
+# 会话快照（各会话当前状态的持久化，重启后按需恢复）
+/packages/core/data/sessions/
+
 # IDE 本地配置（仅跟踪 .idea/.gitignore 这一个忽略清单）
 /.idea/
 

@@ -128,6 +128,9 @@ const baseConfig = {
     /** 聊天阈值（token）：一轮 Agent 结束后上下文仍超出则后台摘要，压缩较旧的对话 */
     chatSummaryThresholdTokens: 12000,
 
+    /** 会话快照开关：每轮结束把会话当前状态落盘 data/sessions/，重启后按需恢复 */
+    enableSessionSnapshot: true,
+
     // ========== 长期记忆（rememori） ==========
 
     /** 长期记忆开关 */

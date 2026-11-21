@@ -4,10 +4,13 @@ import { reloadSkills, skills } from "./skill.js";
 import { extensionRegistry } from "./extensions/registry.ts";
 import { runNotesMaintenance } from "./notes.ts";
 import { renderPlanBlock, PlanBoard } from "./plan.ts";
+import { scheduleSessionSave } from "./session-store.ts";
 import { readSystemPrompt } from "../services/prompt-store.ts";
 import { renderNotesBlock } from "../services/notes-store.ts";
 import config from "../config.js";
 import logger from "../utils/logger.js";
+import type { Plan } from "./plan.ts";
+import type { SessionSnapshotData } from "./session-store.ts";
 import type { ChatRecorder } from "./recorder.js";
 import type { Context, MessageSegment } from "../types/index.ts";
 import type { ChatMessage, ToolCall, ToolContext, ToolDefinition, ToolHold, ToolCallResult } from "./types.ts";
@@ -106,6 +109,7 @@ export default class Agent {
             this.controller = null
             this.running = false
             void this.postRunMaintenance();
+            this.saveSnapshot();
         }
     }
 
@@ -387,6 +391,32 @@ export default class Agent {
 
     get usageStats(): SessionUsageStats {
         return { requests: this.usageRequests, inputTokens: this.usageInputTokens, cachedTokens: this.usageCachedTokens };
+    }
+
+
+    private snapshotState(): SessionSnapshotData {
+        return {
+            savedAt: new Date().toISOString(),
+            recorder: this.memory.snapshot(),
+            plan: this.planBoard.getActive(),
+            pendingTrigger: this.pendingTrigger,
+            usage: this.usageStats,
+        };
+    }
+
+    saveSnapshot(): void {
+        scheduleSessionSave(this.sessionId, this.snapshotState());
+    }
+
+
+    restoreState(data: SessionSnapshotData | null): void {
+        if (!data) return;
+        this.memory.restore(data.recorder);
+        if (data.plan) this.planBoard.set(data.plan.goal, data.plan.items);
+        if (data.pendingTrigger) this.pendingTrigger = data.pendingTrigger as WakeTrigger;
+        this.usageRequests = data.usage.requests;
+        this.usageInputTokens = data.usage.inputTokens;
+        this.usageCachedTokens = data.usage.cachedTokens;
     }
 
 

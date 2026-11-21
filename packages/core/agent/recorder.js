@@ -214,6 +214,32 @@ export class ChatRecorder {
         this._epoch++;
     }
 
+    /**
+     * 当前状态的快照（会话持久化用）：深拷贝，落盘前不受后续变更影响
+     * @returns {{messages: Array, midSummary: string, msgWithoutChat: number}}
+     */
+    snapshot() {
+        return {
+            messages: structuredClone(this._messages),
+            midSummary: this._midSummary,
+            msgWithoutChat: this.msgWithoutChat,
+        };
+    }
+
+    /**
+     * 从快照恢复（重启后加载）：最小校验，体积按恢复后的消息重算
+     * @param {{messages?: Array, midSummary?: unknown, msgWithoutChat?: unknown}} data
+     */
+    restore(data) {
+        if (!data || typeof data !== "object") return;
+        this._messages = Array.isArray(data.messages)
+            ? data.messages.filter((m) => m && typeof m === "object" && typeof m.role === "string")
+            : [];
+        this._midSummary = typeof data.midSummary === "string" ? data.midSummary : "";
+        this.msgWithoutChat = typeof data.msgWithoutChat === "number" ? data.msgWithoutChat : 0;
+        this._recount();
+    }
+
     get length() {
         return this._counted();
     }

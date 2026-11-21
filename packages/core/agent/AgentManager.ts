@@ -2,6 +2,7 @@
  * Agent 会话池
  */
 import { ChatRecorder } from "./recorder.js";
+import { takeSessionSnapshot } from "./session-store.ts";
 import logger from "../utils/logger.js";
 import Agent from "./Agent.ts";
 import type { Space } from "../types/index.ts";
@@ -48,7 +49,10 @@ export function getAgent(space: Space): Agent {
         if (agents.size >= MAX_SESSIONS) {
             retireLeastRecent();
         }
-        entry = { agent: new Agent({ sessionId: id, memory: new ChatRecorder(id) }), lastActive: Date.now() };
+        const agent = new Agent({ sessionId: id, memory: new ChatRecorder(id) });
+        // 重启后首次使用：从快照恢复上一进程遗留的会话状态
+        agent.restoreState(takeSessionSnapshot(id));
+        entry = { agent, lastActive: Date.now() };
         agents.set(id, entry);
         logger.debug(`新建 Agent 会话: ${id}`);
     }
@@ -125,7 +129,7 @@ function retireLeastRecent(): void {
 }
 
 /**
- * 回收前摘要记忆，失败只记日志（不阻塞会话池操作）
+ * 回收前摘要记忆并落盘快照，失败只记日志（不阻塞会话池操作）
  */
 async function safeCompress(entry: AgentEntry, id: string): Promise<void> {
     try {
@@ -133,6 +137,9 @@ async function safeCompress(entry: AgentEntry, id: string): Promise<void> {
     }
     catch (err) {
         logger.error(`会话 ${id} 回收压缩失败:`, err);
+    }
+    finally {
+        entry.agent.saveSnapshot();
     }
 }
 

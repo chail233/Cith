@@ -72,10 +72,12 @@ const cmds = [
         description: "清除短期记忆（管理员）",
         params: [],
         handler: async (args, ctx) => {
-            const recorder = getAgent(ctx.space).memory;
-            const cnt = recorder.length;
-            recorder.clear();
-            return `清除了${cnt}条消息（会话 ${recorder.sessionId}）。`;
+            const agent = getAgent(ctx.space);
+            const cnt = agent.memory.length;
+            agent.memory.clear();
+            // 清空后的快照无实质内容，落盘时会顺带删除该会话的快照文件
+            agent.saveSnapshot();
+            return `清除了${cnt}条消息（会话 ${agent.memory.sessionId}）。`;
         }
     },
     {

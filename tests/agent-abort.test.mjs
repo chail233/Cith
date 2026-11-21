@@ -53,6 +53,10 @@ mock.module("../packages/core/agent/tools.js", {
 mock.module("../packages/core/agent/skill.js", {
     namedExports: { reloadSkills: async () => {}, skills: [] },
 });
+// 快照落盘与本测试无关，mock 成 no-op 以免写进真实数据根
+mock.module("../packages/core/agent/session-store.ts", {
+    namedExports: { scheduleSessionSave: () => {} },
+});
 
 const { default: Agent } = await import("../packages/core/agent/Agent.ts");
 
@@ -64,6 +68,7 @@ function fakeMemory() {
         maybeSummarize: () => false,
         getMidSummary: () => "",
         getAll: () => [],
+        snapshot: () => ({ messages: [], midSummary: "", msgWithoutChat: 0 }),
         add(msg) { this.added.push(msg); },
     };
 }

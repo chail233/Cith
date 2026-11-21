@@ -11,14 +11,18 @@ import { startScheduler, stopScheduler } from "./services/scheduler.js";
 import { wakeUp } from "./services/wake.js";
 import { runPreflight } from "./services/preflight.ts";
 import { initMemoryStore, maintainMemoryStore, closeMemoryStore } from "./services/memory-store.ts";
+import { initSessionStore, flushSessionSaves } from "./agent/session-store.ts";
 
 logger.info("SunbatwoBot 启动中...");
 
 runPreflight();
 
-// 长期记忆：进程内单例（初始化失败只降级，不阻塞启动）
+// 长期记忆：进程内单例
 await initMemoryStore();
 void maintainMemoryStore();
+
+// 会话快照：加载上一进程遗留的各会话状态，供会话首次被使用时恢复
+await initSessionStore();
 
 // 扩展工具来源（MCP 等）：启动连接
 await extensionRegistry.init();
@@ -38,6 +42,7 @@ const cleanup = async (signal) => {
     logger.info(`收到 ${signal} 信号，正在关闭...`);
     try { apiServer.close(); } catch { /* ignore */ }
     stopScheduler();
+    await flushSessionSaves();
     await closeMemoryStore();
     await extensionRegistry.shutdown();
     process.exit(0);
@@ -49,6 +54,7 @@ process.on('SIGINT', () => cleanup('SIGINT'));
 process.on('SIGTERM', () => cleanup('SIGTERM'));
 process.on('uncaughtException', async (err) => {
     logger.error('未捕获的异常:', err);
+    await flushSessionSaves();
     await closeMemoryStore();
     await extensionRegistry.shutdown();
     process.exit(1);
