@@ -1,6 +1,6 @@
 {
     "name": "cith-desktop",
-    "version": "0.3.0",
+    "version": "0.3.1",
     "private": true,
     "description": "Cith desktop client — Electron + React chat UI speaking WebSocket to the core",
     "author": "chail",
@@ -52,7 +52,8 @@
             "output": "release"
         },
         "files": [
-            "out/**"
+            "out/**",
+            "resources/**"
         ],
         "extraResources": [
             {
@@ -65,6 +66,7 @@
             }
         ],
         "win": {
+            "icon": "build/icon.ico",
             "target": [
                 "nsis",
                 "portable"

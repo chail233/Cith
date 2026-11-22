@@ -103,6 +103,8 @@ function createWindow(): void {
         minHeight: 600,
         show: false,
         autoHideMenuBar: true,
+        // 窗口/任务栏图标（打包后 exe 图标由 electron-builder 从 build/icon.ico 嵌入）
+        icon: join(import.meta.dirname, '../../resources/icon.png'),
         backgroundColor: windowBackground(loadSettings().theme),
         webPreferences: {
             preload: join(import.meta.dirname, '../preload/index.mjs'),
