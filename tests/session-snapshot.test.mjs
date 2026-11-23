@@ -13,6 +13,7 @@ import { createServer } from "node:http";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import finishTurnTool, { FINISH_TURN_TOOL_NAME } from "../packages/core/agent/tools/finish-turn.ts";
 
 // ---------------------------------------------------------------- 假端点
 
@@ -76,7 +77,7 @@ before(async () => {
 
     // 普通工具不必真执行，固定文本结果即可
     mock.module("../packages/core/agent/tools.js", {
-        namedExports: { getAllTools: () => [], callTool: async () => "ok" },
+        namedExports: { getAllTools: () => [finishTurnTool.definition], callTool: async () => "ok" },
     });
 });
 
@@ -126,7 +127,7 @@ test("每轮 run 结束快照落盘", async () => {
                 name: REPLY_TOOL_NAME,
                 arguments: JSON.stringify({ segments: [{ type: "text", data: { text: "你好呀" } }] }),
             },
-        }],
+        }, { id: "finish", type: "function", function: { name: FINISH_TURN_TOOL_NAME, arguments: "{}" } }],
     });
 
     const agent = getAgent(USER_SPACE);
@@ -142,9 +143,11 @@ test("每轮 run 结束快照落盘", async () => {
     assert.ok(existsSync(file), "快照文件应已落盘");
     const saved = JSON.parse(readFileSync(file, "utf-8"));
     assert.equal(saved.version, 1);
-    // user + tool_calls 骨架 + tool 回执 + assistant 发言
-    assert.equal(saved.recorder.messages.length, 4);
-    assert.equal(saved.recorder.messages[3].content.action[0].data.text, "你好呀");
+    // 用户消息、结束和发言工具的两组调用与回执、最终发言
+    assert.equal(saved.recorder.messages.length, 6);
+    assert.equal(saved.recorder.messages[1].tool_calls[0].function.name, FINISH_TURN_TOOL_NAME);
+    assert.equal(saved.recorder.messages[2].tool_call_id, "finish");
+    assert.equal(saved.recorder.messages.at(-1).content.action[0].data.text, "你好呀");
     assert.equal(saved.usage.requests, 1);
     assert.deepEqual(adapter.sent, [[{ type: "text", data: { text: "你好呀" } }]]);
 });

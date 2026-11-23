@@ -1,5 +1,6 @@
 import { callLLM } from "./client.ts";
 import { callTool, getAllTools } from "./tools.js";
+import { FINISH_TURN_TOOL_NAME } from "./tools/finish-turn.ts";
 import { reloadSkills, skills } from "./skill.js";
 import { extensionRegistry } from "./extensions/registry.ts";
 import { runNotesMaintenance } from "./notes.ts";
@@ -9,7 +10,6 @@ import { readSystemPrompt } from "../services/prompt-store.ts";
 import { renderNotesBlock } from "../services/notes-store.ts";
 import config from "../config.js";
 import logger from "../utils/logger.js";
-import type { Plan } from "./plan.ts";
 import type { SessionSnapshotData } from "./session-store.ts";
 import type { ChatRecorder } from "./recorder.js";
 import type { Context, MessageSegment } from "../types/index.ts";
@@ -32,7 +32,8 @@ export interface ToolReceipt {
 }
 
 export interface ReplyOutcome {
-    acts: MessageSegment[];
+    /** null 表示本次循环的发言已写入记忆 */
+    acts: MessageSegment[] | null;
 }
 
 export interface HeldOutcome {
@@ -103,7 +104,7 @@ export default class Agent {
                 await this.deliverApproval(ctx, outcome.held);
                 return;
             }
-            this.recordReply(outcome.acts);
+            if (outcome.acts !== null) this.recordReply(outcome.acts);
         }
         finally {
             this.controller = null
@@ -148,6 +149,7 @@ export default class Agent {
         let toolDepth = 0;
         /** 是否已因纯文本输出纠偏重试过（只重试一次，防循环） */
         let corrected = false;
+        let hasSpoken = false;
 
         while (true) {
             if (this.aborted) return this.abortedOutcome();
@@ -163,10 +165,10 @@ export default class Agent {
             if (calls.length === 0) {
                 const text = (result.message.content ?? "").trim();
                 // 正文为空 = 模型选择本轮不发言：既无内容可纠偏，也没有可桥接的文本，直接收尾
-                if (text === "") return { acts: [] };
+                if (text === "") return { acts: hasSpoken ? null : [] };
                 if (!corrected) {
                     corrected = true;
-                    this.memory.add({ role: "system", content: { text: `你直接输出了文本而没有调用 send_message，文本不会被发送。请用 send_message 重新发送这段内容：「${text.slice(0, 200)}」` } });
+                    this.memory.add({ role: "system", content: { text: `你直接输出了文本而没有调用 send_message，文本不会被发送。请用 send_message 发送这段内容，需要结束时一并调用 finish_turn：「${text.slice(0, 200)}」` } });
                     logger.warn("模型以纯文本作答，已回填纠偏并重试:", this.sessionId);
                     continue;
                 }
@@ -177,7 +179,9 @@ export default class Agent {
 
             // 工具链达到上限 → 强制收敛：只留发言工具再问一次，逼模型直接作答
             if (toolDepth >= config.toolChainMaxLength) {
-                return this.converge(replyTool, toolCtx);
+                const outcome = await this.converge(replyTool, toolCtx);
+                if (hasSpoken && "acts" in outcome && outcome.acts?.length === 0) return { acts: null };
+                return outcome;
             }
             toolDepth++;
 
@@ -191,27 +195,24 @@ export default class Agent {
                 receipts.push(...results);
             }
 
-            let acts: MessageSegment[] | null = null;
-            let spokenAccepted = false;
-            if (replyCalls.length > 0) {
+            let acts: MessageSegment[] = [];
+            if (!this.aborted && replyCalls.length > 0) {
                 const spoken = await this.speak(replyCalls, replyTool, toolCtx);
                 receipts.push(...spoken.results);
-                acts = spoken.acts.length > 0 ? spoken.acts : null;
-                spokenAccepted = spoken.accepted;
+                acts = spoken.acts;
             }
 
             for (const receipt of receipts) this.recordToolResult(receipt.call, receipt.output);
             if (this.aborted) return this.abortedOutcome();
 
-            //  没有别的活了：发言就是本轮结论（含「明确不发言」），交给 run() 统一投递
-            if (otherCalls.length === 0) {
-                if (spokenAccepted) return { acts: acts ?? [] };
-                continue;
+            // 结束请求在本批工具执行和回执记录完成后生效
+            if (otherCalls.some((call) => call.function.name === FINISH_TURN_TOOL_NAME)) {
+                return { acts: hasSpoken && acts.length === 0 ? null : acts };
             }
 
-            // 还有别的活没干完：这一轮的话当场发出，然后接着跑，直到只剩发言或没有工具
-            if (acts) {
+            if (acts.length > 0) {
                 this.recordReply(acts);
+                hasSpoken = true;
             }
         }
     }
@@ -257,12 +258,15 @@ export default class Agent {
     /**
      * 请求一次模型
      * @param tools 本轮可用的工具定义
+     * @param instruction 追加到上下文末尾的单次请求说明
      * @returns 成功返回模型结果，失败返回错误文本（调用方只需判断 string）
      */
-    private async ask(tools: ToolDefinition[]): Promise<LlmResult | string> {
+    private async ask(tools: ToolDefinition[], instruction?: string): Promise<LlmResult | string> {
+        const messages = await this.buildMessages();
+        if (instruction) messages.push({ role: "system", content: instruction });
         const result = await callLLM({
             model: config.chatModel,
-            messages: await this.buildMessages(),
+            messages,
             tools,
             signal: this.controller?.signal,
         });
@@ -286,7 +290,9 @@ export default class Agent {
      */
     private async converge(replyTool: ReplyTool, toolCtx: ToolContext): Promise<ReplyOutcome | AbortedOutcome> {
         if (this.aborted) return this.abortedOutcome();
-        const final = await this.ask([replyTool.definition]);
+        const final = await this.ask([replyTool.definition],
+            "工具轮数已达上限，这是最后一次请求。请根据已有结果用 send_message 汇报，本轮会自动结束，无需调用 finish_turn。",
+        );
         if (this.aborted) return this.abortedOutcome();
         if (typeof final === "string") {
             logger.warn("收敛请求失败，本轮不发言:", final);
@@ -318,11 +324,7 @@ export default class Agent {
     }
 
 
-    /**
-     * 执行发言工具调用：按调用顺序规范化消息段
-     * 规范化失败的原因随回执回填给模型自修
-     * @returns 本轮消息段（空数组 = 模型明确本轮不发言）、是否至少受理了一个调用（决定是否收尾）与各调用的结果回执
-     */
+
     private async speak(calls: ToolCall[], replyTool: ReplyTool, toolCtx: ToolContext): Promise<{ acts: MessageSegment[]; accepted: boolean; results: ToolReceipt[] }> {
         const acts: MessageSegment[] = [];
         const results: ToolReceipt[] = [];
@@ -359,9 +361,9 @@ export default class Agent {
                 continue;
             }
             results.push({ call: toolCall, output });
-            if (config.toolOutput) {
+            const label = toolCall.function.name;
+            if (config.toolOutput && label !== FINISH_TURN_TOOL_NAME) {
                 const seconds = (durationMs / 1000).toFixed(1);
-                const label = toolCall.function.name;
                 this.trace(toolCtx, ok ? `${label} 执行完成（${seconds}s）` : `${label} 执行失败（${seconds}s）`);
             }
         }
@@ -375,7 +377,9 @@ export default class Agent {
         const startedAt = Date.now();
         try {
             args = JSON.parse(toolCall.function.arguments);
-            if (config.toolOutput) this.trace(toolCtx, `尝试调用${name}，参数为${JSON.stringify(args)}`);
+            if (config.toolOutput && name !== FINISH_TURN_TOOL_NAME) {
+                this.trace(toolCtx, `尝试调用${name}，参数为${JSON.stringify(args)}`);
+            }
             const output = await callTool(toolCall, toolCtx);
             return { toolCall, args, output, durationMs: Date.now() - startedAt, ok: true };
         }

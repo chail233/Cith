@@ -22,6 +22,7 @@ import { createServer } from "node:http";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { FINISH_TURN_TOOL_NAME } from "../packages/core/agent/tools/finish-turn.ts";
 
 // ---------- 命令行参数 ----------
 
@@ -72,6 +73,10 @@ function buildScript(): void {
             id: `c${ROUNDS}`,
             type: "function",
             function: { name: "send_message", arguments: JSON.stringify({ segments: [{ type: "text", data: { text: "查完了" } }] }) },
+        }, {
+            id: "finish",
+            type: "function",
+            function: { name: FINISH_TURN_TOOL_NAME, arguments: "{}" },
         }],
     });
 }

@@ -14,6 +14,7 @@ import { createServer } from "node:http";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import finishTurnTool, { FINISH_TURN_TOOL_NAME } from "../packages/core/agent/tools/finish-turn.ts";
 
 // ---------------------------------------------------------------- 假端点
 
@@ -77,7 +78,7 @@ before(async () => {
 
     // 普通工具不必真执行，固定文本结果即可；其余链路（client / 统计 / 记录器）全部真实
     mock.module("../packages/core/agent/tools.js", {
-        namedExports: { getAllTools: () => [], callTool: async () => "ok" },
+        namedExports: { getAllTools: () => [finishTurnTool.definition], callTool: async () => "ok" },
     });
 });
 
@@ -106,7 +107,7 @@ test("多轮请求前缀稳定，cached_tokens 正确进统计", async () => {
             content: null,
             tool_calls: [{ id: "c1", type: "function", function: { name: "lookup", arguments: '{"q":"天气"}' } }],
         },
-        // 第二轮：工具结果回填后调用发言工具收尾
+        // 第二轮：工具结果回填后同批发言并结束循环
         {
             content: null,
             tool_calls: [{
@@ -116,7 +117,7 @@ test("多轮请求前缀稳定，cached_tokens 正确进统计", async () => {
                     name: REPLY_TOOL_NAME,
                     arguments: JSON.stringify({ segments: [{ type: "text", data: { text: "查好了，晴" } }] }),
                 },
-            }],
+            }, { id: "finish", type: "function", function: { name: FINISH_TURN_TOOL_NAME, arguments: "{}" } }],
         },
     );
 

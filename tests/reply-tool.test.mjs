@@ -1,10 +1,10 @@
 /**
  * 适配器发言工具测试
  *
- * 覆盖四件事：
+ * 覆盖范围：
  * - 工具 schema 由各适配器自己的能力集生成：OneBot 有 mention/reply，微信没有，两边互不影响
- * - Agent 见到发言工具调用即视为「本轮回复」：当场直发消息段，真实发送结果以 assistant.tool_calls + tool 消息成对回写
- * - 同一轮还有其它工具时，话照发、工具照跑，跑完继续循环，直到只剩发言或没有工具
+ * - 发言当场直发，真实发送结果以 assistant.tool_calls + tool 消息成对回写，发言后仍可继续循环
+ * - 结束工具在整批工具处理完毕后生效，支持与最终发言同批调用或单独静默结束
  * - 工具链打满后的收敛请求只带发言工具
  * - 发言是唯一出口：不调工具时的纯文本先纠偏重试一次，仍犯则桥接发送；没有适配器直接报错
  */
@@ -15,6 +15,7 @@ import { buildReplyTool, REPLY_TOOL_NAME } from "../packages/core/bot/adapters/r
 import { imageCap, textCap } from "../packages/core/bot/adapters/reply-segment-caps.ts";
 import OnebotAdapter from "../packages/core/bot/adapters/OnebotAdapter.ts";
 import WechatBotAdapter from "../packages/core/bot/adapters/WechatBotAdapter.ts";
+import finishTurnTool, { FINISH_TURN_TOOL_NAME } from "../packages/core/agent/tools/finish-turn.ts";
 import config from "../packages/core/config.js";
 
 // ---------------------------------------------------------------- 能力集
@@ -142,19 +143,23 @@ test("空数组 = 明确不发言，不是参数错误", async () => {
 
 /** 每次请求的入参（供断言） */
 const calls = [];
-/** 待返回的响应队列；用尽后重复最后一条 */
+/** 待返回的响应队列 */
 let responses = [];
 
 mock.module("../packages/core/agent/client.ts", {
     namedExports: {
         callLLM: async (opts) => {
             calls.push(opts);
-            return responses.length > 1 ? responses.shift() : responses[0];
+            assert.ok(responses.length > 0, "发起了预期之外的模型请求");
+            return responses.shift();
         },
     },
 });
 mock.module("../packages/core/agent/tools.js", {
-    namedExports: { getAllTools: () => [], callTool: async () => "ok" },
+    namedExports: {
+        getAllTools: () => [finishTurnTool.definition],
+        callTool: async (call) => call.function.name === FINISH_TURN_TOOL_NAME ? finishTurnTool.execute() : "ok",
+    },
 });
 mock.module("../packages/core/agent/skill.js", {
     namedExports: { reloadSkills: async () => {}, skills: [] },
@@ -204,6 +209,12 @@ function toolCall(name) {
     };
 }
 
+/** 把结束请求放在本批其他调用之前，确认处理顺序不依赖它的位置 */
+function finishWith(response) {
+    response.message.tool_calls.unshift(...toolCall(FINISH_TURN_TOOL_NAME).message.tool_calls);
+    return response;
+}
+
 /** 当前会话的适配器替身：只有 text / image 两种能力，记录全部直发内容（发言整组段 + 桥接纯文本） */
 function fakeAdapter() {
     const tool = buildReplyTool([textCap(), imageCap()]);
@@ -231,33 +242,51 @@ beforeEach(() => {
     responses = [];
 });
 
-test("发言工具调用即本轮回复：回执成对写回，消息正常交付", async () => {
+test("结束工具与发言、普通工具同批调用：整批执行并写回后立即收尾", async () => {
     // 模型在 tool_calls 前夹带的自由文本应被忽略
-    responses = [replyToolCall({ segments: [{ type: "text", data: { text: "在" } }] }, "我马上说")];
+    const response = finishWith(replyToolCall({ segments: [{ type: "text", data: { text: "在" } }] }, "我马上说"));
+    response.message.tool_calls.push(...toolCall("manage_plan").message.tool_calls);
+    responses = [response];
     const memory = fakeMemory();
     const adapter = fakeAdapter();
 
     await runOnce(memory, { adapter });
 
-    assert.equal(calls.length, 1, "发言即结束本轮，不应再请求模型");
+    assert.equal(calls.length, 1, "结束工具生效后不应再请求模型");
     assert.equal(calls[0].tools[0].function.name, REPLY_TOOL_NAME, "发言工具应排在工具表首位");
+    assert.ok(calls[0].tools.some((tool) => tool.function.name === FINISH_TURN_TOOL_NAME));
     assert.deepEqual(adapter.sent, [[{ type: "text", data: { text: "在" } }]], "消息经适配器实际发出");
 
-    const skeleton = memory.added.find((m) => m.role === "assistant" && m.tool_calls);
-    assert.ok(skeleton, "调用应以 assistant.tool_calls 骨架回传");
-    assert.equal(skeleton.tool_calls[0].id, "call_1");
+    const callIds = memory.added.flatMap((m) => m.tool_calls?.map((call) => call.id) ?? []);
+    assert.deepEqual(callIds, ["call_finish_turn", "call_manage_plan", "call_1"]);
     assert.deepEqual(
         memory.added.filter((m) => m.role === "tool"),
-        [{ role: "tool", tool_call_id: "call_1", content: "消息已发送" }],
+        [
+            { role: "tool", tool_call_id: "call_finish_turn", content: "已请求在当前工具批次处理完毕后结束循环" },
+            { role: "tool", tool_call_id: "call_manage_plan", content: "ok" },
+            { role: "tool", tool_call_id: "call_1", content: "消息已发送" },
+        ],
         "每个调用都应有配对的 tool 回执",
     );
     assert.ok(memory.added.some((m) => Array.isArray(m.content?.action)), "发言应写入 assistant 记忆");
 });
 
+test("单独发言继续循环，下一批可只调用结束工具", async () => {
+    const acts = [{ type: "text", data: { text: "已发送" } }];
+    responses = [replyToolCall({ segments: acts }), toolCall(FINISH_TURN_TOOL_NAME)];
+    const memory = fakeMemory();
+
+    const adapter = await runOnce(memory);
+
+    assert.equal(calls.length, 2);
+    assert.deepEqual(adapter.sent, [acts]);
+    assert.deepEqual(memory.added.flatMap((m) => m.content?.action ? [m.content.action] : []), [acts]);
+});
+
 test("发言参数不合法时回填错误并继续，下一轮正常发出", async () => {
     responses = [
         replyToolCall({ segments: [{ type: "mention", data: { id: "1" } }] }),
-        replyToolCall({ segments: [{ type: "text", data: { text: "换个说法" } }] }),
+        finishWith(replyToolCall({ segments: [{ type: "text", data: { text: "换个说法" } }] })),
     ];
     const memory = fakeMemory();
 
@@ -289,7 +318,7 @@ test("同一轮既有工具又有发言时，话当场发出并继续跑工具",
             },
             usage: null,
         },
-        replyToolCall({ segments: [{ type: "text", data: { text: "查完了" } }] }),
+        finishWith(replyToolCall({ segments: [{ type: "text", data: { text: "查完了" } }] })),
     ];
     const memory = fakeMemory();
 
@@ -331,7 +360,7 @@ test("同轮发言参数不合法时工具照跑，改好后再发", async () =>
             },
             usage: null,
         },
-        replyToolCall({ segments: [{ type: "text", data: { text: "查完了" } }] }),
+        finishWith(replyToolCall({ segments: [{ type: "text", data: { text: "查完了" } }] })),
     ];
     const memory = fakeMemory();
 
@@ -345,14 +374,14 @@ test("同轮发言参数不合法时工具照跑，改好后再发", async () =>
     assert.deepEqual(adapter.sent, [[{ type: "text", data: { text: "查完了" } }]]);
 });
 
-test("模型传空数组时不发言：零发送，但留一条记忆痕迹", async () => {
-    responses = [replyToolCall({ segments: [] })];
+test("发言工具传空数组后继续循环，单独调用结束工具可静默收尾", async () => {
+    responses = [replyToolCall({ segments: [] }), toolCall(FINISH_TURN_TOOL_NAME)];
     const memory = fakeMemory();
     const adapter = fakeAdapter();
 
     await runOnce(memory, { adapter });
 
-    assert.equal(calls.length, 1, "不发言也是本轮结论，不应再请求模型");
+    assert.equal(calls.length, 2, "空数组表示不发消息，后续可显式结束");
     assert.equal(adapter.sent.length, 0, "空数组不应触发任何发送");
     const silent = memory.added.find((m) => Array.isArray(m.content?.action));
     assert.ok(silent, "应写入一条 assistant 痕迹");
@@ -378,7 +407,7 @@ test("模型没调任何工具且正文为空时本轮不发言", async () => {
 test("纯文本作答时先纠偏重试，改用发言工具后正常发出", async () => {
     responses = [
         { message: { content: "我觉得这个话题挺有意思的" }, usage: null },
-        replyToolCall({ segments: [{ type: "text", data: { text: "这个话题确实有意思" } }] }),
+        finishWith(replyToolCall({ segments: [{ type: "text", data: { text: "这个话题确实有意思" } }] })),
     ];
     const memory = fakeMemory();
 
@@ -447,5 +476,6 @@ test("工具链打满后的收敛请求只带发言工具", async () => {
     const converge = calls.at(-1);
     assert.equal(converge.tools.length, 1, "收敛请求只保留发言工具");
     assert.equal(converge.tools[0].function.name, REPLY_TOOL_NAME);
+    assert.match(converge.messages.at(-1).content, /无需调用 finish_turn/);
     assert.deepEqual(adapter.sent, [[{ type: "text", data: { text: "收" } }]]);
 });

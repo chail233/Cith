@@ -4,7 +4,7 @@ import { hold } from "./tool-approval.ts";
 import { checkShellCommand } from "./shell-guard.ts";
 
 import getMemoryTool from "./tools/get-memory.ts";
-import getSessionContextTool from "./tools/get-session-context.ts";
+import finishTurnTool from "./tools/finish-turn.ts";
 import listStickersTool from "./tools/list-stickers.ts";
 import managePlanTool from "./tools/manage-plan.ts";
 import scheduleTool from "./tools/schedule.ts";
@@ -19,7 +19,6 @@ import useToolTool from "./tools/use-tool.ts";
  */
 const toolRegistry = [
     getMemoryTool,
-    getSessionContextTool,
     listStickersTool,
     managePlanTool,
     scheduleTool,
@@ -27,6 +26,7 @@ const toolRegistry = [
     runShellTool,
     searchToolsTool,
     useToolTool,
+    finishTurnTool,
 ];
 
 /**

@@ -29,7 +29,7 @@ export interface ReplyDelivery {
 
 /** 适配器对外暴露的发言工具 */
 export interface ReplyTool {
-    /** 角色标记：Agent 见到此工具被调用即视为"发言"，本轮到此结束 */
+    /** 角色标记：Agent 将该工具的调用交给当前适配器发言 */
     kind: "reply";
     definition: ToolDefinition;
     execute: (param: unknown, ctx?: ToolContext) => Promise<ReplyToolResult>;
@@ -52,8 +52,8 @@ export function buildReplyTool(caps: ReplySegmentCap[]): ReplyTool {
             description:
                 "对外发言的唯一方式：要发消息就调用本工具，"
                 + "不要用纯文本输出代替。一次调用可以携带多条消息段，按数组顺序依次发出，"
-                + "借分段模拟真人连发的节奏。不需要接话时调用本工具并传空数组。"
-                + "可以和其它工具同轮调用：这条发言会立刻发出，工具继续跑",
+                + "借分段模拟真人连发的节奏。传空数组表示不发送消息。"
+                + "发言后默认继续循环，发送最终回复时和 finish_turn 同轮调用。收敛轮会自动结束。",
             parameters: {
                 type: "object",
                 properties: {
