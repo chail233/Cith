@@ -84,30 +84,23 @@ test("happy path：解压就位、marker 写入、文件数与 manifest 一致�
     assert.deepEqual(leftovers, ["node_modules.tar", "node_modules.tar.json"]);
 });
 
-test("marker 版本一致跳过解压，版本不一致重解压", async () => {
+test("版本一致跳过解压，升级时整体替换旧依赖", async () => {
     const coreDir = newCoreDir("marker");
     await seedTar(coreDir);
     await ensureNodeModules({ coreDir, appVersion: "0.2.1" });
+    const stale = join(coreDir, "node_modules/stale.txt");
+    writeFileSync(stale, "旧文件");
 
     const again = await ensureNodeModules({ coreDir, appVersion: "0.2.1" });
     assert.deepEqual(again, { ok: true, skipped: true });
+    assert.ok(existsSync(stale));
 
     const upgraded = await ensureNodeModules({ coreDir, appVersion: "0.3.0" });
     assert.deepEqual(upgraded, { ok: true, skipped: false });
     const marker = JSON.parse(readFileSync(join(coreDir, "node_modules/.cith-setup.json"), "utf8"));
     assert.equal(marker.version, "0.3.0");
-});
-
-test("旧 node_modules 会被新解压结果整体替换", async () => {
-    const coreDir = newCoreDir("replace");
-    mkdirSync(join(coreDir, "node_modules"));
-    writeFileSync(join(coreDir, "node_modules/stale.txt"), "旧文件");
-    await seedTar(coreDir);
-
-    const outcome = await ensureNodeModules({ coreDir, appVersion: "0.2.1" });
-    assert.equal(outcome.ok, true);
-    assert.equal(existsSync(join(coreDir, "node_modules/stale.txt")), false);
-    assert.equal(existsSync(join(coreDir, "node_modules/a.txt")), true);
+    assert.ok(!existsSync(stale));
+    assert.ok(existsSync(join(coreDir, "node_modules/a.txt")));
 });
 
 test("manifest 计数不符：报错且不动已存在的 node_modules", async () => {

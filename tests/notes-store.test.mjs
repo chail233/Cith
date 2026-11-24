@@ -1,29 +1,29 @@
 /**
  * 全局笔记存储测试
  *
- * 笔记文件运行时懒创建；为不破坏真实运行数据，测试前把现有文件改名备份，结束后还原。
+ * 使用临时数据根验证笔记文件的创建与落盘。
  */
-import { test, before, after } from "node:test";
+import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, renameSync, readFileSync, rmSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import { addNote, deleteNote, getNotes, renderNotes, updateNote } from "../packages/core/services/notes-store.ts";
+import { mkdirSync, mkdtempSync, readFileSync, rmdirSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
-const here = dirname(fileURLToPath(import.meta.url));
-const notesFile = resolve(here, "../packages/core/data/notes.json");
-const backupFile = `${notesFile}.test-bak`;
-
-before(() => {
-    // 备份真实笔记文件（若存在），让存储从空状态开始
-    if (existsSync(notesFile)) renameSync(notesFile, backupFile);
-});
+const dataRoot = mkdtempSync(join(tmpdir(), "cith-notes-test-"));
+const dataDir = join(dataRoot, "data");
+mkdirSync(dataDir);
+const notesFile = join(dataDir, "notes.json");
+const previousDataRoot = process.env.CITH_DATA;
+process.env.CITH_DATA = dataRoot;
+const { addNote, deleteNote, getNotes, renderNotes, updateNote } = await import("../packages/core/services/notes-store.ts");
+if (previousDataRoot === undefined) delete process.env.CITH_DATA;
+else process.env.CITH_DATA = previousDataRoot;
 
 after(() => {
     rmSync(notesFile, { force: true });
     rmSync(`${notesFile}.tmp`, { force: true });
-    // 还原真实笔记文件
-    if (existsSync(backupFile)) renameSync(backupFile, notesFile);
+    rmdirSync(dataDir);
+    rmdirSync(dataRoot);
 });
 
 /** 等待串行写队列落盘追平：轮询磁盘直到条件满足（写是异步排队的，固定 sleep 会 race） */
@@ -56,7 +56,7 @@ test("空内容与非法内容被拒绝", async () => {
     assert.equal((await getNotes()).length, before);
 });
 
-test("修改与删除，未找到时提示现有编号", async () => {
+test("修改和删除笔记后落盘，已删除的编号继续递增", async () => {
     const second = await addNote("第二个笔记");
     const secondId = second.match(/\[(n\d+)\]/)[1];
 
@@ -70,22 +70,13 @@ test("修改与删除，未找到时提示现有编号", async () => {
     const ids = (await getNotes()).map((n) => n.id).join("、");
     assert.match(await updateNote("n9999", "x"), new RegExp(`未找到笔记 n9999，当前有：${ids}`));
     assert.match(await deleteNote(secondId), /未找到笔记/);
-});
 
-test("编号只增不减：删除后不复用", async () => {
-    const created = await addNote("编号顺延校验");
-    const used = (await getNotes()).map((n) => n.id);
-    const maxNum = Math.max(...used.map((id) => Number(id.slice(1))));
-    assert.equal(created.match(/\[(n\d+)\]/)[1], `n${maxNum}`);
-});
-
-test("修改落盘校验", async () => {
-    const id = (await getNotes())[0].id;
-    await updateNote(id, "落盘校验内容");
-    const expected = (await getNotes()).length;
+    const nextId = `n${Number(secondId.slice(1)) + 1}`;
+    assert.match(await addNote("编号顺延校验"), new RegExp(`\\[${nextId}\\]`));
+    const expected = await getNotes();
     await waitPersisted(() => {
         try {
-            return JSON.parse(readFileSync(notesFile, "utf-8")).notes.find((n) => n.id === id)?.content === "落盘校验内容";
+            return JSON.parse(readFileSync(notesFile, "utf-8")).notes.some((n) => n.id === nextId);
         }
         catch {
             return false;
@@ -94,8 +85,7 @@ test("修改落盘校验", async () => {
 
     const raw = JSON.parse(readFileSync(notesFile, "utf-8"));
     assert.equal(raw.version, 1);
-    assert.equal(raw.notes.length, expected);
-    assert.equal(raw.notes.find((n) => n.id === id).content, "落盘校验内容");
+    assert.deepEqual(raw.notes, expected);
 });
 
 test("条数上限：超出后拒绝新增并引导删减", async () => {

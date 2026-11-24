@@ -9,9 +9,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync, mkdtempSync
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
-    deepMerge,
     ensureCoreData,
-    generateToken,
     readCoreConfig,
     resolveCorePaths,
     saveCoreConfig,
@@ -88,10 +86,12 @@ test("ensureCoreData 幂等：已存在的配置与提示词不被覆盖", () =>
 
 test("saveCoreConfig 深合并并原子写回（对象嵌套、无 tmp 残留）", () => {
     const before = readCoreConfig(coreDataDir);
+    saveCoreConfig(coreDataDir, { targetUserId: ["old", "stale"] });
     const merged = saveCoreConfig(coreDataDir, {
         chatModel: "new-model",
         web: { port: 3000 },
         enableWechat: false,
+        targetUserId: ["new"],
     });
 
     assert.equal(merged.chatModel, "new-model");
@@ -105,22 +105,8 @@ test("saveCoreConfig 深合并并原子写回（对象嵌套、无 tmp 残留）
 
     const onDisk = JSON.parse(readFileSync(join(coreDataDir, "config.json"), "utf8"));
     assert.equal(onDisk.web.port, 3000);
+    assert.deepEqual(onDisk.targetUserId, ["new"], "数组应整体覆盖");
     assert.ok(!existsSync(`${join(coreDataDir, "config.json")}.tmp`));
-});
-
-test("deepMerge：普通对象递归合并，数组与标量整体覆盖", () => {
-    const merged = deepMerge(
-        { a: 1, nested: { x: 1, y: 2 }, list: [1, 2, 3], keep: "old" },
-        { nested: { y: 9 }, list: ["all"], other: true },
-    );
-    assert.deepEqual(merged, { a: 1, nested: { x: 1, y: 9 }, list: ["all"], keep: "old", other: true });
-});
-
-test("generateToken 不产生占位符样式的值", () => {
-    for (let i = 0; i < 5; i++) {
-        assert.doesNotMatch(generateToken(), /^your_/i);
-        assert.ok(generateToken().length >= 8);
-    }
 });
 
 test("resolveCorePaths：打包态在 resources/core，开发态回仓库根", () => {

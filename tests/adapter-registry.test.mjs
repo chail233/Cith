@@ -58,11 +58,6 @@ afterEach(() => {
     if (bridge) unregisterAdapter("bridge", bridge);
 });
 
-test("按 Space.channel 精确路由到对应适配器", () => {
-    assert.equal(resolveAdapter(GROUP), onebot);
-    assert.equal(resolveAdapter(WECHAT_USER), wechat);
-});
-
 test("没有通道能服务时返回 null，不再硬回落到别的平台", () => {
     assert.equal(resolveAdapter(UNKNOWN), null);
 
@@ -79,10 +74,10 @@ test("注销只对登记的那个实例生效", () => {
     assert.equal(resolveAdapter(GROUP), null);
 });
 
-test("愿意跨通道兜底的适配器在精确匹配失败后接手", () => {
+test("优先精确匹配，再由跨通道适配器兜底", () => {
     bridge = new AnywhereAdapter("bridge");
     registerAdapter("bridge", bridge);
-    // 精确匹配优先，与注册顺序无关
+    assert.equal(resolveAdapter(GROUP), onebot);
     assert.equal(resolveAdapter(WECHAT_USER), wechat);
 
     unregisterAdapter("onebot", onebot);

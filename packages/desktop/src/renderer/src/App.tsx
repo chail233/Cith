@@ -4,6 +4,7 @@ import { defaultSettings, mergeSettings, type UiSettings } from '../../shared/se
 import type { Segment } from './types'
 import type { BackendStatus } from '../../preload/api.ts'
 import type { CoreSetupState } from '../../shared/core-types.ts'
+import type { DesktopUpdateState } from '../../shared/update.ts'
 import { useConversations } from './useConversations'
 import { useBackendChat } from './useBackendChat'
 import { Sidebar } from './components/Sidebar'
@@ -11,6 +12,7 @@ import { ChatArea } from './components/Chat'
 import { SettingsView } from './components/Settings'
 import { LocalCoreView } from './components/LocalCore'
 import { CoreSetupGate } from './components/CoreSetupGate'
+import { WindowBar } from './components/WindowBar'
 import './styles/tokens.css'
 import './styles/base.css'
 
@@ -36,16 +38,33 @@ function migrateLegacy(stored: UiSettings): UiSettings {
 }
 
 export default function App() {
-    const [view, setView] = useState<'chat' | 'settings' | 'core'>('chat')
+    const [view, setView] = useState<'chat' | 'settings' | 'updates' | 'core'>('chat')
     const [version, setVersion] = useState('')
     const [settings, setSettings] = useState<UiSettings>(defaultSettings)
     const [backendStatus, setBackendStatus] = useState<BackendStatus>({ state: 'idle' })
     const [coreSetup, setCoreSetup] = useState<CoreSetupState>({ phase: 'idle' })
+    const [updateState, setUpdateState] = useState<DesktopUpdateState>()
+    const settingsOpen = view === 'settings' || view === 'updates'
     const conv = useConversations(settings.historyLimit)
     const chat = useBackendChat(conv, settings.backendUserId)
 
     useEffect(() => {
         window.desktop?.getVersion?.().then(setVersion).catch(() => {})
+    }, [])
+
+    useEffect(() => {
+        let receivedStatus = false
+        const unsubscribe = window.desktop?.onUpdateStatus?.((state) => {
+            receivedStatus = true
+            setUpdateState(state)
+        })
+        window.desktop?.getUpdateState?.().then((state) => {
+            if (!receivedStatus) setUpdateState(state)
+        }).catch(() => {})
+        return () => {
+            receivedStatus = true
+            unsubscribe?.()
+        }
     }, [])
 
     useEffect(() => {
@@ -102,7 +121,7 @@ export default function App() {
     }
 
     function toggleSettings() {
-        setView(view === 'settings' ? 'chat' : 'settings')
+        setView(settingsOpen ? 'chat' : 'settings')
     }
 
     function toggleCore() {
@@ -149,27 +168,30 @@ export default function App() {
     }
 
     useEffect(() => {
-        if (view !== 'settings' && view !== 'core') return
+        if (!settingsOpen && view !== 'core') return
         const onKey = (e: KeyboardEvent) => {
             if (e.key === 'Escape') setView('chat')
         }
         window.addEventListener('keydown', onKey)
         return () => window.removeEventListener('keydown', onKey)
-    }, [view])
+    }, [settingsOpen, view])
 
     return (
         <div className="app">
+            <WindowBar closeAction={settings.windowCloseAction} />
             <Sidebar
                 conversations={conv.conversations}
                 archived={conv.archived}
                 activeId={conv.active?.id ?? ''}
                 version={version}
-                settingsOpen={view === 'settings'}
+                settingsOpen={settingsOpen}
                 coreOpen={view === 'core'}
                 backendStatus={backendStatus}
+                updateStatus={updateState?.status}
                 onSelect={handleSelect}
                 onNew={handleNew}
                 onOpenSettings={toggleSettings}
+                onOpenUpdates={() => setView('updates')}
                 onOpenCore={toggleCore}
                 onArchive={conv.archive}
                 onDelete={conv.remove}
@@ -195,12 +217,14 @@ export default function App() {
                     </div>
                 </main>
             )}
-            {view === 'settings' && (
+            {settingsOpen && (
                 <SettingsView
                     settings={settings}
                     onSave={handleSaveSettings}
                     version={version}
+                    initialCategory={view === 'updates' ? 'about' : 'interface'}
                     backendStatus={backendStatus}
+                    updateState={updateState}
                     onClearLocal={conv.clearAll}
                     onOpenDataDir={handleOpenDataDir}
                     onTestNotify={handleTestNotify}

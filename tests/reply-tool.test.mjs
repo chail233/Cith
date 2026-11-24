@@ -80,42 +80,21 @@ test("发言工具部分段不合法时照发合法段", async () => {
 
     const mixed = await tool.execute({
         segments: [
-            { type: "text", data: { text: "你好" } },
+            { type: "text", data: { text: "", extra: 1 } },
             { type: "mention", data: { id: "1" } },
-            { type: "image", data: { media: { localPath: "core/stickers/images/S1/001.jpg" } } },
+            { type: "image", data: { media: { uri: "core/stickers/images/S1/001.jpg" } } },
         ],
     }, { adapter });
+    // 合法段的字段原样透传，如何发送由适配器决定。
+    const expected = [
+        { type: "text", data: { text: "", extra: 1 } },
+        { type: "image", data: { media: { uri: "core/stickers/images/S1/001.jpg" } } },
+    ];
     assert.deepEqual(mixed, {
-        acts: [
-            { type: "text", data: { text: "你好" } },
-            // 字段原样透传，不再在这一层补 uri/改名，怎么发由适配器决定
-            { type: "image", data: { media: { localPath: "core/stickers/images/S1/001.jpg" } } },
-        ],
+        acts: expected,
         receipt: "消息已发送",
     });
-    assert.deepEqual(adapter.sent, [[
-        { type: "text", data: { text: "你好" } },
-        { type: "image", data: { media: { localPath: "core/stickers/images/S1/001.jpg" } } },
-    ]], "mention 被过滤，其余整组交给适配器执行");
-});
-
-test("只按通道过滤段类型，字段原样透传", async () => {
-    const tool = buildReplyTool([textCap(), imageCap()]);
-
-    // 模型填了额外字段、空了 text、把本地路径填进 uri：一概不改不拦，留给适配器兑现或跳过
-    const out = await tool.execute({
-        segments: [
-            { type: "text", data: { text: "", extra: 1 } },
-            { type: "image", data: { media: { uri: "core/a.jpg" } } },
-        ],
-    }, { adapter: fakeAdapter() });
-    assert.deepEqual(out, {
-        acts: [
-            { type: "text", data: { text: "", extra: 1 } },
-            { type: "image", data: { media: { uri: "core/a.jpg" } } },
-        ],
-        receipt: "消息已发送",
-    });
+    assert.deepEqual(adapter.sent, [expected], "mention 被过滤，其余整组交给适配器执行");
 });
 
 test("一条都解析不出来时返回错误文本", async () => {
@@ -128,15 +107,6 @@ test("一条都解析不出来时返回错误文本", async () => {
     const noParam = await tool.execute({});
     assert.equal(typeof noParam, "string");
     assert.match(noParam, /segments/);
-});
-
-test("空数组 = 明确不发言，不是参数错误", async () => {
-    const tool = buildReplyTool([textCap()]);
-
-    // schema 不再限制最小长度，否则模型无法表达「本轮不说话」
-    assert.equal(tool.definition.function.parameters.properties.segments.minItems, undefined);
-
-    assert.deepEqual(await tool.execute({ segments: [] }), { acts: [], receipt: "已确认本轮不发言" });
 });
 
 // ---------------------------------------------------------------- Agent 集成
@@ -283,23 +253,6 @@ test("单独发言继续循环，下一批可只调用结束工具", async () =>
     assert.deepEqual(memory.added.flatMap((m) => m.content?.action ? [m.content.action] : []), [acts]);
 });
 
-test("发言参数不合法时回填错误并继续，下一轮正常发出", async () => {
-    responses = [
-        replyToolCall({ segments: [{ type: "mention", data: { id: "1" } }] }),
-        finishWith(replyToolCall({ segments: [{ type: "text", data: { text: "换个说法" } }] })),
-    ];
-    const memory = fakeMemory();
-
-    const adapter = await runOnce(memory);
-
-    assert.equal(calls.length, 2, "参数不合法不应吞掉整轮，应回填错误让模型重来");
-    assert.ok(
-        memory.added.some((m) => m.role === "tool" && String(m.content).includes("当前通道不支持")),
-        "错误原因应随 tool 回执写回上下文",
-    );
-    assert.deepEqual(adapter.sent, [[{ type: "text", data: { text: "换个说法" } }]]);
-});
-
 test("同一轮既有工具又有发言时，话当场发出并继续跑工具", async () => {
     responses = [
         {
@@ -367,6 +320,7 @@ test("同轮发言参数不合法时工具照跑，改好后再发", async () =>
     const adapter = await runOnce(memory);
 
     assert.equal(calls.length, 2, "发言失败不该中断循环");
+    assert.ok(memory.added.some((m) => m.role === "tool" && m.tool_call_id === "a" && m.content === "ok"));
     assert.ok(
         memory.added.some((m) => m.role === "tool" && String(m.content).includes("当前通道不支持")),
         "错误应随 tool 回执回填给模型",
@@ -382,6 +336,7 @@ test("发言工具传空数组后继续循环，单独调用结束工具可静�
     await runOnce(memory, { adapter });
 
     assert.equal(calls.length, 2, "空数组表示不发消息，后续可显式结束");
+    assert.equal(calls[0].tools[0].function.parameters.properties.segments.minItems, undefined);
     assert.equal(adapter.sent.length, 0, "空数组不应触发任何发送");
     const silent = memory.added.find((m) => Array.isArray(m.content?.action));
     assert.ok(silent, "应写入一条 assistant 痕迹");

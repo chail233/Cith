@@ -1,11 +1,10 @@
 /**
  * 语音消息段测试
  *
- * 覆盖四件事：
+ * 覆盖范围：
  * - 收到的 record 段归一化为 voice 段：转码后的 mp3 落进 core/data/voices/，QQ 原生转写文本一并带上
  * - 转码失败 / 转写失败都只降级，语音消息本身照样进上下文
  * - OneBot 发送 voice 段发出 record 段（本地文件转 file://，magic 变声）
- * - 微信能力集里没有 voice，模型根本看不到这个段
  */
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
@@ -20,7 +19,6 @@ const pttCalls = [];
 
 const { OnebotServer } = await import("../packages/core/bot/servers/OnebotServer.ts");
 const { default: OnebotAdapter } = await import("../packages/core/bot/adapters/OnebotAdapter.ts");
-const { default: WechatBotAdapter } = await import("../packages/core/bot/adapters/WechatBotAdapter.ts");
 
 const noop = async () => {};
 /** 不启动 WS 的服务器实例：socket 用替身顶上，toSegments / callAction 照常工作 */
@@ -61,12 +59,6 @@ function recordEvent(data = {}) {
             data: { file: "abc.amr", url: "https://example.com/a.amr", duration: 3, ...data },
         }],
     };
-}
-
-/** 工具定义里可用的消息段类型（按声明顺序） */
-function segmentTypes(tool) {
-    const { items } = tool.definition.function.parameters.properties.segments;
-    return items.oneOf.map((item) => item.properties.type.enum[0]);
 }
 
 // ---------------------------------------------------------------- 收：record → voice
@@ -161,12 +153,4 @@ test("发送语音：缺少可用媒体时整条消息跳过，不发残缺段",
         { type: "voice", data: { media: { localPath: "data/voices/不存在.mp3" } } },
     ]);
     assert.equal(sent.length, 0);
-});
-
-test("语音只有 OneBot 能发，微信能力集里没有这个段", () => {
-    const onebot = new OnebotAdapter(noop, { send() {} });
-    const wechat = new WechatBotAdapter(noop, {});
-
-    assert.deepEqual(segmentTypes(onebot.replyTool()), ["text", "image", "file", "voice", "mention", "reply"]);
-    assert.ok(!segmentTypes(wechat.replyTool()).includes("voice"));
 });

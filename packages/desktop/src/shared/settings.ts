@@ -8,6 +8,8 @@ export type UiSettings = {
     contentWidth: number
     sidebarWidth: number
     startAtLogin: boolean
+    windowCloseAction: 'quit' | 'tray'
+    autoDownloadUpdates: boolean
     sendKey: 'enter' | 'ctrlEnter'
     historyLimit: number
     notifyOnReply: boolean
@@ -27,6 +29,8 @@ export const defaultSettings: UiSettings = {
     contentWidth: 760,
     sidebarWidth: 262,
     startAtLogin: false,
+    windowCloseAction: 'quit',
+    autoDownloadUpdates: true,
     sendKey: 'enter',
     historyLimit: 400,
     notifyOnReply: true,
@@ -51,6 +55,9 @@ export function mergeSettings(raw: unknown): UiSettings {
         if (typeof value === typeof defaultSettings[key]) merged[key] = value
     }
     if (merged.sendKey !== 'enter' && merged.sendKey !== 'ctrlEnter') merged.sendKey = defaultSettings.sendKey
+    if (merged.windowCloseAction !== 'quit' && merged.windowCloseAction !== 'tray') {
+        merged.windowCloseAction = defaultSettings.windowCloseAction
+    }
     if (merged.coreMode !== 'remote' && merged.coreMode !== 'local') merged.coreMode = defaultSettings.coreMode
     if (merged.theme !== 'dark' && merged.theme !== 'light') merged.theme = defaultSettings.theme
     const limit = Number(merged.historyLimit)

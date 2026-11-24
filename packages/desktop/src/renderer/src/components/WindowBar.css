@@ -1,0 +1,40 @@
+.app:has(> .window-bar) {
+    grid-template-rows: auto minmax(0, 1fr);
+}
+
+.window-bar {
+    grid-column: 1 / -1;
+    z-index: 60;
+    display: flex;
+    justify-content: flex-end;
+    gap: 2px;
+    height: 34px;
+    padding: 3px 4px;
+    background: var(--bg-0);
+    user-select: none;
+    -webkit-app-region: drag;
+}
+
+.window-bar button {
+    display: grid;
+    place-items: center;
+    width: 42px;
+    border-radius: var(--radius-s);
+    color: var(--text-2);
+    transition: background var(--speed) var(--ease), color var(--speed) var(--ease);
+    -webkit-app-region: no-drag;
+}
+
+.window-bar button:hover {
+    background: var(--hover-fill);
+    color: var(--text-1);
+}
+
+.window-bar .window-close:hover {
+    background: var(--danger-soft);
+    color: var(--danger);
+}
+
+.window-bar button:focus-visible {
+    outline-offset: -2px;
+}

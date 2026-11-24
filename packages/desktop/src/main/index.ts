@@ -1,6 +1,6 @@
 import { join, resolve } from 'path'
 import { mkdirSync, existsSync } from 'fs'
-import { app, BrowserWindow, ipcMain, Notification, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu, Notification, shell, Tray } from 'electron'
 import { BackendConnection } from './backend'
 import { loadSettings, saveSettings } from './settings'
 import { clearSessions, loadSessions, saveSessions } from './sessions'
@@ -34,6 +34,10 @@ let coreDataDir = ''
 let coreBundleDir = ''
 let coreSetupState: CoreSetupState = { phase: 'idle' }
 let setupRunning = false
+let quitting = false
+let stoppingCoreForQuit = false
+let tray: Tray | null = null
+const appIcon = join(import.meta.dirname, '../../resources/icon.png')
 
 function broadcastCoreSetup(): void {
     for (const win of BrowserWindow.getAllWindows()) {
@@ -42,7 +46,7 @@ function broadcastCoreSetup(): void {
 }
 
 async function startLocalCore(): Promise<void> {
-    if (!localCore || setupRunning) return
+    if (!localCore || setupRunning || quitting) return
     setupRunning = true
     try {
         if (loadSettings().coreMode === 'local') {
@@ -64,6 +68,7 @@ async function startLocalCore(): Promise<void> {
                 broadcastCoreSetup()
             }
         }
+        if (quitting) return
         try {
             localCore.start()
         }
@@ -95,6 +100,42 @@ function windowBackground(theme: string): string {
     return theme === 'light' ? '#f0e5cf' : '#191512'
 }
 
+function showWindow(): void {
+    if (quitting) return
+    const win = BrowserWindow.getAllWindows()[0]
+    if (!win) {
+        createWindow()
+        return
+    }
+    if (win.isMinimized()) win.restore()
+    win.show()
+    win.focus()
+}
+
+function destroyTray(): void {
+    tray?.destroy()
+    tray = null
+}
+
+function ensureTray(): boolean {
+    if (tray) return true
+    try {
+        tray = new Tray(appIcon)
+        tray.setToolTip('Cith')
+        tray.setContextMenu(Menu.buildFromTemplate([
+            { label: '打开 Cith', click: showWindow },
+            { label: '退出 Cith', click: () => app.quit() },
+        ]))
+        tray.on('click', showWindow)
+        return true
+    }
+    catch (error) {
+        destroyTray()
+        process.emitWarning(`创建系统托盘失败：${String(error)}`)
+        return false
+    }
+}
+
 function createWindow(): void {
     const win = new BrowserWindow({
         width: 1120,
@@ -102,9 +143,9 @@ function createWindow(): void {
         minWidth: 940,
         minHeight: 600,
         show: false,
-        autoHideMenuBar: true,
+        frame: false,
         // 窗口/任务栏图标（打包后 exe 图标由 electron-builder 从 build/icon.ico 嵌入）
-        icon: join(import.meta.dirname, '../../resources/icon.png'),
+        icon: appIcon,
         backgroundColor: windowBackground(loadSettings().theme),
         webPreferences: {
             preload: join(import.meta.dirname, '../preload/index.mjs'),
@@ -113,6 +154,13 @@ function createWindow(): void {
     })
 
     win.on('ready-to-show', () => win.show())
+    win.on('close', (event) => {
+        if (quitting || loadSettings().windowCloseAction !== 'tray' || !ensureTray()) return
+        event.preventDefault()
+        win.hide()
+    })
+    win.on('enter-full-screen', () => win.webContents.send('window:full-screen', true))
+    win.on('leave-full-screen', () => win.webContents.send('window:full-screen', false))
 
     // 外部链接交给系统浏览器，不在应用内开新窗口
     win.webContents.setWindowOpenHandler(({ url }) => {
@@ -162,9 +210,19 @@ app.whenReady().then(() => {
     })
 
     ipcMain.handle('app:get-version', () => app.getVersion())
+    ipcMain.on('window:minimize', (event) => BrowserWindow.fromWebContents(event.sender)?.minimize())
+    ipcMain.on('window:close', (event) => BrowserWindow.fromWebContents(event.sender)?.close())
+    ipcMain.on('window:toggle-full-screen', (event) => {
+        const win = BrowserWindow.fromWebContents(event.sender)
+        if (win) win.setFullScreen(!win.isFullScreen())
+    })
+    ipcMain.handle('window:get-full-screen', (event) => BrowserWindow.fromWebContents(event.sender)?.isFullScreen() ?? false)
     ipcMain.handle('settings:get', () => loadSettings())
     ipcMain.handle('settings:save', (_e, raw: unknown) => {
+        const wasAutoDownloadEnabled = loadSettings().autoDownloadUpdates
         const saved = saveSettings(raw)
+        if (saved.windowCloseAction === 'quit') destroyTray()
+        if (!wasAutoDownloadEnabled && saved.autoDownloadUpdates) downloadAvailableUpdate()
         applyLoginItem(saved.startAtLogin)
         // 窗口底色跟随主题，切换后立即刷新
         const bg = windowBackground(saved.theme)
@@ -271,25 +329,33 @@ app.whenReady().then(() => {
         new Notification({ title: 'Cith', body: '通知链路正常：这是一条测试通知' }).show()
     })
     createWindow()
-    registerDesktopUpdates(async () => { await localCore?.stop() })
+    const downloadAvailableUpdate = registerDesktopUpdates(
+        async () => { await localCore?.stop() },
+        () => loadSettings().autoDownloadUpdates,
+    )
 
-    app.on('activate', () => {
-        if (BrowserWindow.getAllWindows().length === 0) createWindow()
-    })
+    app.on('activate', showWindow)
 })
 
-app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') app.quit()
-})
+app.on('window-all-closed', () => app.quit())
 
 // 退出前停掉本地核心（优雅停止有界，超时强杀），防止僵尸 core 进程
-let quitting = false
 app.on('before-quit', (event) => {
-    if (!localCore || localCore.current().state === 'stopped' || quitting) return
+    if (stoppingCoreForQuit) {
+        event.preventDefault()
+        return
+    }
+    if (quitting) return
     quitting = true
+    if (!localCore || localCore.current().state === 'stopped') return
+    stoppingCoreForQuit = true
     event.preventDefault()
-    void localCore.stop().then(() => app.quit())
+    void localCore.stop().finally(() => {
+        stoppingCoreForQuit = false
+        app.quit()
+    }).catch((error) => process.emitWarning(`退出前停止本地核心失败：${String(error)}`))
 })
+app.on('will-quit', destroyTray)
 
 /** 渲染层传来的配置做形状校验，不合形直接丢弃 */
 function asBackendConfig(raw: unknown): BackendConfig | null {

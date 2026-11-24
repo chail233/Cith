@@ -1,8 +1,9 @@
 import { useEffect, useState, type MouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import type { Conversation } from '../types'
 import type { BackendStatus } from '../../../preload/api.ts'
+import type { DesktopUpdateStatus } from '../../../shared/update.ts'
 import { SIDEBAR_WIDTH_MAX, SIDEBAR_WIDTH_MIN, defaultSettings } from '../../../shared/settings.ts'
-import { STATUS_LABEL } from './Settings'
+import { STATUS_LABEL, updateStatusLabel } from './Settings'
 import { BrandMark } from '@cith/ui'
 import { ChipIcon, MoreIcon, PlusIcon, SlidersIcon } from './icons'
 import './Sidebar.css'
@@ -15,9 +16,11 @@ type Props = {
     settingsOpen: boolean
     coreOpen: boolean
     backendStatus: BackendStatus
+    updateStatus?: DesktopUpdateStatus
     onSelect: (id: string) => void
     onNew: () => void
     onOpenSettings: () => void
+    onOpenUpdates: () => void
     onOpenCore: () => void
     onArchive: (id: string) => void
     onDelete: (id: string) => void
@@ -25,7 +28,7 @@ type Props = {
     onSidebarResize: (width: number) => void
 }
 
-export function Sidebar({ conversations, archived, activeId, version, settingsOpen, coreOpen, backendStatus, onSelect, onNew, onOpenSettings, onOpenCore, onArchive, onDelete, onRestore, onSidebarResize }: Props) {
+export function Sidebar({ conversations, archived, activeId, version, settingsOpen, coreOpen, backendStatus, updateStatus, onSelect, onNew, onOpenSettings, onOpenUpdates, onOpenCore, onArchive, onDelete, onRestore, onSidebarResize }: Props) {
     const [menuId, setMenuId] = useState<string | null>(null)
     const [menuFlip, setMenuFlip] = useState(false)
 
@@ -169,6 +172,14 @@ export function Sidebar({ conversations, archived, activeId, version, settingsOp
             </nav>
 
             <div className="side-foot">
+                {updateStatus && updateStatus.phase !== 'idle' && updateStatus.phase !== 'checking' && updateStatus.phase !== 'current' && (
+                    <button className="side-btn side-update" onClick={onOpenUpdates} title="查看应用更新">
+                        <span className="side-update-label">{updateStatusLabel(updateStatus)}</span>
+                        {updateStatus.phase === 'downloading' && updateStatus.percent !== undefined && (
+                            <span className="side-update-percent">{updateStatus.percent}%</span>
+                        )}
+                    </button>
+                )}
                 <button className={`side-btn${coreOpen ? ' active' : ''}`} onClick={onOpenCore}>
                     <ChipIcon />
                     <span>本地核心</span>

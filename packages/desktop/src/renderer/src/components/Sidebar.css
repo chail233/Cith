@@ -266,6 +266,27 @@
     background: var(--bg-2);
 }
 
+.side-update {
+    justify-content: space-between;
+    margin-bottom: 4px;
+    background: var(--bg-2);
+    color: var(--text-1);
+}
+
+.side-update:hover {
+    background: var(--bg-3);
+}
+
+.side-update-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.side-update-percent {
+    font-variant-numeric: tabular-nums;
+}
+
 .side-version {
     margin-left: auto;
     font-family: var(--font-body);

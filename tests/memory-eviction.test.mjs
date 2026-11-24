@@ -32,37 +32,17 @@ test("超出部分按 importance 升序、创建时间升序淘汰", () => {
         rec("weak-old", 20, 0.3),
         rec("mid2", 2, 0.5),
     ];
+    const originalOrder = records.map((r) => r.id);
     // 上限 3 → 删 2 条：importance 最低的两条里先删更旧的；importance 高的不参与
     assert.deepEqual(selectEvictions(records, 3, NOW), ["weak-old", "weak-new"]);
+    assert.deepEqual(records.map((r) => r.id), originalOrder);
 });
 
-test("保护期内的记录不参与淘汰", () => {
-    const records = [
-        rec("old1", 30),
-        rec("old2", 10),
-        rec("fresh1", 0.2),
-        rec("fresh2", 0),
-    ];
-    // 超 3 条，但保护期内的 2 条不可删，只能删 2 条旧的
-    assert.deepEqual(selectEvictions(records, 1, NOW), ["old1", "old2"]);
-});
-
-test("全部在保护期内时一条都不删", () => {
-    const records = [rec("a", 0), rec("b", 0.5)];
-    assert.deepEqual(selectEvictions(records, 1, NOW), []);
-});
-
-test("保护期边界：恰好超过保护期的记录可被淘汰", () => {
+test("容量仍超限时也只淘汰已超过保护期的记录", () => {
     const records = [
         { id: "edge-old", importance: 0.8, createdAt: NOW - EVICT_GRACE_MS - 1 },
         { id: "edge-new", importance: 0.8, createdAt: NOW - EVICT_GRACE_MS + 1 },
+        rec("fresh", 0),
     ];
     assert.deepEqual(selectEvictions(records, 1, NOW), ["edge-old"]);
-});
-
-test("不修改传入的记录数组", () => {
-    const records = [rec("a", 30, 0.9), rec("b", 10, 0.1), rec("c", 20, 0.5)];
-    const before = records.map((r) => r.id);
-    selectEvictions(records, 2, NOW);
-    assert.deepEqual(records.map((r) => r.id), before);
 });

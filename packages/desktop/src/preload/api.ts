@@ -2,6 +2,7 @@ import { ipcRenderer, type IpcRendererEvent } from 'electron'
 import type { UiSettings } from '../shared/settings.ts'
 import type { PersistedSessions } from '../shared/session.ts'
 import type { CoreConfig, CoreLogLine, CoreSetupState, CoreStatus } from '../shared/core-types.ts'
+import type { DesktopUpdateState } from '../shared/update.ts'
 
 /** 消息通道连接状态（主进程 → 渲染层广播） */
 export type BackendStatus = {
@@ -48,8 +49,24 @@ export type AbortRequest = { userId: string; conversationId?: string }
 /** 渲染层可用的主进程桥接 API，类型经 index.d.ts 暴露给 renderer */
 export const desktopApi = {
     getVersion: (): Promise<string> => ipcRenderer.invoke('app:get-version'),
-    /** 从发布页检查更新，由主进程处理下载和重启确认 */
+    minimizeWindow: (): void => ipcRenderer.send('window:minimize'),
+    toggleWindowFullScreen: (): void => ipcRenderer.send('window:toggle-full-screen'),
+    closeWindow: (): void => ipcRenderer.send('window:close'),
+    getWindowFullScreen: (): Promise<boolean> => ipcRenderer.invoke('window:get-full-screen'),
+    onWindowFullScreen: (cb: (fullScreen: boolean) => void): (() => void) => {
+        const listener = (_e: IpcRendererEvent, fullScreen: boolean): void => cb(fullScreen)
+        ipcRenderer.on('window:full-screen', listener)
+        return () => ipcRenderer.removeListener('window:full-screen', listener)
+    },
+    getUpdateState: (): Promise<DesktopUpdateState> => ipcRenderer.invoke('app:update-state'),
+    onUpdateStatus: (cb: (state: DesktopUpdateState) => void): (() => void) => {
+        const listener = (_e: IpcRendererEvent, state: DesktopUpdateState): void => cb(state)
+        ipcRenderer.on('app:update-status', listener)
+        return () => ipcRenderer.removeListener('app:update-status', listener)
+    },
     checkForUpdates: (): Promise<void> => ipcRenderer.invoke('app:check-for-updates'),
+    downloadUpdate: (): Promise<void> => ipcRenderer.invoke('app:download-update'),
+    installUpdate: (): Promise<void> => ipcRenderer.invoke('app:install-update'),
     /** 当前生效的设置；主进程从配置文件懒加载 */
     getSettings: (): Promise<UiSettings> => ipcRenderer.invoke('settings:get'),
     /** 保存设置并落盘配置文件，返回合并默认值后的生效状态 */

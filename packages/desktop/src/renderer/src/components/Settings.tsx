@@ -8,6 +8,7 @@ import {
     type UiSettings,
 } from '../../../shared/settings.ts'
 import type { BackendStatus } from '../../../preload/api.ts'
+import type { DesktopUpdateState, DesktopUpdateStatus } from '../../../shared/update.ts'
 import { BrandMark } from '@cith/ui'
 import { CloseIcon } from './icons'
 import { ActionRow, FieldRow, OptionRow, SliderRow, SwitchRow } from './rows'
@@ -27,15 +28,17 @@ type Props = {
     settings: UiSettings
     onSave: (next: UiSettings) => void
     version: string
+    initialCategory: 'interface' | 'about'
     backendStatus: BackendStatus
+    updateState?: DesktopUpdateState
     onClearLocal: () => void
     onOpenDataDir: () => Promise<void>
     onTestNotify: () => Promise<void>
     onClose: () => void
 }
 
-export function SettingsView({ settings, onSave, version, backendStatus, onClearLocal, onOpenDataDir, onTestNotify, onClose }: Props) {
-    const [active, setActive] = useState('interface')
+export function SettingsView({ settings, onSave, version, initialCategory, backendStatus, updateState, onClearLocal, onOpenDataDir, onTestNotify, onClose }: Props) {
+    const [active, setActive] = useState<string>(initialCategory)
     const [draft, setDraft] = useState<UiSettings>(() => ({ ...settings }))
     const dirty = JSON.stringify(draft) !== JSON.stringify(settings)
     const cat = CATEGORIES.find((c) => c.id === active) ?? CATEGORIES[0]
@@ -94,7 +97,9 @@ export function SettingsView({ settings, onSave, version, backendStatus, onClear
                         {cat.id === 'backend' && (
                             <BackendPane settings={draft} onChange={edit} status={backendStatus} />
                         )}
-                        {cat.id === 'about' && <AboutPane version={version} />}
+                        {cat.id === 'about' && (
+                            <AboutPane version={version} settings={draft} onChange={edit} updateState={updateState} />
+                        )}
                     </section>
                 </div>
             </main>
@@ -260,6 +265,16 @@ function GeneralPane({ settings, onChange }: { settings: UiSettings; onChange: (
                     onChange={(v) => onChange({ startAtLogin: v })}
                 />
                 <OptionRow
+                    label="关闭窗口时"
+                    hint="隐藏到托盘后仍保持运行，可从托盘重新打开或退出。"
+                    value={settings.windowCloseAction}
+                    options={[
+                        { value: 'quit', label: '退出应用' },
+                        { value: 'tray', label: '隐藏到托盘' },
+                    ]}
+                    onChange={(v) => onChange({ windowCloseAction: v })}
+                />
+                <OptionRow
                     label="发送快捷键"
                     value={settings.sendKey}
                     options={[
@@ -401,7 +416,12 @@ function BackendPane({ settings, onChange, status }: {
     )
 }
 
-function AboutPane({ version }: { version: string }) {
+function AboutPane({ version, settings, onChange, updateState }: {
+    version: string
+    settings: UiSettings
+    onChange: (p: Partial<UiSettings>) => void
+    updateState?: DesktopUpdateState
+}) {
     return (
         <>
             <header className="pane-head">
@@ -414,15 +434,72 @@ function AboutPane({ version }: { version: string }) {
                     <div className="about-line">v{version} · Electron + React</div>
                 </div>
             </div>
-            {window.desktop?.checkForUpdates && (
+            {updateState && updateState.mode !== 'unsupported' && (
                 <div className="pane-card">
-                    <ActionRow
-                        label="应用更新"
-                        actionLabel="检查更新"
-                        doneLabel="检查完成"
-                        onAction={() => window.desktop?.checkForUpdates?.()}
-                    />
+                    <UpdateRow state={updateState} />
+                    {updateState.mode === 'installer' && (
+                        <SwitchRow
+                            label="自动下载更新"
+                            hint="保存后生效。发现新版本时在后台下载，安装前会询问。"
+                            checked={settings.autoDownloadUpdates}
+                            onChange={(v) => onChange({ autoDownloadUpdates: v })}
+                        />
+                    )}
                 </div>
+            )}
+        </>
+    )
+}
+
+export function updateStatusLabel(status: DesktopUpdateStatus): string {
+    switch (status.phase) {
+        case 'idle': return '应用更新'
+        case 'checking': return '正在检查更新…'
+        case 'current': return '当前没有可用更新'
+        case 'available': return `发现新版本 v${status.version}`
+        case 'downloading': return `正在下载 v${status.version}`
+        case 'downloaded': return `v${status.version} 已下载`
+        case 'installing': return '正在准备重启…'
+        case 'error': return '检查更新失败'
+    }
+}
+
+function UpdateRow({ state: { mode, status } }: { state: DesktopUpdateState }) {
+    const [actionError, setActionError] = useState('')
+    const api = window.desktop
+    let action: { label: string; run: () => Promise<void> } | undefined
+    if (api && status.phase === 'available') {
+        const label = mode === 'portable' ? '前往下载' : status.error ? '重试下载' : '下载更新'
+        action = { label, run: api.downloadUpdate }
+    }
+    else if (api && status.phase === 'downloaded') {
+        action = { label: '重启更新', run: api.installUpdate }
+    }
+    else if (api && (status.phase === 'idle' || status.phase === 'current' || status.phase === 'error')) {
+        action = { label: '检查更新', run: api.checkForUpdates }
+    }
+
+    const error = actionError || ('error' in status ? status.error : undefined)
+    const progress = status.phase === 'downloading' ? status.percent : undefined
+    return (
+        <>
+            <div className="action-row">
+                <div className="switch-text" role="status">
+                    <span className="field-label">{updateStatusLabel(status)}</span>
+                    {error && <span className="field-hint failure">{error}</span>}
+                </div>
+                {progress !== undefined && <span className="slider-value">{progress}%</span>}
+                {action && (
+                    <button className="action-btn" onClick={() => {
+                        setActionError('')
+                        void action.run().catch(() => setActionError('无法执行更新操作，请重试。'))
+                    }}>
+                        {action.label}
+                    </button>
+                )}
+            </div>
+            {status.phase === 'downloading' && (
+                <progress className="update-progress" aria-label="更新下载进度" max={100} value={progress} />
             )}
         </>
     )
