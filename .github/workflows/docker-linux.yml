@@ -54,7 +54,7 @@ jobs:
             --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
             --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
             --tag "$CITH_IMAGE" .
-          docker compose run --rm --no-deps --pull never core test ! -e /app/dist/config.json
+          docker run --rm --pull never "$CITH_IMAGE" test ! -e /app/dist/config.json
       - name: 初始化并启动 Core
         run: |
           export CITH_UID="$(id -u)" CITH_GID="$(id -g)"
