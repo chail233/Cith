@@ -1,0 +1,12 @@
+services:
+  core:
+    image: ${CITH_IMAGE:-ghcr.io/chail233/cith-core:latest}
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 30s
+    user: "${CITH_UID:-1000}:${CITH_GID:-1000}"
+    ports:
+      - "${CITH_ONEBOT_BIND:-127.0.0.1}:${CITH_ONEBOT_PORT:-8080}:8080"
+      - "${CITH_DESKTOP_BIND:-127.0.0.1}:${CITH_DESKTOP_PORT:-2147}:2147"
+    volumes:
+      - ./profile:/app/profile

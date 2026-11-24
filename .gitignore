@@ -14,6 +14,8 @@
 
 /node_modules/
 /dist/
+/profile/
+/.env
 /packages/core/stickers/manifest.dev.json
 
 # 提示词面板保存时产生的备份与临时文件

@@ -79,7 +79,7 @@ type MaskableInterface = Interface & { _writeToOutput?: (chunk: string) => void 
  * 交互式提问：基于 readline，不要求 stdin 是 TTY
  * （IDE 的 Run 窗口、`node scripts/setup.ts < answers.txt` 之类都能跑）
  */
-class Prompter {
+export class Prompter {
     private readonly rl: Interface;
     /** 管道输入会一次性到达，没被消费的行先排队，避免丢行卡死 */
     private readonly queued: string[] = [];

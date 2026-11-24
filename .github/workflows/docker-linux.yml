@@ -1,0 +1,111 @@
+name: Build and publish Linux Docker image
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'packages/core/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig*.json'
+      - 'Dockerfile'
+      - '.dockerignore'
+      - 'compose.yaml'
+      - 'docker/**'
+      - 'scripts/copy-assets.js'
+      - 'scripts/setup.ts'
+      - '.github/workflows/docker-linux.yml'
+  pull_request:
+    paths:
+      - 'packages/core/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig*.json'
+      - 'Dockerfile'
+      - '.dockerignore'
+      - 'compose.yaml'
+      - 'docker/**'
+      - 'scripts/copy-assets.js'
+      - 'scripts/setup.ts'
+      - '.github/workflows/docker-linux.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-linux-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CITH_IMAGE: cith-core:local
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: 构建 Core 镜像
+        run: |
+          printf '{"aiApiKey":"build-context-sentinel"}\n' > packages/core/config.json
+          docker build \
+            --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            --tag "$CITH_IMAGE" .
+          docker compose run --rm --no-deps --pull never core test ! -e /app/dist/config.json
+      - name: 初始化并启动 Core
+        run: |
+          export CITH_UID="$(id -u)" CITH_GID="$(id -g)"
+          mkdir -p profile
+          printf '\n%s\n%s\nn\nn\n\n\n' test-model mock-api-key | docker compose run --rm -T --no-deps --pull never core setup
+          grep -q '"chatModel": "test-model"' profile/config.json
+          docker compose up -d --pull never
+          timeout 45 bash -c 'until docker compose logs --no-color core | grep -F "面板 API 服务已启动"; do sleep 1; done'
+          test -s profile/prompts/system.md
+          test -s profile/skills/skill-manager/SKILL.md
+          printf '\n本地提示词修改\n' >> profile/prompts/system.md
+          docker compose up -d --force-recreate --pull never
+          timeout 45 bash -c 'until docker compose logs --no-color core | grep -F "面板 API 服务已启动"; do sleep 1; done'
+          grep -q '本地提示词修改' profile/prompts/system.md
+          docker compose stop
+          docker compose logs --no-color core | grep -F '收到 SIGTERM'
+      - name: 导出通过验证的 Linux 镜像
+        run: docker image save "$CITH_IMAGE" | gzip -1 > cith-core-linux-amd64.tar.gz
+      - uses: actions/upload-artifact@v7
+        with:
+          name: cith-core-linux-amd64
+          path: |
+            cith-core-linux-amd64.tar.gz
+            compose.yaml
+          compression-level: 0
+          if-no-files-found: error
+      - name: 输出日志并清理测试容器
+        if: always()
+        run: |
+          docker compose logs --no-color
+          docker compose down
+
+  publish:
+    needs: smoke
+    if: github.repository == 'chail233/Cith' && github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      packages: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: cith-core-linux-amd64
+      - name: 发布通过验证的镜像到 GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE: ghcr.io/chail233/cith-core
+        run: |
+          docker image load -i cith-core-linux-amd64.tar.gz
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          docker image tag cith-core:local "$IMAGE:sha-$GITHUB_SHA"
+          docker image push "$IMAGE:sha-$GITHUB_SHA"
+          docker image tag cith-core:local "$IMAGE:latest"
+          docker image push "$IMAGE:latest"
