@@ -31,6 +31,7 @@ type Props = {
 export function Sidebar({ conversations, archived, activeId, version, settingsOpen, coreOpen, backendStatus, updateStatus, onSelect, onNew, onOpenSettings, onOpenUpdates, onOpenCore, onArchive, onDelete, onRestore, onSidebarResize }: Props) {
     const [menuId, setMenuId] = useState<string | null>(null)
     const [menuFlip, setMenuFlip] = useState(false)
+    const statusLabel = STATUS_LABEL[backendStatus.state]
 
     // 拖拽调宽：指针捕获跟手，期间直接写 CSS 变量，松手才落设置
     function startResize(e: ReactPointerEvent<HTMLDivElement>) {
@@ -82,12 +83,15 @@ export function Sidebar({ conversations, archived, activeId, version, settingsOp
     return (
         <aside className="sidebar">
             <div className="side-brand">
-                <BrandMark size={26} label="Cith" />
+                <BrandMark size={26} />
+                <span className="side-name">Cith</span>
                 <span
                     className="side-status"
-                    title={`消息通道：${STATUS_LABEL[backendStatus.state]}${backendStatus.message ? `（${backendStatus.message}）` : ''}`}
+                    role="status"
+                    title={`消息通道：${statusLabel}${backendStatus.message ? `（${backendStatus.message}）` : ''}`}
                 >
-                    <span className={`status-dot ${backendStatus.state}`} />
+                    <span className={`side-status-dot ${backendStatus.state}`} aria-hidden="true" />
+                    <span>{backendStatus.state === 'reconnecting' ? '重连中' : statusLabel}</span>
                 </span>
             </div>
 
@@ -102,10 +106,14 @@ export function Sidebar({ conversations, archived, activeId, version, settingsOp
                         key={c.id}
                         role="button"
                         tabIndex={0}
+                        aria-current={c.id === activeId || undefined}
                         className={`conv${c.id === activeId ? ' active' : ''}${menuId === c.id ? ' menu-open' : ''}`}
                         onClick={() => onSelect(c.id)}
                         onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') onSelect(c.id)
+                            if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+                                e.preventDefault()
+                                onSelect(c.id)
+                            }
                         }}
                     >
                         <span className="conv-title">{c.title}</span>

@@ -3,24 +3,36 @@
     display: flex;
     flex-direction: column;
     min-height: 0;
-    padding: 18px 14px 14px;
-    background: var(--bg-1);
-    backdrop-filter: var(--glass-m);
+    padding: 0 12px 12px;
+    background: var(--sidebar-bg);
 }
 
 .side-brand {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 2px 4px 18px;
+    flex: 0 0 var(--titlebar-height);
+    gap: 7px;
+    padding-inline: 3px;
+}
+
+.side-name {
+    font-family: var(--font-display);
+    font-size: 17px;
+    font-weight: 650;
 }
 
 .side-status {
-    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-inline-start: auto;
+    color: var(--text-2);
+    font-size: 11px;
+    white-space: nowrap;
 }
 
-.status-dot {
-    display: block;
+.side-status-dot {
+    flex-shrink: 0;
     width: 7px;
     height: 7px;
     border-radius: 50%;
@@ -28,12 +40,12 @@
     transition: background var(--speed) var(--ease);
 }
 
-.status-dot.connected {
+.side-status-dot.connected {
     background: var(--ok);
 }
 
-.status-dot.connecting,
-.status-dot.reconnecting {
+.side-status-dot.connecting,
+.side-status-dot.reconnecting {
     background: var(--accent);
 }
 
@@ -41,11 +53,12 @@
     display: flex;
     align-items: center;
     gap: 9px;
-    padding: 10px 14px;
-    border-radius: 10px;
+    padding: 9px 12px;
+    border-radius: var(--radius-s);
     background: var(--bg-2);
-    color: var(--text-2);
+    color: var(--text-1);
     font-size: 13px;
+    font-weight: 600;
     transition: background var(--speed) var(--ease), color var(--speed) var(--ease), transform var(--speed) var(--ease);
 }
 
@@ -66,18 +79,18 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
-    margin-top: 16px;
+    margin-top: 12px;
     padding: 2px;
 }
 
 .conv {
     position: relative;
     display: flex;
-    flex-direction: column;
-    gap: 2px;
+    align-items: center;
+    gap: 8px;
     text-align: left;
-    padding: 10px 34px 10px 14px;
-    border-radius: 10px;
+    padding: 9px 34px 9px 14px;
+    border-radius: var(--radius-s);
     cursor: pointer;
     transition: background var(--speed) var(--ease);
 }
@@ -111,6 +124,7 @@
 }
 
 .conv-title {
+    min-width: 0;
     font-size: 13px;
     color: var(--text-2);
     white-space: nowrap;
@@ -125,8 +139,11 @@
 }
 
 .conv-meta {
+    flex-shrink: 0;
+    margin-inline-start: auto;
     font-size: 11px;
     color: var(--text-3);
+    white-space: nowrap;
 }
 
 /* 悬停浮现的会话菜单按钮 */
@@ -149,6 +166,7 @@
 }
 
 .conv:hover .conv-more,
+.conv:focus-within .conv-more,
 .conv.menu-open .conv-more {
     opacity: 1;
 }
@@ -223,12 +241,8 @@
 }
 
 .conv.archived {
-    opacity: 0.5;
-}
-
-.conv.archived:hover {
-    opacity: 0.85;
-    background: var(--hover-fill);
+    width: 100%;
+    padding-inline-end: 12px;
 }
 
 .side-foot {
@@ -236,7 +250,7 @@
     flex-direction: column;
     gap: 2px;
     margin-top: 12px;
-    padding: 8px 6px 2px;
+    padding: 8px 0 2px;
 }
 
 .side-foot-row {
@@ -298,10 +312,11 @@
 /* 拖拽调宽手柄：贴右缘的透明条，探进聊天区好抓，悬停显琥珀浸染 */
 .sidebar-resizer {
     position: absolute;
-    top: 0;
+    z-index: 2;
+    top: var(--titlebar-height);
+    bottom: 0;
     right: -4px;
     width: 8px;
-    height: 100%;
     cursor: col-resize;
     border-radius: 4px;
     transition: background var(--speed) var(--ease);

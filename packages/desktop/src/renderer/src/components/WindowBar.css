@@ -1,24 +1,39 @@
 .app:has(> .window-bar) {
-    grid-template-rows: auto minmax(0, 1fr);
+    --window-controls-width: 138px;
+}
+
+.app:has(> .window-bar) :is(.side-brand, .chat-head-drag) {
+    user-select: none;
+    -webkit-app-region: drag;
+}
+
+.app:has(> .window-bar) .chat-head-drag {
+    position: absolute;
+    inset: 0 var(--window-controls-width) 0 0;
+    display: block;
+}
+
+.app:has(> .window-bar) :is(.side-status, .sidebar-resizer) {
+    -webkit-app-region: no-drag;
 }
 
 .window-bar {
-    grid-column: 1 / -1;
+    position: absolute;
+    inset: 0 0 auto auto;
     z-index: 60;
     display: flex;
     justify-content: flex-end;
     gap: 2px;
-    height: 34px;
-    padding: 3px 4px;
-    background: var(--bg-0);
+    width: var(--window-controls-width);
+    height: var(--titlebar-height);
+    padding: 8px 6px;
     user-select: none;
-    -webkit-app-region: drag;
 }
 
 .window-bar button {
     display: grid;
     place-items: center;
-    width: 42px;
+    flex: 1;
     border-radius: var(--radius-s);
     color: var(--text-2);
     transition: background var(--speed) var(--ease), color var(--speed) var(--ease);

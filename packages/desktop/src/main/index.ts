@@ -97,7 +97,7 @@ function reconcileBackendTarget(): void {
 }
 
 function windowBackground(theme: string): string {
-    return theme === 'light' ? '#f0e5cf' : '#191512'
+    return theme === 'light' ? '#fbf7f0' : '#211c18'
 }
 
 function showWindow(): void {

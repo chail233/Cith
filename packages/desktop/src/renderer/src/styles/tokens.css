@@ -1,16 +1,16 @@
 /* ============ 设计 token 单一真源 ============ */
-/* 深色基准是暖炭琥珀（不透明表面分层）；浅色是 web 面板同款的暖琥珀磨砂毛玻璃：
-   暖纸底铺环境光斑，表面改半透明玻璃，靠 --glass-m 的 blur+saturate 成景深。挂 [data-theme] 切换。 */
+/* 主页以暖炭和暖纸色区分聊天区与侧栏，浮层沿用各主题的表面材质。 */
 :root {
     /* 基底：暖炭/深咖，三层表面只靠颜色深浅区分，不画线 */
-    --bg-0: #191512;
+    --bg-0: #211c18;
     --bg-1: #201a15;
-    --bg-2: #2a221a;
-    --bg-3: #382d22;
+    --bg-2: #2d2620;
+    --bg-3: #372e26;
+    --sidebar-bg: #191613;
 
     --text-1: #f3ede4;
     --text-2: #b5a897;
-    --text-3: #857663;
+    --text-3: #a5927e;
 
     /* 品牌：琥珀——壁炉的一盏灯 */
     --accent: #e9a25c;
@@ -38,24 +38,26 @@
     /* 全屏遮罩（设置弹窗底下） */
     --overlay: rgba(12, 9, 6, 0.55);
 
-    /* 环境光斑层（浅色铺在 body::before）与玻璃材质（blur+saturate 成磨砂）；深色都是关的 */
-    --blob-layer: none;
+    /* 浅色浮层使用玻璃材质，深色使用实底。 */
     --glass-m: none;
 
-    --font-body: system-ui, 'MiSans', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    --font-body: 'Segoe UI', 'MiSans', 'PingFang SC', 'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, sans-serif;
     --font-display: 'Space Grotesk Variable', var(--font-body);
     --font-mono: 'JetBrains Mono Variable', ui-monospace, 'Cascadia Mono', Consolas, monospace;
 
     --radius-s: 10px;
     --radius-m: 14px;
+    --titlebar-height: 54px;
+    --chat-gutter: 32px;
+    --scrollbar-size: 10px;
 
     /* 界面设置可调项（设置页写入，默认值兜底） */
-    --font-msg: 14px;
+    --font-msg: 15px;
     --leading: 1.75;
     --para-gap: 10px;
     --msg-gap: 24px;
-    --content-width: 760px;
-    --sidebar-width: 262px;
+    --content-width: 620px;
+    --sidebar-width: 230px;
 
     --shadow-s: 0 2px 10px rgba(0, 0, 0, 0.22);
     --shadow-m: 0 10px 30px rgba(0, 0, 0, 0.32);
@@ -64,18 +66,17 @@
     --ease: cubic-bezier(0.25, 0.8, 0.4, 1);
 }
 
-/* 浅色：web 面板的暖琥珀毛玻璃浅底变体（palette 取自 packages/web/src/styles/tokens.css） */
+/* 浅色：暖纸底和较深的侧栏，交互表面用暖沙色。 */
 [data-theme='light'] {
-    /* 玻璃阶：暖纸底 + 三层半透明表面；bg-3 是比 bg-2 深一档的暖沙玻璃（hover/选中=变暗，不变亮） */
-    --bg-0: #f0e5cf;
-    --bg-1: rgba(240, 229, 207, 0.5);
-    --bg-2: rgba(253, 249, 238, 0.62);
-    --bg-3: rgba(226, 204, 168, 0.62);
+    --bg-0: #fbf7f0;
+    --bg-1: rgba(247, 239, 227, 0.88);
+    --bg-2: #f3eadd;
+    --bg-3: #e9ddcc;
+    --sidebar-bg: #efe7db;
 
     --text-1: #33261a;
-    --text-2: #7d6b56;
-    /* 比 web 的装饰色深：桌面的 text-3 承担功能性提示文字，太淡会融进浅底 */
-    --text-3: #8d7a5f;
+    --text-2: #665748;
+    --text-3: #73604f;
 
     /* 列表项 hover：中性暖浸染，压暗而非提亮 */
     --hover-fill: rgba(122, 95, 60, 0.1);
@@ -98,11 +99,6 @@
     --scroll-thumb-hover: rgba(122, 95, 60, 0.45);
     --overlay: rgba(46, 32, 20, 0.3);
 
-    --blob-layer:
-        radial-gradient(44rem 44rem at 38% 22%, rgba(233, 162, 92, 0.42), transparent 66%),
-        radial-gradient(40rem 40rem at 72% 8%, rgba(244, 188, 125, 0.32), transparent 66%),
-        radial-gradient(48rem 48rem at 82% 82%, rgba(221, 126, 84, 0.26), transparent 66%),
-        radial-gradient(34rem 34rem at 10% 92%, rgba(84, 60, 36, 0.16), transparent 70%);
     --glass-m: blur(22px) saturate(1.5);
 
     /* 暖棕调投影：玻璃浮起 */

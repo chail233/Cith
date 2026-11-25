@@ -3,28 +3,41 @@
     flex-direction: column;
     min-width: 0;
     min-height: 0;
-    /* 不铺底色：浅色主题下让 body 的环境光斑透上来，深色下与 body 同色不受影响 */
-    animation: view-in var(--speed) var(--ease);
 }
 
 .chat-head {
+    position: relative;
     display: flex;
-    align-items: baseline;
-    gap: 10px;
-    padding: 20px 26px 8px;
+    flex: 0 0 var(--titlebar-height);
+    align-items: center;
+    padding-inline: var(--chat-gutter);
+}
+
+.chat-head-drag {
+    display: none;
+}
+
+.chat-rail {
+    width: min(100%, var(--content-width));
+    margin-inline: auto;
 }
 
 .chat-title {
-    font-size: 15px;
+    max-width: calc(100% - var(--window-controls-width, 0px));
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 16px;
     font-weight: 600;
-    letter-spacing: 0.2px;
 }
 
 .msgs {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-    scrollbar-gutter: stable;
+    /* 左右都保留滚动条空间，消息列与顶栏、输入区保持同一居中轴。 */
+    scrollbar-gutter: stable both-edges;
+    padding-inline: calc(var(--chat-gutter) - var(--scrollbar-size));
     scroll-behavior: smooth;
 }
 
@@ -35,9 +48,7 @@
 }
 
 .msgs-col {
-    max-width: var(--content-width);
-    margin: 0 auto;
-    padding: 24px 24px 12px;
+    padding-block: 24px 12px;
     display: flex;
     flex-direction: column;
     gap: var(--msg-gap);
@@ -57,19 +68,12 @@
     align-items: center;
     justify-content: center;
     padding-bottom: 40px;
+    animation: view-in var(--speed) var(--ease);
 }
 
 .empty-title {
     font-size: 15px;
     font-weight: 600;
     color: var(--text-2);
-    margin-top: 18px;
-    animation: rise 240ms var(--ease) backwards;
-}
-
-.empty-sub {
-    font-size: 12px;
-    color: var(--text-3);
-    margin-top: 4px;
-    animation: rise 240ms var(--ease) backwards;
+    margin-top: 12px;
 }

@@ -9,11 +9,20 @@
 }
 
 .msg.user .msg-segs {
-    max-width: 72%;
+    max-width: 83%;
     background: var(--bg-2);
     backdrop-filter: var(--glass-m);
-    border-radius: 14px 14px 4px 14px;
-    padding: 10px 16px;
+    border-radius: var(--radius-m) var(--radius-m) 5px var(--radius-m);
+    padding: 10px 14px;
+}
+
+.msg-author {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+    font-size: 12px;
+    font-weight: 600;
 }
 
 .msg.agent .msg-segs {
@@ -26,6 +35,7 @@
     font-size: var(--font-msg);
     line-height: var(--leading);
     color: var(--text-1);
+    overflow-wrap: anywhere;
 }
 
 /* 设置页「段落间距」的作用点 */

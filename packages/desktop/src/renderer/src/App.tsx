@@ -198,25 +198,15 @@ export default function App() {
                 onRestore={handleRestore}
                 onSidebarResize={handleSidebarResize}
             />
-            {conv.active ? (
-                <ChatArea
-                    key={conv.active.id}
-                    conversation={conv.active}
-                    pending={chat.pending}
-                    connected={backendStatus.state === 'connected'}
-                    sendKey={settings.sendKey}
-                    onSend={handleSend}
-                    onStop={chat.stop}
-                />
-            ) : (
-                <main className="chat">
-                    <div className="empty">
-                        <span className="empty-mark" />
-                        <h2 className="empty-title">没有会话了</h2>
-                        <p className="empty-sub">从左侧新建一个对话吧</p>
-                    </div>
-                </main>
-            )}
+            <ChatArea
+                key={conv.active?.id}
+                conversation={conv.active}
+                pending={chat.pending}
+                connected={backendStatus.state === 'connected'}
+                sendKey={settings.sendKey}
+                onSend={handleSend}
+                onStop={chat.stop}
+            />
             {settingsOpen && (
                 <SettingsView
                     settings={settings}

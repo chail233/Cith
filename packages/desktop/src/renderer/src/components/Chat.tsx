@@ -6,7 +6,7 @@ import { Composer } from './Composer'
 import './Chat.css'
 
 type Props = {
-    conversation: Conversation
+    conversation?: Conversation
     pending: boolean
     connected: boolean
     /** 发送快捷键，来自设置页「通用」 */
@@ -16,27 +16,31 @@ type Props = {
 }
 
 export function ChatArea({ conversation, pending, connected, sendKey, onSend, onStop }: Props) {
-    const empty = conversation.messages.length === 0
     return (
         <main className="chat">
             <header className="chat-head">
-                <h1 className="chat-title">{conversation.title}</h1>
+                <div className="chat-head-drag" aria-hidden="true" />
+                <div className="chat-rail">
+                    {conversation && <h1 className="chat-title">{conversation.title}</h1>}
+                </div>
             </header>
 
-            {empty ? (
-                <EmptyState />
-            ) : (
+            {conversation?.messages.length ? (
                 <MessageList messages={conversation.messages} pending={pending} />
+            ) : (
+                <EmptyState hasConversation={Boolean(conversation)} />
             )}
 
-            <Composer
-                onSend={onSend}
-                onStop={onStop}
-                disabled={!connected}
-                pending={pending}
-                sendKey={sendKey}
-                hint={connected ? undefined : '未连接后端，消息无法送达 · 前往设置配置连接'}
-            />
+            {conversation && (
+                <Composer
+                    onSend={onSend}
+                    onStop={onStop}
+                    disabled={!connected}
+                    pending={pending}
+                    sendKey={sendKey}
+                    hint={connected ? undefined : '未连接后端，消息无法送达 · 前往设置配置连接'}
+                />
+            )}
         </main>
     )
 }
@@ -51,7 +55,7 @@ function MessageList({ messages, pending }: { messages: ChatMessage[]; pending: 
 
     return (
         <div className="msgs" ref={ref}>
-            <div className="msgs-col">
+            <div className="msgs-col chat-rail">
                 {messages.map((m) => (
                     <Message key={m.id} msg={m} />
                 ))}
@@ -71,12 +75,11 @@ function TypingRow() {
     )
 }
 
-function EmptyState() {
+function EmptyState({ hasConversation }: { hasConversation: boolean }) {
     return (
         <div className="empty">
-            <BrandMark size={44} label="Cith" />
-            <h2 className="empty-title">向 Cith 说点什么</h2>
-            <p className="empty-sub">在下方输入消息即可开始</p>
+            <BrandMark size={40} />
+            <h2 className="empty-title">{hasConversation ? '向 Cith 说点什么' : '新建一个对话'}</h2>
         </div>
     )
 }

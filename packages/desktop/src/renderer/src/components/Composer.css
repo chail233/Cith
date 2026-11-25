@@ -1,11 +1,10 @@
 .composer {
-    padding: 14px 24px 18px;
+    padding: 12px var(--chat-gutter) 16px;
 }
 
 /* 待发送附件条：soft chip 一枚一枚排开 */
 .composer-atts {
-    max-width: var(--content-width);
-    margin: 0 auto 8px;
+    margin-bottom: 8px;
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
@@ -89,15 +88,14 @@
 }
 
 .composer-box {
-    max-width: var(--content-width);
-    margin: 0 auto;
     display: flex;
     align-items: flex-end;
     gap: 12px;
     background: var(--bg-2);
     backdrop-filter: var(--glass-m);
-    border-radius: 16px;
-    padding: 11px 12px 11px 12px;
+    border-radius: var(--radius-m);
+    padding: 8px 10px;
+    box-shadow: var(--shadow-s);
     transition: background var(--speed) var(--ease);
 }
 
@@ -107,6 +105,7 @@
 
 .composer-input {
     flex: 1;
+    min-width: 0;
     background: none;
     border: 0;
     outline: 0;
@@ -123,8 +122,8 @@
 
 .composer-send {
     flex-shrink: 0;
-    width: 40px;
-    height: 40px;
+    width: 36px;
+    height: 36px;
     border-radius: 999px;
     background: var(--accent);
     color: var(--on-accent);
@@ -150,9 +149,9 @@
 /* 中断键：与发送键左右并排，尺寸小一号并居中对齐，走中性面——琥珀只留给「发出」 */
 .composer-stop {
     flex-shrink: 0;
-    width: 34px;
-    height: 34px;
-    margin-bottom: 3px;
+    width: 32px;
+    height: 32px;
+    margin-bottom: 2px;
     border-radius: 999px;
     background: var(--bg-3);
     color: var(--text-1);
@@ -171,9 +170,8 @@
 }
 
 .composer-hint {
-    max-width: var(--content-width);
-    margin: 8px auto 0;
-    text-align: center;
+    margin-top: 6px;
+    padding-inline: 3px;
     font-size: 11px;
     color: var(--text-3);
     user-select: none;

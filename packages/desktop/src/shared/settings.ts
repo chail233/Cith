@@ -22,12 +22,12 @@ export type UiSettings = {
 
 export const defaultSettings: UiSettings = {
     theme: 'dark',
-    fontSize: 14,
+    fontSize: 15,
     lineHeight: 1.75,
     paraGap: 10,
     msgGap: 24,
-    contentWidth: 760,
-    sidebarWidth: 262,
+    contentWidth: 620,
+    sidebarWidth: 230,
     startAtLogin: false,
     windowCloseAction: 'quit',
     autoDownloadUpdates: true,

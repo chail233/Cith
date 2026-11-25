@@ -57,7 +57,7 @@ export function Composer({ onSend, onStop, disabled, pending, sendKey, hint }: P
     return (
         <div className="composer">
             {files.length > 0 && (
-                <div className="composer-atts">
+                <div className="composer-atts chat-rail">
                     {files.map((f, i) => (
                         <span key={`${f.path}-${i}`} className="att-chip">
                             <span className="att-name">{f.name}</span>
@@ -73,7 +73,7 @@ export function Composer({ onSend, onStop, disabled, pending, sendKey, hint }: P
                     ))}
                 </div>
             )}
-            <div className="composer-box">
+            <div className="composer-box chat-rail">
                 <div className="composer-tools">
                     <button className="composer-tool" onClick={() => void pick('image')} disabled={disabled} aria-label="发送图片">
                         <ImageIcon />
@@ -116,7 +116,7 @@ export function Composer({ onSend, onStop, disabled, pending, sendKey, hint }: P
                     <SendIcon />
                 </button>
             </div>
-            <div className="composer-hint">
+            <div className="composer-hint chat-rail">
                 {hint ??
                     (pending
                         ? '正在处理，可继续发送 · 方块中断'

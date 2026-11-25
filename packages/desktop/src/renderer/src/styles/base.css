@@ -20,16 +20,6 @@ body {
     overflow: hidden;
 }
 
-/* 环境光斑层：浅色主题铺在页面最底，是玻璃 blur 的景深来源；深色为 none 不画 */
-body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    z-index: -1;
-    background: var(--bg-0);
-    background-image: var(--blob-layer);
-}
-
 button {
     font: inherit;
     color: inherit;
@@ -64,8 +54,8 @@ html[data-theme='light'] .brandmark-ith {
 }
 
 ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: var(--scrollbar-size);
+    height: var(--scrollbar-size);
 }
 
 ::-webkit-scrollbar-thumb {
@@ -85,8 +75,10 @@ html[data-theme='light'] .brandmark-ith {
 
 /* 应用骨架布局：侧栏宽度跟随设置（拖拽手柄与设置页共用同一变量） */
 .app {
+    position: relative;
     display: grid;
-    grid-template-columns: var(--sidebar-width, 262px) minmax(0, 1fr);
+    grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
     height: 100%;
 }
 

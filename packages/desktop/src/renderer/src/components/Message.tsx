@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { BrandMark } from '@cith/ui'
 import type { ChatMessage, MediaSegmentData } from '../types'
 import { fmtSize } from '../format'
 import { FileIcon } from './icons'
@@ -17,6 +18,12 @@ function renderText(text: string) {
 export function Message({ msg }: { msg: ChatMessage }) {
     return (
         <div className={`msg ${msg.role}`}>
+            {msg.role === 'agent' && (
+                <div className="msg-author">
+                    <BrandMark size={20} />
+                    <span>Cith</span>
+                </div>
+            )}
             <div className="msg-segs">
                 {msg.segments.map((seg, i) => {
                     if (seg.type === 'text') {

@@ -9,6 +9,10 @@ export default defineConfig({
         plugins: [externalizeDepsPlugin()]
     },
     renderer: {
-        plugins: [react()]
+        plugins: [react()],
+        build: {
+            // 字体以独立文件加载，符合渲染层 CSP。
+            assetsInlineLimit: (filePath) => filePath.endsWith('.woff2') ? false : undefined
+        }
     }
 })
