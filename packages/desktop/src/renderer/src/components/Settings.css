@@ -473,6 +473,10 @@
     padding-left: 19px;
 }
 
+.avatar-row { gap: 10px; flex-wrap: wrap; }
+.avatar-row .switch-text { flex: 1; }
+.preview-col .msg-time:empty { display: none; }
+
 .preview-card {
     margin-top: 16px;
     background: var(--bg-0);

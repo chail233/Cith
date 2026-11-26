@@ -10,12 +10,15 @@ import {
 import type { BackendStatus } from '../../../preload/api.ts'
 import type { DesktopUpdateState, DesktopUpdateStatus } from '../../../shared/update.ts'
 import { BrandMark } from '@cith/ui'
+import { AvatarRow } from './AvatarRow'
+import { Message } from './Message'
 import { CloseIcon } from './icons'
 import { ActionRow, FieldRow, OptionRow, SliderRow, SwitchRow } from './rows'
 import './Settings.css'
 
 const CATEGORIES = [
     { id: 'interface', label: '界面' },
+    { id: 'personal', label: '个性化' },
     { id: 'general', label: '通用' },
     { id: 'chats', label: '会话' },
     { id: 'notifications', label: '通知' },
@@ -81,6 +84,21 @@ export function SettingsView({ settings, onSave, version, initialCategory, backe
 
                     <section className="settings-pane" key={active}>
                         {cat.id === 'interface' && <InterfacePane settings={draft} onChange={edit} />}
+                        {cat.id === 'personal' && (
+                            <>
+                                <header className="pane-head"><h2 className="pane-title">个性化</h2></header>
+                                <div className="pane-card">
+                                    <AvatarRow role="user" value={draft.userAvatar} onChange={(userAvatar) => edit({ userAvatar })} />
+                                    <AvatarRow role="agent" value={draft.agentAvatar} onChange={(agentAvatar) => edit({ agentAvatar })} />
+                                </div>
+                                <div className="pane-card">
+                                    <SwitchRow label="聊天气泡" checked={draft.chatBubbles} onChange={(chatBubbles) => edit({ chatBubbles })} />
+                                    <SwitchRow label="拟人回复节奏" hint="新回复按消息段依次显示，文字越长，停顿越久。"
+                                        checked={draft.pacedReplies} onChange={(pacedReplies) => edit({ pacedReplies })} />
+                                </div>
+                                <ChatPreview settings={draft} />
+                            </>
+                        )}
                         {cat.id === 'general' && <GeneralPane settings={draft} onChange={edit} />}
                         {cat.id === 'chats' && (
                             <ChatsPane
@@ -103,6 +121,30 @@ export function SettingsView({ settings, onSave, version, initialCategory, backe
                     </section>
                 </div>
             </main>
+        </div>
+    )
+}
+
+function ChatPreview({ settings }: { settings: UiSettings }) {
+    return (
+        <div
+            className="preview-card"
+            style={{
+                '--font-msg': `${settings.fontSize}px`,
+                '--leading': String(settings.lineHeight),
+                '--para-gap': `${settings.paraGap}px`,
+                '--msg-gap': `${settings.msgGap}px`,
+            } as CSSProperties}
+        >
+            <div className="preview-label">实时预览</div>
+            <div className="preview-col">
+                <Message settings={settings} msg={{ id: 'user', role: 'user', time: '', segments: [
+                    { type: 'text', data: { text: '今晚读点什么？' } },
+                ] }} />
+                <Message settings={settings} msg={{ id: 'agent', role: 'agent', time: '', segments: [
+                    { type: 'text', data: { text: '读一篇短篇吧。\n\n你想看科幻，还是推理？' } },
+                ] }} />
+            </div>
         </div>
     )
 }
@@ -180,33 +222,7 @@ function InterfacePane({ settings, onChange }: { settings: UiSettings; onChange:
                 />
             </div>
 
-            {/* 预览卡内就地覆写草稿值（CSS 变量随子树继承），全局仍用已保存的设置 */}
-            <div
-                className="preview-card"
-                style={{
-                    '--font-msg': `${settings.fontSize}px`,
-                    '--leading': String(settings.lineHeight),
-                    '--para-gap': `${settings.paraGap}px`,
-                    '--msg-gap': `${settings.msgGap}px`,
-                } as CSSProperties}
-            >
-                <div className="preview-label">实时预览</div>
-                <div className="preview-col">
-                    <div className="msg user">
-                        <div className="msg-segs">
-                            <p className="msg-para">帮我看看构建日志里的报错</p>
-                        </div>
-                    </div>
-                    <div className="msg agent">
-                        <div className="msg-segs">
-                            <div className="msg-text">
-                                <p className="msg-para">这是预览文本。拖动上面的滑块，字号、行距和段落间距会即时变化。</p>
-                                <p className="msg-para">第二段用来观察段落间距——琥珀色的工具痕迹以后也会留在消息流里，陪你看着 Agent 干活。</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <ChatPreview settings={settings} />
 
             <div className="pane-foot">
                 <button className="reset-btn" onClick={() => onChange(defaultSettings)}>

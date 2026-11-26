@@ -1,5 +1,9 @@
 /** 桌面端设置：主进程落盘 userData/settings.json，渲染层经 IPC 读写 */
 export type UiSettings = {
+    userAvatar: string
+    agentAvatar: string
+    chatBubbles: boolean
+    pacedReplies: boolean
     theme: 'dark' | 'light'
     fontSize: number
     lineHeight: number
@@ -21,6 +25,10 @@ export type UiSettings = {
 }
 
 export const defaultSettings: UiSettings = {
+    userAvatar: '',
+    agentAvatar: '',
+    chatBubbles: true,
+    pacedReplies: false,
     theme: 'dark',
     fontSize: 15,
     lineHeight: 1.75,
@@ -60,6 +68,10 @@ export function mergeSettings(raw: unknown): UiSettings {
     }
     if (merged.coreMode !== 'remote' && merged.coreMode !== 'local') merged.coreMode = defaultSettings.coreMode
     if (merged.theme !== 'dark' && merged.theme !== 'light') merged.theme = defaultSettings.theme
+    for (const key of ['userAvatar', 'agentAvatar']) {
+        const avatar = merged[key] as string
+        if (avatar.length > 100_000 || !/^data:image\/webp;base64,[A-Za-z0-9+/]+=*$/.test(avatar)) merged[key] = ''
+    }
     const limit = Number(merged.historyLimit)
     merged.historyLimit = Number.isFinite(limit)
         ? Math.min(HISTORY_LIMIT_MAX, Math.max(HISTORY_LIMIT_MIN, Math.round(limit)))

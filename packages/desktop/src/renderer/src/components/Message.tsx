@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { BrandMark } from '@cith/ui'
+import { Avatar } from './Avatar'
+import type { UiSettings } from '../../../shared/settings'
 import type { ChatMessage, MediaSegmentData } from '../types'
 import { fmtSize } from '../format'
 import { FileIcon } from './icons'
@@ -15,15 +16,14 @@ function renderText(text: string) {
     )
 }
 
-export function Message({ msg }: { msg: ChatMessage }) {
+export function Message({ msg, settings }: { msg: ChatMessage; settings: UiSettings }) {
+    const agent = msg.role === 'agent'
     return (
-        <div className={`msg ${msg.role}`}>
-            {msg.role === 'agent' && (
-                <div className="msg-author">
-                    <BrandMark size={20} />
-                    <span>Cith</span>
-                </div>
-            )}
+        <div className={`msg ${msg.role}${settings.chatBubbles ? ' bubbled' : ''}`}>
+            <div className="msg-author">
+                <Avatar role={msg.role} src={agent ? settings.agentAvatar : settings.userAvatar} />
+                <span>{agent ? 'Cith' : '我'}</span>
+            </div>
             <div className="msg-segs">
                 {msg.segments.map((seg, i) => {
                     if (seg.type === 'text') {

@@ -203,7 +203,7 @@ export default function App() {
                 conversation={conv.active}
                 pending={chat.pending}
                 connected={backendStatus.state === 'connected'}
-                sendKey={settings.sendKey}
+                settings={settings}
                 onSend={handleSend}
                 onStop={chat.stop}
             />
