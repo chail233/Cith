@@ -4,6 +4,7 @@ export type UiSettings = {
     agentAvatar: string
     chatBubbles: boolean
     pacedReplies: boolean
+    showToolCalls: boolean
     theme: 'dark' | 'light'
     fontSize: number
     lineHeight: number
@@ -29,6 +30,7 @@ export const defaultSettings: UiSettings = {
     agentAvatar: '',
     chatBubbles: true,
     pacedReplies: false,
+    showToolCalls: true,
     theme: 'dark',
     fontSize: 15,
     lineHeight: 1.75,

@@ -95,6 +95,8 @@ export function SettingsView({ settings, onSave, version, initialCategory, backe
                                     <SwitchRow label="聊天气泡" checked={draft.chatBubbles} onChange={(chatBubbles) => edit({ chatBubbles })} />
                                     <SwitchRow label="拟人回复节奏" hint="新回复按消息段依次显示，文字越长，停顿越久。"
                                         checked={draft.pacedReplies} onChange={(pacedReplies) => edit({ pacedReplies })} />
+                                    <SwitchRow label="工具调用提示" hint="在对话中显示工具调用状态和结果。"
+                                        checked={draft.showToolCalls} onChange={(showToolCalls) => edit({ showToolCalls })} />
                                 </div>
                                 <ChatPreview settings={draft} />
                             </>

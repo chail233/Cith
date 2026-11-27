@@ -19,6 +19,9 @@ type Props = {
 }
 
 export function ChatArea({ conversation, pending, connected, settings, onSend, onStop }: Props) {
+    const messages = settings.showToolCalls
+        ? conversation?.messages
+        : conversation?.messages.filter((message) => message.segments.some((segment) => segment.type !== 'trace'))
     return (
         <main className="chat">
             <header className="chat-head">
@@ -28,8 +31,8 @@ export function ChatArea({ conversation, pending, connected, settings, onSend, o
                 </div>
             </header>
 
-            {conversation?.messages.length ? (
-                <MessageList messages={conversation.messages} pending={pending} settings={settings} />
+            {messages?.length ? (
+                <MessageList messages={messages} pending={pending} settings={settings} />
             ) : (
                 <EmptyState avatar={settings.agentAvatar} hasConversation={Boolean(conversation)} />
             )}

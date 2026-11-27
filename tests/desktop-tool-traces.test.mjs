@@ -4,6 +4,7 @@ import test from "node:test";
 import { WebSocketServer } from "ws";
 import DesktopAdapter from "../packages/core/bot/adapters/DesktopAdapter.ts";
 import { BackendConnection } from "../packages/desktop/src/main/backend.ts";
+import { mergeSettings } from "../packages/desktop/src/shared/settings.ts";
 import { restoreSessions, snapshotOf } from "../packages/desktop/src/renderer/src/sessionSnapshot.ts";
 import { applyToolFrame, groupToolTraces, markUnconfirmedTools, standaloneTrace } from "../packages/desktop/src/renderer/src/toolTraces.ts";
 
@@ -24,6 +25,7 @@ test("桌面适配器通过 WebSocket 推送开始与结束，按执行 ID 更�
     const started = Promise.withResolvers();
     const ended = Promise.withResolvers();
     const closed = Promise.withResolvers();
+    const replacement = Promise.withResolvers();
     const connection = new BackendConnection({
         onStatus(status) { if (status.state === "idle") closed.resolve(); },
         onMessage() { assert.fail("工具事件进入了聊天消息通道"); },
@@ -49,6 +51,12 @@ test("桌面适配器通过 WebSocket 推送开始与结束，按执行 ID 更�
     assert.deepEqual(frames.map((frame) => frame.space), Array(2).fill({ id: space.id, conversationId: space.conversationId }));
     assert.deepEqual(messages.map((message) => standaloneTrace(message).status), ["running", "running"]);
 
+    // 只切换显示偏好时会重新下发现有地址和 token，进行中的工具应继续走原连接。
+    server.once("connection", () => replacement.resolve(true));
+    connection.apply({ url: `127.0.0.1:${server.address().port}`, token: "" });
+    const reconnected = await Promise.race([replacement.promise, new Promise((resolve) => setTimeout(() => resolve(false), 500))]);
+    assert.equal(reconnected, false);
+
     adapter.sendToolEvent(space, { ...second, type: "tool.end", status: "error", durationMs: 125, output: "运行失败" });
     adapter.sendToolEvent(space, { ...first, type: "tool.end", status: "returned", durationMs: 800, output: "结果".repeat(5_000) });
     await ended.promise;
@@ -60,6 +68,11 @@ test("桌面适配器通过 WebSocket 推送开始与结束，按执行 ID 更�
 
     connection.apply({ url: "", token: "" });
     await closed.promise;
+});
+
+test("工具调用提示默认开启，已保存的关闭状态可以读回", () => {
+    assert.equal(mergeSettings({}).showToolCalls, true);
+    assert.equal(mergeSettings({ showToolCalls: false }).showToolCalls, false);
 });
 
 test("桌面快照恢复已有结果，未收到结果的卡片退出执行中状态", () => {

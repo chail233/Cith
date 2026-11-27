@@ -39,7 +39,7 @@ export function Message({ msg, settings }: { msg: ChatMessage; settings: UiSetti
                     }
                     if (seg.type === 'image') return <ImageSegment key={i} data={seg.data} />
                     if (seg.type === 'file') return <FileSegment key={i} data={seg.data} />
-                    return <ToolTrace key={i} data={seg.data} />
+                    return settings.showToolCalls ? <ToolTrace key={i} data={seg.data} /> : null
                 })}
             </div>
             <span className="msg-time">{msg.time}</span>

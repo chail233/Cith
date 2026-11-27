@@ -44,6 +44,9 @@ export class BackendConnection {
 
     /** 下发连接配置：防抖后按需重连；地址为空即回到未连接 */
     apply(config: BackendConfig): void {
+        if (this.status.state === 'connected'
+            && normalizeUrl(config.url) === normalizeUrl(this.config.url)
+            && config.token.trim() === this.config.token.trim()) return
         this.config = config
         if (this.applyTimer) clearTimeout(this.applyTimer)
         this.applyTimer = setTimeout(() => {
