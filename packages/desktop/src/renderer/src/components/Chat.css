@@ -55,12 +55,8 @@
 }
 
 /* 思考中：品牌标公转 */
-.typing {
+.thinking {
     display: flex;
-    align-items: center;
-    gap: 8px;
-    color: var(--text-3);
-    font-size: 12px;
     padding: 10px 2px;
 }
 

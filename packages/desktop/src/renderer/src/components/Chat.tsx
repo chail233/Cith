@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ChatMessage, Conversation, Segment } from '../types'
 import type { UiSettings } from '../../../shared/settings'
 import { Avatar } from './Avatar'
@@ -53,6 +53,8 @@ export function ChatArea({ conversation, pending, connected, settings, onSend, o
 
 function MessageList({ messages: timeline, pending, settings }: { messages: ChatMessage[]; pending: boolean; settings: UiSettings }) {
     const ref = useRef<HTMLDivElement>(null)
+    const contentRef = useRef<HTMLDivElement>(null)
+    const scrollBottom = useRef<number | null>(null)
     // 工具卡片即刻展示，只有聊天回复参与拟人节奏。
     const messages = timeline.filter((message) => !standaloneTrace(message))
     const hasRunningTools = timeline.some((message) => standaloneTrace(message)?.status === 'running')
@@ -87,14 +89,35 @@ function MessageList({ messages: timeline, pending, settings }: { messages: Chat
         return () => window.clearTimeout(timer)
     }, [instant, next, segment, shown, cursor])
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         const el = ref.current
-        if (el) el.scrollTop = el.scrollHeight
+        if (!el) return
+        // 历史消息在首帧绘制前直接定位到底部，后续更新沿用滚动样式。
+        const bottom = el.scrollHeight - el.clientHeight
+        el.scrollTo({ top: bottom, behavior: scrollBottom.current === null ? 'instant' : 'auto' })
+        scrollBottom.current = bottom
     }, [shown, cursor.segment, pending, next, timeline.length])
+
+    useLayoutEffect(() => {
+        const el = ref.current
+        const content = contentRef.current
+        if (!el || !content) return
+        const observer = new ResizeObserver(() => {
+            const previousBottom = scrollBottom.current
+            const bottom = el.scrollHeight - el.clientHeight
+            scrollBottom.current = bottom
+            // 图片撑高历史列表时，仍在底部的视口继续贴底。
+            if (previousBottom !== null && bottom > previousBottom && el.scrollTop >= previousBottom - 1) {
+                el.scrollTo({ top: bottom, behavior: 'instant' })
+            }
+        })
+        observer.observe(content)
+        return () => observer.disconnect()
+    }, [])
 
     return (
         <div className="msgs" ref={ref}>
-            <div className="msgs-col chat-rail">
+            <div className="msgs-col chat-rail" ref={contentRef}>
                 {groupToolTraces(timeline).map((entry) => {
                     if (entry.type === 'tools') return (
                         <ToolTraceGroup key={entry.id} running={entry.rows.some((row) => row.data.status === 'running')}>
@@ -105,17 +128,17 @@ function MessageList({ messages: timeline, pending, settings }: { messages: Chat
                     return reply && <Message key={reply.id} msg={reply} settings={settings} />
                 })}
                 {!hasRunningTools && (next || (pending && messages[messages.length - 1]?.role === 'user'))
-                    && <TypingRow avatar={settings.agentAvatar} />}
+                    && <ThinkingRow />}
             </div>
         </div>
     )
 }
 
-function TypingRow({ avatar }: { avatar: string }) {
+function ThinkingRow() {
     return (
         <div className="msg agent">
-            <div className="typing" aria-label="正在思考">
-                {avatar ? <><Avatar role="agent" src={avatar} /><span>正在输入…</span></> : <BrandMark size={26} orbit />}
+            <div className="thinking">
+                <BrandMark size={26} orbit label="正在思考" />
             </div>
         </div>
     )

@@ -22,7 +22,6 @@ export function Message({ msg, settings }: { msg: ChatMessage; settings: UiSetti
         <div className={`msg ${msg.role}${settings.chatBubbles ? ' bubbled' : ''}`}>
             <div className="msg-author">
                 <Avatar role={msg.role} src={agent ? settings.agentAvatar : settings.userAvatar} />
-                <span>{agent ? 'Cith' : '我'}</span>
             </div>
             <div className="msg-segs">
                 {msg.segments.map((seg, i) => {
