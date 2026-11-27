@@ -80,6 +80,18 @@
     box-shadow: var(--shadow-s);
 }
 
+.msg-audio {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
+.msg-audio audio {
+    width: 300px;
+    max-width: 100%;
+}
+
 /* 文件段卡片：图标 + 名字/大小 + 动作按钮 */
 .msg-file {
     display: flex;

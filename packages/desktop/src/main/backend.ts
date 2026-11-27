@@ -226,7 +226,7 @@ function parseToolFrame(payload: unknown): IncomingToolFrame | null {
     return frame as IncomingToolFrame
 }
 
-/** 二进制消息由 4 字节大端头部长度、UTF-8 JSON 头部及按段顺序排列的图片字节组成 */
+/** 二进制消息由 4 字节大端头部长度、UTF-8 JSON 头部及按段顺序排列的媒体字节组成 */
 function decodeBinaryFrame(buffer: ArrayBuffer): IncomingMessageFrame | null {
     const prefixLength = 4
     if (buffer.byteLength <= prefixLength) return null
@@ -239,7 +239,8 @@ function decodeBinaryFrame(buffer: ArrayBuffer): IncomingMessageFrame | null {
     if (!frame) return null
 
     for (const segment of frame.segments) {
-        if (segment.type !== 'image' || !segment.data || !Object.hasOwn(segment.data, 'binaryLength')) continue
+        if ((segment.type !== 'image' && segment.type !== 'voice')
+            || !segment.data || !Object.hasOwn(segment.data, 'binaryLength')) continue
         const { binaryLength, ...data } = segment.data
         if (typeof binaryLength !== 'number' || !Number.isSafeInteger(binaryLength)
             || binaryLength <= 0 || binaryLength > buffer.byteLength - offset) return null

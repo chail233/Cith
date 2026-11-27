@@ -23,10 +23,13 @@ export type MediaSegmentData = {
     size?: number
 }
 
+export type VoiceSegmentData = MediaSegmentData & { text?: string }
+
 export type Segment =
     | { type: 'text'; data: { text: string } }
     | { type: 'image'; data: MediaSegmentData }
     | { type: 'file'; data: MediaSegmentData }
+    | { type: 'voice'; data: VoiceSegmentData }
     | { type: 'trace'; data: TraceData }
 
 export type ChatMessage = {

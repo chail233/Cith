@@ -6,17 +6,17 @@ import logger from "../../utils/logger.js";
 import { renderApprovalNotice, toApprovalData } from "../../utils/approval-notice.ts";
 import { mediaBasename, normalizeMedia, resolveSendablePath } from "../../utils/segment-media.ts";
 import { WebSocket } from "ws";
-import { fileCap, imageCap, textCap } from "./reply-segment-caps.ts";
+import { fileCap, imageCap, textCap, voiceCap } from "./reply-segment-caps.ts";
 import type { ReplyDelivery, ReplySegmentCap } from "./reply-tool.ts";
 
-/** 桌面客户端能力：本地图片以二进制随消息发送，网络图片透传链接 */
-const DESKTOP_CAPS: ReplySegmentCap[] = [textCap(), imageCap(), fileCap()];
+/** 桌面客户端能力：本地图片和音频随消息发送，网络媒体透传链接 */
+const DESKTOP_CAPS: ReplySegmentCap[] = [textCap(), imageCap(), fileCap(), voiceCap()];
 
 /** 单个本地媒体的原始字节数上限，超出跳过 */
 const MAX_SEND_BYTES = 50 * 1024 * 1024;
 const MAX_TOOL_OUTPUT_CHARS = 8_000;
 
-type DesktopFrameSegment = { segment: MessageSegment; image?: Buffer };
+type DesktopFrameSegment = { segment: MessageSegment; bytes?: Buffer };
 
 /** 常见扩展名 → MIME，构造 data URL 与展示用 */
 const MIME_BY_EXT: Record<string, string> = {
@@ -29,6 +29,13 @@ const MIME_BY_EXT: Record<string, string> = {
     svg: "image/svg+xml",
     mp3: "audio/mpeg",
     wav: "audio/wav",
+    m4a: "audio/mp4",
+    aac: "audio/aac",
+    flac: "audio/flac",
+    ogg: "audio/ogg",
+    oga: "audio/ogg",
+    opus: "audio/ogg",
+    weba: "audio/webm",
     mp4: "video/mp4",
     pdf: "application/pdf",
     zip: "application/zip",
@@ -90,25 +97,25 @@ export default class DesktopAdapter extends BaseAdapter {
         }
         const parts = await Promise.all((Array.isArray(message) ? message : [message]).map((seg) => this.toFrameSegment(seg)));
         const segments: MessageSegment[] = [];
-        const images: Buffer[] = [];
+        const mediaBytes: Buffer[] = [];
         for (const part of parts) {
             if (!part) continue;
             segments.push(part.segment);
-            if (part.image) images.push(part.image);
+            if (part.bytes) mediaBytes.push(part.bytes);
         }
         if (segments.length === 0) return;
         const frameSpace: { from: string; id: string; conversationId?: string } = { from: space.from, id: space.id };
         if (space.conversationId) frameSpace.conversationId = space.conversationId;
         const json = JSON.stringify({ type: "message", space: frameSpace, segments });
-        if (images.length === 0) {
+        if (mediaBytes.length === 0) {
             this.ws.send(json);
             return;
         }
-        // 二进制消息：4 字节大端头部长度、UTF-8 JSON 头部、按段顺序拼接的图片字节。
+        // 二进制消息：4 字节大端头部长度、UTF-8 JSON 头部、按段顺序拼接的媒体字节。
         const header = Buffer.from(json, "utf8");
         const headerLength = Buffer.alloc(4);
         headerLength.writeUInt32BE(header.length);
-        this.ws.send(Buffer.concat([headerLength, header, ...images]));
+        this.ws.send(Buffer.concat([headerLength, header, ...mediaBytes]));
     }
 
     private async toFrameSegment(message: string | MessageSegment): Promise<DesktopFrameSegment | null> {
@@ -120,25 +127,31 @@ export default class DesktopAdapter extends BaseAdapter {
                 return { segment: message };
 
             case "image":
+            case "voice":
             case "file": {
                 const data = message.data as { media?: { uri?: string; localPath?: string }; name?: string };
                 const media = normalizeMedia(data.media);
-                const name = data.name ?? mediaBasename(media);
+                const sourceName = mediaBasename(media);
+                const name = typeof data.name === "string" ? data.name : sourceName;
+                const namedMime = mimeFromName(name);
+                const mime = namedMime === "application/octet-stream" ? mimeFromName(sourceName) : namedMime;
+                const text = message.type === "voice" && typeof message.data.text === "string" ? message.data.text : undefined;
+                const details = { media, name, ...(text ? { text } : {}) };
                 if (media.localPath) {
                     const bytes = await readSendableMedia(media.localPath);
                     if (!bytes?.length) return null;
-                    const mime = mimeFromName(name);
-                    if (message.type === "image") {
+                    if (message.type !== "file") {
                         return {
-                            segment: { type: "image", data: { media, name, mime, binaryLength: bytes.length } },
-                            image: bytes,
+                            segment: { type: message.type, data: { ...details, mime, binaryLength: bytes.length } },
+                            bytes,
                         };
                     }
                     return { segment: { type: "file", data: { media, name, mime, base64: bytes.toString("base64") } } };
                 }
                 // http 链接原样透传，客户端自己加载
                 if (media.uri) {
-                    return { segment: { type: message.type, data: { media, name } } };
+                    const linked = message.type === "file" && mime.startsWith("audio/") ? { ...details, mime } : details;
+                    return { segment: { type: message.type, data: linked } };
                 }
                 logger.warn("DesktopAdapter 发送媒体缺少 uri/localPath，跳过");
                 return null;

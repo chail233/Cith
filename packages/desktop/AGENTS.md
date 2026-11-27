@@ -44,7 +44,7 @@ src/renderer/src/
 └── components/
     ├── Sidebar.tsx/.css      会话列表 + 悬停 ⋯ 菜单（归档/删除，靠底自动上翻）+ 已归档分组 + 品牌行连接状态点 + 右缘拖拽调宽（双击复位）+ 底部「设置 / 本地核心」入口
     ├── Chat.tsx/.css         视图编排：头部 / 消息列表（自动滚底）/ 思考点 / 空状态
-    ├── Message.tsx/.css      段渲染器：文本段拆段落 + 行内 code；image 段气泡内图片；file 段文件卡（保存 / 打开链接）；trace 段转交 ToolTrace
+    ├── Message.tsx/.css      段渲染器：文本段拆段落 + 行内 code；image 段气泡内图片；voice 段与音频文件可点播；file 段文件卡（保存 / 打开链接）；trace 段转交 ToolTrace
     ├── ToolTrace.tsx/.css    工具痕迹卡片（签名组件，grid-rows 平滑展开终端输出）
     ├── Composer.tsx/.css     自适应高度输入框（键位随 sendKey 设置：Enter 发送 / Shift+Enter 换行，或 Ctrl+Enter 发送 / Enter 换行）+ 附件入口（图片 / 文件）与待发附件条；等回复期间右侧额外多一个中断键，输入与发送都不锁
     ├── Settings.tsx/.css     设置弹窗（全屏遮罩 + 居中面板，Esc / 遮罩 / × 关闭）：分类导航 + 界面滑组 + 通用（开机自启 / 发送快捷键）+ 会话（保留条数 / 打开数据目录 / 清空本地记录）+ 通知（系统通知开关）+ 用户（频道身份）+ 后端连接（地址 / token / 连接状态，状态文案与侧栏共用）+ 实时预览；行组件的样式类都挂在这份 css（全局类，LocalCore 复用）
@@ -78,8 +78,8 @@ src/renderer/src/
 - **会话桥**：`useBackendChat` 装帧/收帧；agent 回复按段拆帧连发（段间 3~4s 拟人间隔），客户端逐帧追加即保节奏；**归属按帧里回传的 `space.conversationId` 直接落回对话**，没带时（主动消息 / 旧后端）才回落到「最近一次发送的对话 → 当前对话」；第一帧收掉思考指示；发送不做互斥（会话内并发请求由 core 的 Agent 自己处理）；桌面频道身份 `userId` 在「用户」设置页可配（缺省 `desktop`，留空回退），随消息帧发送到后端并决定管理员/白名单判定
 - **段建模**：出站段在 `useConversations.sendOutgoing` 缝内构建（text + Composer 传来的 image/file 附件段），返回值直接装帧、不做二次转换；trace 是桌面本地展示段，由工具事件生成
 - **工具事件**：Core 用 JSON 帧发送 `tool.start` / `tool.end`，包含 `space: { id, conversationId }`、`executionId`、`toolCallId`、`toolName`、`startedAt`，结束帧还带 `status`、`durationMs` 和 `output`。主进程经 `backend:tool-event` 转发，渲染层按身份、对话和执行 ID 更新卡片。相邻调用默认收在「调用了工具」入口，展开后逐行显示状态，再展开单行查看详细结果。工具记录随会话落盘，断连或重开时缺少结束帧的卡片显示「未收到结果」
-- **媒体段**：Core 发出的消息含本地图片时走一条 WS 二进制消息，依次包含 4 字节大端 JSON 头部长度、UTF-8 JSON 头部和按段顺序拼接的原始图片字节。每张本地图片的段在头部用 `data.binaryLength` 标明字节数，桌面主进程解包为 `data.bytes`（`ArrayBuffer`），渲染层用 Blob URL 显示。没有本地图片的消息走 JSON 文本，http 引用直接透传。本地普通文件和桌面上传仍用 `data.base64`，上传后由 `DesktopServer` 落地到 `data/desktop/` 并改写为 `media.localPath`。单个本地媒体的体积上限为 Core 发送 50 MiB、客户端上传 25 MiB
-- 待办：正式协议握手版本号与 `chat.*` 事件集、审批卡片事件、跨端历史同步、voice 段
+- **媒体段**：本地 `image` 和 `voice` 段走一条 WS 二进制消息，依次包含 4 字节大端 JSON 头部长度、UTF-8 JSON 头部和按段顺序拼接的原始媒体字节。头部的 `data.binaryLength` 标明每段字节数，桌面主进程解包为 `data.bytes`（`ArrayBuffer`），渲染层用 Blob URL 显示图片和播放音频。http(s) 引用直接透传，本地 `file` 段和桌面上传仍用 `data.base64`。上传后由 `DesktopServer` 落地到 `data/desktop/` 并改写为 `media.localPath`。单个本地媒体的体积上限为 Core 发送 50 MiB、客户端上传 25 MiB
+- 待办：正式协议握手版本号与 `chat.*` 事件集、审批卡片事件、跨端历史同步
 - **设置项已全部开放**（无占位分类），每一项都落到真实行为：`startAtLogin` → 主进程 `app.setLoginItemSettings`；`sendKey` → `Composer` 的键位与提示文案；`historyLimit` → `snapshotOf` 存盘截断（60~600，`HISTORY_LIMIT_MIN/MAX` 单一真源在 `shared/settings.ts`）；`notifyOnReply` → 主进程 `Notification`。其余为视觉项（`theme` 主题 → 根节点 `[data-theme]` + 主进程窗口底色；字号 / 行高 / 段间距 / 消息间距 / 内容宽度；侧栏宽度 `sidebarWidth` → `--sidebar-width`，侧栏右缘拖拽实时调、松手落同一设置）与后端连接（地址 / token）、频道身份（`userId`）
 
 ## 本地内置核心
@@ -98,7 +98,7 @@ src/renderer/src/
 
 - 会话快照走 `userData/sessions.json`（主进程 `src/main/sessions.ts`）：渲染层去抖 500ms 写一次，`beforeunload` / `pagehide` 再单向补写一次；主进程先写 `.tmp` 再改名，超过 16MB 直接丢弃
 - 层级分工：`src/shared/session.ts` 只约定外层形状（`version` / `conversations` / `archived` / `activeId`），段级校验在渲染层 `sessionSnapshot.ts`——快照可能来自旧版本或被外部改坏，坏段整条丢弃
-- 截断规则：会话各 200 条、单会话保留尾部 `historyLimit` 条消息（默认 400，设置页 60~600 可调；读回侧固定按上限 600 截断，调小设置后重启不会立刻丢更早的历史）。二进制图片只在生成快照时按原格式转成 base64。单段 base64 超 1.5 MiB 只留元信息，无法通过链接加载的图片显示「本地未缓存」文件卡
+- 截断规则：会话各 200 条、单会话保留尾部 `historyLimit` 条消息（默认 400，设置页 60~600 可调；读回侧固定按上限 600 截断，调小设置后重启不会立刻丢更早的历史）。二进制图片和音频只在生成快照时按原格式转成 base64。单段 base64 超 1.5 MiB 只留元信息，缺少链接的图片和音频显示「本地未缓存」
 - 快照只是**本机缓存**：真源仍在 core 的记忆里，跨设备/跨端不共享；用 `conversationId` 与后端会话一一对应（定时苏醒任务也随 `space.conversationId` 落回原对话）；`dev:web` 无主进程时不落盘，只在内存里跑
 
 ## 已知坑

@@ -1,13 +1,13 @@
-import type { ChatMessage, Conversation, MediaSegmentData, Segment, TraceData, TraceStatus } from './types'
+import type { ChatMessage, Conversation, MediaSegmentData, Segment, TraceData, TraceStatus, VoiceSegmentData } from './types'
 import { SESSIONS_VERSION, type PersistedSessions } from '../../shared/session.ts'
 import { HISTORY_LIMIT_MAX, HISTORY_LIMIT_MIN } from '../../shared/settings.ts'
 
 /** 会话条数上限（列表 + 归档各自） */
 const MAX_CONVERSATIONS = 200
-/** 单段 base64 的体积上限：超出只留元信息（重启后渲染成「未缓存」占位，不让图片把快照撑爆） */
+/** 单段 base64 的体积上限：超出只留元信息，重启后显示未缓存占位 */
 const MAX_SEGMENT_BASE64 = 1536 * 1024
-/** 快照随会话状态反复生成，同一张图片只编码一次 */
-const snapshotImages = new WeakMap<ArrayBuffer, string>()
+/** 快照随会话状态反复生成，同一段媒体只编码一次 */
+const snapshotMedia = new WeakMap<ArrayBuffer, string>()
 
 const TRACE_STATUSES: TraceStatus[] = ['ok', 'error', 'running', 'timeout', 'aborted', 'unknown']
 
@@ -48,18 +48,18 @@ function snapshotConversation(conv: Conversation, limit: number): Conversation {
 }
 
 function snapshotSegment(seg: Segment): Segment {
-    if (seg.type !== 'image' && seg.type !== 'file') return seg
+    if (seg.type !== 'image' && seg.type !== 'file' && seg.type !== 'voice') return seg
     const { bytes, ...data } = seg.data
     if (bytes) {
         const fits = Math.ceil(bytes.byteLength / 3) * 4 <= MAX_SEGMENT_BASE64
-        return { type: seg.type, data: { ...data, base64: fits ? encodeSnapshotImage(bytes) : undefined } }
+        return { type: seg.type, data: { ...data, base64: fits ? encodeSnapshotMedia(bytes) : undefined } }
     }
     if (!data.base64 || data.base64.length <= MAX_SEGMENT_BASE64) return seg
     return { type: seg.type, data: { ...data, base64: undefined } }
 }
 
-function encodeSnapshotImage(buffer: ArrayBuffer): string {
-    const cached = snapshotImages.get(buffer)
+function encodeSnapshotMedia(buffer: ArrayBuffer): string {
+    const cached = snapshotMedia.get(buffer)
     if (cached !== undefined) return cached
 
     const bytes = new Uint8Array(buffer)
@@ -69,7 +69,7 @@ function encodeSnapshotImage(buffer: ArrayBuffer): string {
         binary += String.fromCharCode(...bytes.subarray(start, start + chunkSize))
     }
     const base64 = btoa(binary)
-    snapshotImages.set(buffer, base64)
+    snapshotMedia.set(buffer, base64)
     return base64
 }
 
@@ -127,16 +127,17 @@ function toSegment(raw: unknown): Segment | null {
     if (seg.type === 'text') {
         return typeof data.text === 'string' ? { type: 'text', data: { text: data.text } } : null
     }
-    if (seg.type === 'image' || seg.type === 'file') {
+    if (seg.type === 'image' || seg.type === 'file' || seg.type === 'voice') {
         const media = toMedia(data.media)
         const base64 = typeof data.base64 === 'string' && data.base64 !== '' ? data.base64 : undefined
         const name = typeof data.name === 'string' ? data.name : ''
-        // 既没有内容也没有名字，连占位都画不出来
-        if (!media && !base64 && name === '') return null
-        const out: MediaSegmentData = { ...(media ? { media } : {}), ...(base64 ? { base64 } : {}) }
+        const text = seg.type === 'voice' && typeof data.text === 'string' ? data.text : ''
+        if (!media && !base64 && name === '' && text === '') return null
+        const out: VoiceSegmentData = { ...(media ? { media } : {}), ...(base64 ? { base64 } : {}) }
         if (typeof data.mime === 'string') out.mime = data.mime
         if (name !== '') out.name = name
         if (typeof data.size === 'number' && Number.isFinite(data.size)) out.size = data.size
+        if (text !== '') out.text = text
         return { type: seg.type, data: out }
     }
     if (seg.type === 'trace') {

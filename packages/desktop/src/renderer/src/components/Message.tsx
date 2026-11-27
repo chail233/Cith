@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Avatar } from './Avatar'
 import type { UiSettings } from '../../../shared/settings'
-import type { ChatMessage, MediaSegmentData } from '../types'
+import type { ChatMessage, MediaSegmentData, VoiceSegmentData } from '../types'
 import { fmtSize } from '../format'
 import { FileIcon } from './icons'
 import { ToolTrace } from './ToolTrace'
@@ -39,6 +39,7 @@ export function Message({ msg, settings }: { msg: ChatMessage; settings: UiSetti
                     }
                     if (seg.type === 'image') return <ImageSegment key={i} data={seg.data} />
                     if (seg.type === 'file') return <FileSegment key={i} data={seg.data} />
+                    if (seg.type === 'voice') return <VoiceSegment key={i} data={seg.data} />
                     return settings.showToolCalls ? <ToolTrace key={i} data={seg.data} /> : null
                 })}
             </div>
@@ -47,21 +48,24 @@ export function Message({ msg, settings }: { msg: ChatMessage; settings: UiSetti
 }
 
 
-function ImageSegment({ data }: { data: MediaSegmentData }) {
-    const [blobUrl, setBlobUrl] = useState<string>()
-    const { bytes, mime } = data
+function useMediaSource({ bytes, mime, base64, media }: MediaSegmentData, fallbackMime: string) {
+    const [blob, setBlob] = useState<{ bytes: ArrayBuffer; url: string }>()
+    const contentType = mime ?? fallbackMime
     useEffect(() => {
         if (!bytes) return
-        const url = URL.createObjectURL(new Blob([bytes], { type: mime ?? 'image/png' }))
-        setBlobUrl(url)
+        const url = URL.createObjectURL(new Blob([bytes], { type: contentType }))
+        setBlob({ bytes, url })
         return () => URL.revokeObjectURL(url)
-    }, [bytes, mime])
+    }, [bytes, contentType])
 
-    let src = data.media?.uri
-    if (bytes) src = blobUrl
-    else if (data.base64) src = `data:${mime ?? 'image/png'};base64,${data.base64}`
+    if (bytes) return blob?.bytes === bytes ? blob.url : undefined
+    return base64 ? `data:${contentType};base64,${base64}` : media?.uri
+}
+
+function ImageSegment({ data }: { data: MediaSegmentData }) {
+    const src = useMediaSource(data, 'image/png')
     if (!src) {
-        if (bytes) return null
+        if (data.bytes) return null
         // 从快照恢复的超限图片只有元信息，显示文件卡占位
         return (
             <div className="msg-file">
@@ -76,6 +80,30 @@ function ImageSegment({ data }: { data: MediaSegmentData }) {
     return <img className="msg-img" src={src} alt={data.name ?? '图片'} />
 }
 
+function AudioPlayer({ data, name }: { data: MediaSegmentData; name: string }) {
+    const src = useMediaSource(data, 'audio/mpeg')
+    const [failedSource, setFailedSource] = useState<string>()
+
+    if (!src) return data.bytes ? null : <span className="msg-file-size">本地未缓存</span>
+    return (
+        <>
+            <audio controls preload="none" src={src} aria-label={name} onError={() => setFailedSource(src)} />
+            {failedSource === src && <span className="msg-file-size" role="status">无法播放音频</span>}
+        </>
+    )
+}
+
+function VoiceSegment({ data }: { data: VoiceSegmentData }) {
+    const name = typeof data.name === 'string' && data.name.trim() ? data.name : '音频'
+    return (
+        <div className="msg-audio">
+            <span className="msg-file-name" title={name}>{name}</span>
+            <AudioPlayer data={data} name={name} />
+            {typeof data.text === 'string' && data.text && <p className="msg-text">{data.text}</p>}
+        </div>
+    )
+}
+
 /** 文件段：base64 可直接保存到本地；纯链接交给系统打开 */
 function FileSegment({ data }: { data: MediaSegmentData }) {
     const [saved, setSaved] = useState(false)
@@ -87,7 +115,7 @@ function FileSegment({ data }: { data: MediaSegmentData }) {
         if (path) setSaved(true)
     }
 
-    return (
+    const card = (
         <div className="msg-file">
             <span className="msg-file-icon"><FileIcon size={17} /></span>
             <span className="msg-file-info">
@@ -105,4 +133,7 @@ function FileSegment({ data }: { data: MediaSegmentData }) {
             ) : null}
         </div>
     )
+    return typeof data.mime === 'string' && data.mime.startsWith('audio/')
+        ? <div className="msg-audio">{card}<AudioPlayer data={data} name={name} /></div>
+        : card
 }

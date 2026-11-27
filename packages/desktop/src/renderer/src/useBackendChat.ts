@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { nextId, nowTime, type ConversationsStore } from './useConversations'
-import type { MediaSegmentData, Segment } from './types'
+import type { MediaSegmentData, Segment, VoiceSegmentData } from './types'
 import type { IncomingMessageFrame, IncomingToolFrame, OutgoingMessageFrame } from '../../preload/api.ts'
 
 /** 桌面频道身份的缺省值（设置留空时回退） */
@@ -105,7 +105,7 @@ export function useBackendChat(store: ConversationsStore, userId: string) {
         }
     }
 
-    /** 入站帧落会话：占位协议只发 text 段，未知类型静默丢弃 */
+    /** 入站帧落会话，未知类型静默丢弃 */
     function appendFrame(frame: IncomingMessageFrame): void {
         const segments = toRenderSegments(frame.segments)
         if (segments.length === 0) return
@@ -146,7 +146,10 @@ export function useBackendChat(store: ConversationsStore, userId: string) {
             .join(' ')
             .trim()
         if (text !== '') return text
-        return segments.some((seg) => seg.type === 'image') ? '[图片]' : '[文件]'
+        if (segments.some((seg) => seg.type === 'image')) return '[图片]'
+        if (segments.some((seg) => seg.type === 'voice'
+            || (seg.type === 'file' && typeof seg.data.mime === 'string' && seg.data.mime.startsWith('audio/')))) return '[音频]'
+        return '[文件]'
     }
 
     function toRenderSegments(raw: IncomingMessageFrame['segments']): Segment[] {
@@ -155,10 +158,12 @@ export function useBackendChat(store: ConversationsStore, userId: string) {
                 const text = typeof seg.data?.text === 'string' ? seg.data.text : ''
                 return text ? [{ type: 'text', data: { text } }] : []
             }
+            if (!seg.data || typeof seg.data !== 'object') return []
             if (seg.type === 'image' || seg.type === 'file') {
-                return seg.data && typeof seg.data === 'object'
-                    ? [{ type: seg.type, data: seg.data as MediaSegmentData }]
-                    : []
+                return [{ type: seg.type, data: seg.data as MediaSegmentData }]
+            }
+            if (seg.type === 'voice') {
+                return [{ type: 'voice', data: seg.data as VoiceSegmentData }]
             }
             return []
         })
