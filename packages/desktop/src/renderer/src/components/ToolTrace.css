@@ -1,8 +1,17 @@
-/* 工具调用痕迹：琥珀浸染的卡片，靠颜色而非线条区分 */
-.trace {
+/* 工具调用卡片 */
+.trace,
+.trace-group {
     border-radius: var(--radius-s);
-    background: var(--accent-soft);
+    background: var(--bg-2);
     overflow: hidden;
+}
+
+.trace-group-rows:not([hidden]) {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 4px 8px 8px;
+    background: var(--bg-1);
 }
 
 .trace-bar {
@@ -16,8 +25,16 @@
     transition: background var(--speed) var(--ease);
 }
 
-.trace-bar:hover {
+.trace-bar:hover:not(:disabled) {
     background: var(--row-hover);
+}
+
+.trace-bar:disabled {
+    cursor: default;
+}
+
+.trace-bar:disabled svg {
+    visibility: hidden;
 }
 
 .trace-bar svg {
@@ -29,6 +46,10 @@
     font-family: var(--font-mono);
     font-size: 12px;
     color: var(--text-1);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .trace-summary {
@@ -58,19 +79,33 @@
     background: var(--ok);
 }
 
-.trace-dot.error {
+.trace-dot.error,
+.trace-dot.timeout {
     background: var(--danger);
 }
 
 .trace-dot.running {
     background: var(--accent);
+}
+
+.trace-group.running .trace-group-label {
+    color: var(--text-1);
+}
+
+.trace-dot.running,
+.trace-group.running .trace-group-label {
     animation: pulse 1.1s ease-in-out infinite;
 }
 
 @keyframes pulse {
     50% {
-        opacity: 0.3;
+        opacity: 0.55;
     }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .trace-dot.running,
+    .trace-group.running .trace-group-label { animation: none; }
 }
 
 .trace-body {
@@ -118,6 +153,8 @@
     font-size: 11.5px;
     line-height: 1.65;
     color: var(--text-2);
-    white-space: pre;
-    overflow-x: auto;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    max-height: 16rem;
+    overflow: auto;
 }

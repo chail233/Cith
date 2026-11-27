@@ -24,6 +24,11 @@ const backend = new BackendConnection({
             win.webContents.send('backend:message', frame)
         }
     },
+    onToolEvent: (frame) => {
+        for (const win of BrowserWindow.getAllWindows()) {
+            win.webContents.send('backend:tool-event', frame)
+        }
+    },
 })
 
 

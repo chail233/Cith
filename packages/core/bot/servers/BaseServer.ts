@@ -29,7 +29,7 @@ export default abstract class BaseServer<TPlatformMessage = unknown> {
     protected abstract toEventMeta(msg: TPlatformMessage): PlatformEventMeta;
 
     /** 模板方法：子类收到平台消息后调用，完成统一转换并推入管道 */
-    protected async dispatch(msg: TPlatformMessage): Promise<void> {
+    protected async dispatch(msg: TPlatformMessage, sourceAdapter?: BaseAdapter): Promise<void> {
         try {
             const meta = this.toEventMeta(msg);
             // 入站去重：同一 messageId 在窗口内重复上报只处理一次，避免同一句话被答两遍
@@ -37,16 +37,17 @@ export default abstract class BaseServer<TPlatformMessage = unknown> {
             const message = await this.toSegments(msg);
             // 转换结果为空（不支持的内容 / 脏数据）直接忽略
             if (message.length === 0) return;
-            if (!this.adapter) return;
+            const adapter = sourceAdapter ?? this.adapter;
+            if (!adapter) return;
             const ctxEvent: CtxEvent = {
-                adapter: this.adapter,
+                adapter,
                 messageId: meta.messageId,
                 message,
                 space: meta.space,
                 userId: meta.userId,
                 nickName: meta.nickName,
             };
-            await this.adapter.onMessage(ctxEvent);
+            await adapter.onMessage(ctxEvent);
         }
         catch (err) {
             logger.error("平台消息转换失败:", err);

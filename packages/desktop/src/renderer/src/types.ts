@@ -1,6 +1,6 @@
-export type TraceStatus = 'ok' | 'error' | 'running'
+export type TraceStatus = 'ok' | 'error' | 'running' | 'timeout' | 'aborted' | 'unknown'
 
-/** trace 段的 data：演示期的展示段；协议接通后由缝里把 tool-* 事件转成它 */
+/** 由工具执行事件生成，随桌面会话保存。 */
 export type TraceData = {
     name: string
     summary: string

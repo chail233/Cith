@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { nextId, nowTime, type ConversationsStore } from './useConversations'
 import type { MediaSegmentData, Segment } from './types'
-import type { IncomingMessageFrame, OutgoingMessageFrame } from '../../preload/api.ts'
+import type { IncomingMessageFrame, IncomingToolFrame, OutgoingMessageFrame } from '../../preload/api.ts'
 
 /** 桌面频道身份的缺省值（设置留空时回退） */
 const DESKTOP_USER_ID = 'desktop'
@@ -30,12 +30,23 @@ export function useBackendChat(store: ConversationsStore, userId: string) {
 
     useEffect(() => {
         const unsub = window.desktop?.onMessage?.(appendFrame)
+        const unsubTool = window.desktop?.onToolEvent?.(receiveToolEvent)
+        const unsubStatus = window.desktop?.onBackendStatus?.((status) => {
+            if (status.state !== 'connected') storeRef.current.markToolsUnconfirmed()
+        })
         return () => {
             unsub?.()
+            unsubTool?.()
+            unsubStatus?.()
             disarmTimeout()
         }
         // 订阅只挂一次；会话数据一律经 storeRef 取最新
     }, [])
+
+    function receiveToolEvent(frame: IncomingToolFrame): void {
+        const localUserId = userIdRef.current.trim() || DESKTOP_USER_ID
+        if (frame.space.id === localUserId) storeRef.current.receiveToolEvent(frame)
+    }
 
     /** 发出一条消息；段数组由数据缝构建（extras 为附件段），这里只装帧 */
     function send(convId: string, text: string, extras: Segment[] = []): void {

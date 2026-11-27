@@ -15,7 +15,7 @@ export type ToolExecutionEvent = {
     startedAt: number;
 } & (
     | { type: "tool.start" }
-    | { type: "tool.end"; status: "returned" | "error" | "timeout" | "aborted"; durationMs: number }
+    | { type: "tool.end"; status: "returned" | "error" | "timeout" | "aborted"; durationMs: number; output: string }
 );
 
 export interface MessageSegment {

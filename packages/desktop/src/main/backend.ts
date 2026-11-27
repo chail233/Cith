@@ -1,4 +1,4 @@
-import type { BackendConfig, BackendStatus, IncomingMessageFrame } from '../preload/api.ts'
+import type { BackendConfig, BackendStatus, IncomingMessageFrame, IncomingToolFrame } from '../preload/api.ts'
 
 /** 重连间隔上限 */
 const RECONNECT_MAX_MS = 15_000
@@ -11,6 +11,7 @@ const APPLY_DEBOUNCE_MS = 400
 export interface BackendHandlers {
     onStatus: (status: BackendStatus) => void
     onMessage: (frame: IncomingMessageFrame) => void
+    onToolEvent: (frame: IncomingToolFrame) => void
 }
 
 /**
@@ -110,16 +111,17 @@ export class BackendConnection {
         }
         ws.onmessage = (ev) => {
             if (this.ws !== ws) return
-            let frame: IncomingMessageFrame | null
+            let frame: IncomingMessageFrame | IncomingToolFrame | null
             try {
                 frame = typeof ev.data === 'string'
-                    ? parseMessageFrame(ev.data)
+                    ? parseTextFrame(ev.data)
                     : ev.data instanceof ArrayBuffer ? decodeBinaryFrame(ev.data) : null
             }
             catch {
                 return
             }
-            if (frame) this.handlers.onMessage(frame)
+            if (frame?.type === 'message') this.handlers.onMessage(frame)
+            else if (frame) this.handlers.onToolEvent(frame)
         }
         ws.onclose = (ev) => {
             if (this.ws !== ws) return
@@ -196,11 +198,29 @@ function describeClose(code: number): string {
     return `连接关闭（代码 ${code}）`
 }
 
-function parseMessageFrame(json: string): IncomingMessageFrame | null {
-    const frame = JSON.parse(json) as Partial<IncomingMessageFrame> | null
+function parseTextFrame(json: string): IncomingMessageFrame | IncomingToolFrame | null {
+    const payload: unknown = JSON.parse(json)
+    return parseMessageFrame(payload) ?? parseToolFrame(payload)
+}
+
+function parseMessageFrame(payload: unknown): IncomingMessageFrame | null {
+    const frame = payload as Partial<IncomingMessageFrame> | null
     if (frame?.type !== 'message' || !frame.space || typeof frame.space !== 'object'
         || !Array.isArray(frame.segments) || !frame.segments.every((seg) => typeof seg?.type === 'string')) return null
     return frame as IncomingMessageFrame
+}
+
+function parseToolFrame(payload: unknown): IncomingToolFrame | null {
+    const frame = payload as Partial<IncomingToolFrame> | null
+    if (frame?.type !== 'tool.start' && frame?.type !== 'tool.end') return null
+    if (typeof frame.space?.id !== 'string' || typeof frame.space.conversationId !== 'string' || !frame.space.conversationId
+        || typeof frame.executionId !== 'string' || !frame.executionId || typeof frame.toolCallId !== 'string'
+        || typeof frame.toolName !== 'string' || !frame.toolName || !Number.isFinite(frame.startedAt)) return null
+    if (frame.type === 'tool.end') {
+        if (frame.status !== 'returned' && frame.status !== 'error' && frame.status !== 'timeout' && frame.status !== 'aborted') return null
+        if (typeof frame.output !== 'string' || !Number.isFinite(frame.durationMs)) return null
+    }
+    return frame as IncomingToolFrame
 }
 
 /** 二进制消息由 4 字节大端头部长度、UTF-8 JSON 头部及按段顺序排列的图片字节组成 */
@@ -212,7 +232,7 @@ function decodeBinaryFrame(buffer: ArrayBuffer): IncomingMessageFrame | null {
     if (offset >= buffer.byteLength) return null
 
     const header = Buffer.from(buffer, prefixLength, headerLength).toString('utf8')
-    const frame = parseMessageFrame(header)
+    const frame = parseMessageFrame(JSON.parse(header))
     if (!frame) return null
 
     for (const segment of frame.segments) {

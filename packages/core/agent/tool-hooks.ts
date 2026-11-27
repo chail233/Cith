@@ -20,11 +20,12 @@ export function onToolStart(ctx: Context | undefined, call: ToolCall): ToolStart
 }
 
 /** 执行返回或调用方结束等待时，按开始记录投递终态。 */
-export function onToolEnd(ctx: Context | undefined, start: ToolStartEvent, status: ToolEndEvent["status"]): void {
+export function onToolEnd(ctx: Context | undefined, start: ToolStartEvent, status: ToolEndEvent["status"], output: string): void {
     void sendToAdapter(ctx, {
         ...start,
         type: "tool.end",
         status,
+        output,
         durationMs: Date.now() - start.startedAt,
     });
 }

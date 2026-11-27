@@ -43,6 +43,18 @@ export type IncomingMessageFrame = {
     segments: FrameSegment[]
 }
 
+/** Core 推来的工具执行事件，严格归属到某个桌面对话。 */
+export type IncomingToolFrame = {
+    space: { id: string; conversationId: string }
+    executionId: string
+    toolCallId: string
+    toolName: string
+    startedAt: number
+} & (
+    | { type: 'tool.start' }
+    | { type: 'tool.end'; status: 'returned' | 'error' | 'timeout' | 'aborted'; durationMs: number; output: string }
+)
+
 /** 中断请求：会话归属与消息帧同一套规则 */
 export type AbortRequest = { userId: string; conversationId?: string }
 
@@ -114,6 +126,12 @@ export const desktopApi = {
         return () => {
             ipcRenderer.removeListener('backend:message', listener)
         }
+    },
+    /** 订阅工具执行事件；返回退订函数 */
+    onToolEvent: (cb: (frame: IncomingToolFrame) => void): (() => void) => {
+        const listener = (_e: IpcRendererEvent, frame: IncomingToolFrame): void => cb(frame)
+        ipcRenderer.on('backend:tool-event', listener)
+        return () => ipcRenderer.removeListener('backend:tool-event', listener)
     },
     /** 弹出文件/图片选择对话框，选中内容读成 base64 返回 */
     pickFiles: (kind: 'image' | 'file'): Promise<PickedFile[]> => ipcRenderer.invoke('dialog:pick', kind),

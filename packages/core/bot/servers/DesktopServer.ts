@@ -78,7 +78,7 @@ class DesktopServer extends BaseServer<DesktopFrame> {
             // 主动链路（定时苏醒）需要拿到发送通道
             registerAdapter("desktop", adapter);
 
-            ws.on("message", (data) => this.onRawMessage(data));
+            ws.on("message", (data) => this.onRawMessage(data, adapter));
 
             ws.on("close", () => {
                 logger.info("桌面客户端连接关闭");
@@ -110,7 +110,7 @@ class DesktopServer extends BaseServer<DesktopFrame> {
         return wss;
     }
 
-    private async onRawMessage(data: unknown) {
+    private async onRawMessage(data: unknown, adapter: DesktopAdapter) {
         try {
             const frame = JSON.parse(String(data)) as DesktopFrame;
             logger.debug("收到桌面端消息:", frame);
@@ -120,7 +120,7 @@ class DesktopServer extends BaseServer<DesktopFrame> {
             }
             // 占位阶段只认消息帧，其余（握手 / 心跳）待正式协议定型
             if (frame.type !== "message") return;
-            await this.dispatch(frame);
+            await this.dispatch(frame, adapter);
         }
         catch (err) {
             logger.error("解析桌面端消息 JSON 失败:", err);

@@ -5,6 +5,8 @@ import { Avatar } from './Avatar'
 import { BrandMark } from '@cith/ui'
 import { Message } from './Message'
 import { Composer } from './Composer'
+import { ToolTrace, ToolTraceGroup } from './ToolTrace'
+import { groupToolTraces, standaloneTrace } from '../toolTraces'
 import './Chat.css'
 
 type Props = {
@@ -46,8 +48,11 @@ export function ChatArea({ conversation, pending, connected, settings, onSend, o
     )
 }
 
-function MessageList({ messages, pending, settings }: { messages: ChatMessage[]; pending: boolean; settings: UiSettings }) {
+function MessageList({ messages: timeline, pending, settings }: { messages: ChatMessage[]; pending: boolean; settings: UiSettings }) {
     const ref = useRef<HTMLDivElement>(null)
+    // 工具卡片即刻展示，只有聊天回复参与拟人节奏。
+    const messages = timeline.filter((message) => !standaloneTrace(message))
+    const hasRunningTools = timeline.some((message) => standaloneTrace(message)?.status === 'running')
 
     // 刚进入会话时历史全部可见。游标只控制本次查看期间新增回复的展示。
     const [cursor, setCursor] = useState({ message: messages.length, segment: 0 })
@@ -55,9 +60,9 @@ function MessageList({ messages, pending, settings }: { messages: ChatMessage[];
     const shown = instant ? messages.length : cursor.message
     const next = messages[shown]
     const segment = next?.segments[cursor.segment]
-    const visible = messages.slice(0, shown)
+    const visible = new Map(messages.slice(0, shown).map((message) => [message.id, message]))
     if (next && cursor.segment > 0) {
-        visible.push({ ...next, segments: next.segments.slice(0, cursor.segment) })
+        visible.set(next.id, { ...next, segments: next.segments.slice(0, cursor.segment) })
     }
 
     useEffect(() => {
@@ -82,15 +87,22 @@ function MessageList({ messages, pending, settings }: { messages: ChatMessage[];
     useEffect(() => {
         const el = ref.current
         if (el) el.scrollTop = el.scrollHeight
-    }, [shown, cursor.segment, pending, next])
+    }, [shown, cursor.segment, pending, next, timeline.length])
 
     return (
         <div className="msgs" ref={ref}>
             <div className="msgs-col chat-rail">
-                {visible.map((m) => (
-                    <Message key={m.id} msg={m} settings={settings} />
-                ))}
-                {(next || (pending && messages[messages.length - 1]?.role === 'user')) && <TypingRow avatar={settings.agentAvatar} />}
+                {groupToolTraces(timeline).map((entry) => {
+                    if (entry.type === 'tools') return (
+                        <ToolTraceGroup key={entry.id} running={entry.rows.some((row) => row.data.status === 'running')}>
+                            {entry.rows.map(({ id, data }) => <ToolTrace key={id} data={data} />)}
+                        </ToolTraceGroup>
+                    )
+                    const reply = visible.get(entry.message.id)
+                    return reply && <Message key={reply.id} msg={reply} settings={settings} />
+                })}
+                {!hasRunningTools && (next || (pending && messages[messages.length - 1]?.role === 'user'))
+                    && <TypingRow avatar={settings.agentAvatar} />}
             </div>
         </div>
     )

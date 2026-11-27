@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { ChatMessage, Conversation, Segment, TraceData } from './types'
+import type { ChatMessage, Conversation, Segment } from './types'
+import type { IncomingToolFrame } from '../../preload/api.ts'
+import { applyToolFrame, markUnconfirmedTools } from './toolTraces'
 import { restoreSessions, snapshotOf } from './sessionSnapshot'
 import { HISTORY_LIMIT_MAX } from '../../shared/settings.ts'
 
@@ -123,27 +125,22 @@ export function useConversations(historyLimit: number = HISTORY_LIMIT_MAX) {
         )
     }
 
-    /** 更新指定会话最后一条消息里的工具痕迹（运行中 → 完成 等） */
-    function updateLastTrace(convId: string, patch: Partial<TraceData>) {
-        setConversations((list) =>
-            list.map((c) => {
-                if (c.id !== convId || c.messages.length === 0) return c
-                const last = c.messages[c.messages.length - 1]
-                const segs = last.segments
-                for (let j = segs.length - 1; j >= 0; j--) {
-                    const seg = segs[j]
-                    if (seg.type === 'trace') {
-                        const newSegs = [...segs]
-                        newSegs[j] = { ...seg, data: { ...seg.data, ...patch } }
-                        return {
-                            ...c,
-                            messages: [...c.messages.slice(0, -1), { ...last, segments: newSegs }],
-                        }
-                    }
-                }
-                return c
-            }),
-        )
+    function receiveToolEvent(frame: IncomingToolFrame) {
+        const time = nowTime()
+        const update = (list: Conversation[]) => list.map((c) => c.id === frame.space.conversationId
+            ? { ...c, messages: applyToolFrame(c.messages, frame, time) }
+            : c)
+        setConversations(update)
+        setArchived(update)
+    }
+
+    function markToolsUnconfirmed() {
+        const update = (list: Conversation[]) => list.map((c) => {
+            const messages = markUnconfirmedTools(c.messages)
+            return messages === c.messages ? c : { ...c, messages }
+        })
+        setConversations(update)
+        setArchived(update)
     }
 
     /** 归档：从列表收起进归档组（可恢复） */
@@ -187,7 +184,8 @@ export function useConversations(historyLimit: number = HISTORY_LIMIT_MAX) {
         create,
         sendOutgoing,
         appendMessage,
-        updateLastTrace,
+        receiveToolEvent,
+        markToolsUnconfirmed,
         archive,
         remove,
         restore,

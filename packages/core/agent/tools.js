@@ -144,14 +144,19 @@ export async function callTool(tool_call, ctx, confirmed = false){
     let start;
     /** @type {Parameters<typeof onToolEnd>[2]} */
     let status = "error";
+    let output = "";
     try {
         const result = await withToolTimeout(name, () => {
             start = onToolStart(ctx, tool_call);
             return tool(parameter, ctx);
         }, budget, signal);
         status = result.status;
-        return `${name}调用结果:\n${result.output}`;
+        output = result.output;
+        return `${name}调用结果:\n${output}`;
+    } catch (err) {
+        output = err instanceof Error ? err.message : typeof err === "string" ? err : "工具执行失败";
+        throw err;
     } finally {
-        if (start) onToolEnd(ctx, start, status);
+        if (start) onToolEnd(ctx, start, status, output);
     }
 }

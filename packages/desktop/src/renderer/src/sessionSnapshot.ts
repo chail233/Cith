@@ -9,7 +9,7 @@ const MAX_SEGMENT_BASE64 = 1536 * 1024
 /** 快照随会话状态反复生成，同一张图片只编码一次 */
 const snapshotImages = new WeakMap<ArrayBuffer, string>()
 
-const TRACE_STATUSES: TraceStatus[] = ['ok', 'error', 'running']
+const TRACE_STATUSES: TraceStatus[] = ['ok', 'error', 'running', 'timeout', 'aborted', 'unknown']
 
 type SnapshotState = { conversations: Conversation[]; archived: Conversation[]; activeId: string }
 
@@ -162,7 +162,7 @@ function toTrace(data: Record<string, unknown>): TraceData | null {
     return {
         name: data.name,
         summary: typeof data.summary === 'string' ? data.summary : '',
-        status,
+        status: status === 'running' ? 'unknown' : status,
         ...(typeof data.durationMs === 'number' ? { durationMs: data.durationMs } : {}),
         ...(typeof data.command === 'string' ? { command: data.command } : {}),
         ...(typeof data.output === 'string' ? { output: data.output } : {}),

@@ -33,12 +33,13 @@ function captureEvents(signal) {
     return { events, ctx };
 }
 
-function assertExecution(events, status) {
+function assertExecution(events, status, output) {
     assert.deepEqual(events.map((event) => event.type), ["tool.start", "tool.end"]);
     const [start, end] = events;
     assert.equal(start.toolCallId, call.id);
     assert.ok(start.executionId);
-    assert.deepEqual(end, { ...start, type: "tool.end", status, durationMs: end.durationMs });
+    assert.deepEqual(end, { ...start, type: "tool.end", status, durationMs: end.durationMs, output: end.output });
+    assert.match(end.output, output);
     assert.ok(end.durationMs >= 0);
 }
 
@@ -48,8 +49,8 @@ test("并行工具各自配对开始和结束，保留原有返回语义", async
     execute = async () => "测试结果";
     const results = await Promise.all([callTool(call, first.ctx), callTool(call, second.ctx)]);
     assert.deepEqual(results, ["finish_turn调用结果:\n测试结果", "finish_turn调用结果:\n测试结果"]);
-    assertExecution(first.events, "returned");
-    assertExecution(second.events, "returned");
+    assertExecution(first.events, "returned", /测试结果/);
+    assertExecution(second.events, "returned", /测试结果/);
     assert.notEqual(first.events[0].executionId, second.events[0].executionId);
 });
 
@@ -58,7 +59,7 @@ test("工具抛错时报告结束并原样传播异常", async () => {
     const failure = new Error("工具失败");
     execute = () => { throw failure; };
     await assert.rejects(callTool(call, ctx), (err) => err === failure);
-    assertExecution(events, "error");
+    assertExecution(events, "error", /工具失败/);
 });
 
 test("超时后工具迟到的异常不会触发第二次结束", async () => {
@@ -71,7 +72,7 @@ test("超时后工具迟到的异常不会触发第二次结束", async () => {
         assert.match(result, /执行超时/);
         reject(new Error("迟到的异常"));
         await setImmediate();
-        assertExecution(events, "timeout");
+        assertExecution(events, "timeout", /执行超时/);
     } finally {
         config.toolTimeout = 0;
     }
@@ -86,11 +87,11 @@ test("运行中被中断时报告结束，已中断的调用不启动工具", as
     await setImmediate();
     controller.abort();
     assert.match(await running, /已被中断/);
-    assertExecution(events, "aborted");
+    assertExecution(events, "aborted", /已被中断/);
     resolve("迟到的结果");
     assert.match(await callTool(call, ctx), /已被中断/);
     assert.equal(execute.mock.callCount(), 1);
-    assertExecution(events, "aborted");
+    assertExecution(events, "aborted", /已被中断/);
 });
 
 test("参数无效和审批挂起时不发执行事件，确认后才发", async () => {
@@ -103,7 +104,7 @@ test("参数无效和审批挂起时不发执行事件，确认后才发", async
     assert.deepEqual(events, []);
     const { entry } = take(held.id);
     assert.match(await callTool(entry.toolCall, ctx, true), /测试结果/);
-    assertExecution(events, "returned");
+    assertExecution(events, "returned", /测试结果/);
 });
 
 test("适配器投递失败或缺少可选方法时仍返回工具结果", async () => {

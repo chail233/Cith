@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import BaseAdapter from "./BaseAdapter.ts";
-import type { CtxEvent, MessageSegment, Space } from "../../types/index.ts";
+import type { CtxEvent, MessageSegment, Space, ToolExecutionEvent } from "../../types/index.ts";
+import { FINISH_TURN_TOOL_NAME } from "../../agent/tools/finish-turn.ts";
 import logger from "../../utils/logger.js";
 import { renderApprovalNotice, toApprovalData } from "../../utils/approval-notice.ts";
 import { mediaBasename, normalizeMedia, resolveSendablePath } from "../../utils/segment-media.ts";
@@ -13,6 +14,7 @@ const DESKTOP_CAPS: ReplySegmentCap[] = [textCap(), imageCap(), fileCap()];
 
 /** 单个本地媒体的原始字节数上限，超出跳过 */
 const MAX_SEND_BYTES = 50 * 1024 * 1024;
+const MAX_TOOL_OUTPUT_CHARS = 8_000;
 
 type DesktopFrameSegment = { segment: MessageSegment; image?: Buffer };
 
@@ -52,6 +54,18 @@ export default class DesktopAdapter extends BaseAdapter {
 
     protected replyCapabilities(): ReplySegmentCap[] {
         return DESKTOP_CAPS;
+    }
+
+    sendToolEvent(space: Space, event: ToolExecutionEvent): void {
+        if (space.channel !== this.channel || !space.conversationId || this.ws.readyState !== WebSocket.OPEN) return;
+        if (event.toolName === FINISH_TURN_TOOL_NAME) return;
+        const frameSpace = { id: space.id, conversationId: space.conversationId };
+        if (event.type === "tool.end" && event.output.length > MAX_TOOL_OUTPUT_CHARS) {
+            const output = `${event.output.slice(0, MAX_TOOL_OUTPUT_CHARS)}\n…（结果已截断）`;
+            this.ws.send(JSON.stringify({ ...event, space: frameSpace, output }));
+        } else {
+            this.ws.send(JSON.stringify({ ...event, space: frameSpace }));
+        }
     }
 
     /** 发言执行（桌面语义）：单帧携带全部段直发，本地 UI 无需拟人节奏；空文本段没有展示价值，出帧前滤掉 */

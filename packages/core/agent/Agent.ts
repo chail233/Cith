@@ -483,6 +483,7 @@ export default class Agent {
 
     /** 工具踩点：toolOutput 开启时直发，不等待不阻塞主循环 */
     private trace(toolCtx: ToolContext, text: string): void {
+        if (toolCtx.space.conversationId && toolCtx.adapter.sendToolEvent) return;
         void toolCtx.adapter.sendMsg(toolCtx.space, text).catch((err) => {
             logger.warn("工具踩点发送失败:", err);
         });
