@@ -10,17 +10,21 @@ type TimelineEntry =
     | { type: 'message'; message: ChatMessage }
     | { type: 'tools'; id: string; rows: { id: string; data: TraceData }[] }
 
-/** 相邻的工具调用共用一个折叠入口，按首个调用保留组标识。 */
-export function groupToolTraces(timeline: ChatMessage[]): TimelineEntry[] {
+/** 连续工具调用共用折叠入口，关闭拟人节奏时也合并同一方的相邻消息。 */
+export function groupTimeline(timeline: ChatMessage[], mergeMessages = false): TimelineEntry[] {
     const entries: TimelineEntry[] = []
     for (const message of timeline) {
         const trace = standaloneTrace(message)
+        const previous = entries[entries.length - 1]
         if (!trace) {
-            entries.push({ type: 'message', message })
+            if (mergeMessages && previous?.type === 'message' && previous.message.role === message.role) {
+                previous.message.segments.push(...message.segments)
+            } else {
+                entries.push({ type: 'message', message: mergeMessages ? { ...message, segments: [...message.segments] } : message })
+            }
             continue
         }
         const row = { id: message.id, data: trace }
-        const previous = entries[entries.length - 1]
         if (previous?.type === 'tools') previous.rows.push(row)
         else entries.push({ type: 'tools', id: message.id, rows: [row] })
     }

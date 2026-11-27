@@ -17,12 +17,13 @@ function renderText(text: string) {
 }
 
 export function Message({ msg, settings }: { msg: ChatMessage; settings: UiSettings }) {
-    const agent = msg.role === 'agent'
     return (
         <div className={`msg ${msg.role}${settings.chatBubbles ? ' bubbled' : ''}`}>
-            <div className="msg-author">
-                <Avatar role={msg.role} src={agent ? settings.agentAvatar : settings.userAvatar} />
-            </div>
+            {settings.showAvatars && (
+                <div className="msg-author">
+                    <Avatar role={msg.role} src={msg.role === 'agent' ? settings.agentAvatar : settings.userAvatar} />
+                </div>
+            )}
             <div className="msg-segs">
                 {msg.segments.map((seg, i) => {
                     if (seg.type === 'text') {
@@ -41,7 +42,6 @@ export function Message({ msg, settings }: { msg: ChatMessage; settings: UiSetti
                     return settings.showToolCalls ? <ToolTrace key={i} data={seg.data} /> : null
                 })}
             </div>
-            <span className="msg-time">{msg.time}</span>
         </div>
     )
 }

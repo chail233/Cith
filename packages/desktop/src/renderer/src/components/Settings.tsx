@@ -88,12 +88,13 @@ export function SettingsView({ settings, onSave, version, initialCategory, backe
                             <>
                                 <header className="pane-head"><h2 className="pane-title">个性化</h2></header>
                                 <div className="pane-card">
+                                    <SwitchRow label="显示聊天头像" checked={draft.showAvatars} onChange={(showAvatars) => edit({ showAvatars })} />
                                     <AvatarRow role="user" value={draft.userAvatar} onChange={(userAvatar) => edit({ userAvatar })} />
                                     <AvatarRow role="agent" value={draft.agentAvatar} onChange={(agentAvatar) => edit({ agentAvatar })} />
                                 </div>
                                 <div className="pane-card">
                                     <SwitchRow label="聊天气泡" checked={draft.chatBubbles} onChange={(chatBubbles) => edit({ chatBubbles })} />
-                                    <SwitchRow label="拟人回复节奏" hint="新回复按消息段依次显示，文字越长，停顿越久。"
+                                    <SwitchRow label="拟人回复节奏" hint="开启时分段呈现新回复。关闭时合并同一方的连续消息。"
                                         checked={draft.pacedReplies} onChange={(pacedReplies) => edit({ pacedReplies })} />
                                     <SwitchRow label="工具调用提示" hint="在对话中显示工具调用状态和结果。"
                                         checked={draft.showToolCalls} onChange={(showToolCalls) => edit({ showToolCalls })} />

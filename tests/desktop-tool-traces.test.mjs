@@ -6,7 +6,7 @@ import DesktopAdapter from "../packages/core/bot/adapters/DesktopAdapter.ts";
 import { BackendConnection } from "../packages/desktop/src/main/backend.ts";
 import { mergeSettings } from "../packages/desktop/src/shared/settings.ts";
 import { restoreSessions, snapshotOf } from "../packages/desktop/src/renderer/src/sessionSnapshot.ts";
-import { applyToolFrame, groupToolTraces, markUnconfirmedTools, standaloneTrace } from "../packages/desktop/src/renderer/src/toolTraces.ts";
+import { applyToolFrame, groupTimeline, markUnconfirmedTools, standaloneTrace } from "../packages/desktop/src/renderer/src/toolTraces.ts";
 
 const space = { from: "user", id: "desktop", channel: "desktop", conversationId: "聊天" };
 const first = { type: "tool.start", executionId: "exec-1", toolCallId: "call-1", toolName: "get_memory", startedAt: 1 };
@@ -96,9 +96,27 @@ test("连续工具调用归为一组，与聊天消息保持原有顺序", () =>
     const reply = { id: "reply", role: "agent", time: "08:00", segments: [{ type: "text", data: { text: "收到" } }] };
     messages = applyToolFrame([...messages, reply], { ...first, executionId: "exec-3" }, "08:01");
     messages = applyToolFrame(messages, { ...first, type: "tool.end", status: "returned", durationMs: 800, output: "结果" }, "08:01");
-    const [firstGroup, middle, lastGroup] = groupToolTraces(messages);
+    const [firstGroup, middle, lastGroup] = groupTimeline(messages);
     assert.equal(firstGroup.id, "tool:exec-1");
     assert.deepEqual(firstGroup.rows.map((row) => row.data.status), ["ok", "running"]);
     assert.deepEqual(middle, { type: "message", message: reply });
     assert.deepEqual(lastGroup.rows.map((row) => row.id), ["tool:exec-3"]);
+});
+
+test("合并同一方的连续消息，保留工具位置、段顺序和原始历史", () => {
+    const ask = { id: "ask", role: "user", time: "08:00", segments: [{ type: "text", data: { text: "你好" } }] };
+    const reply = { ...ask, id: "reply", role: "agent", segments: [{ type: "text", data: { text: "稍等" } }] };
+    const image = { ...reply, id: "image", segments: [{ type: "image", data: { name: "图片" } }] };
+    const followUp = { ...reply, id: "follow-up", segments: [{ type: "text", data: { text: "完成" } }] };
+    const messages = [...applyToolFrame([ask, reply, image], first, "08:00"), followUp];
+
+    const [user, mergedReply, tools, finalReply] = groupTimeline(messages, true);
+    assert.deepEqual(user.message, ask);
+    assert.equal(mergedReply.message.id, reply.id);
+    assert.deepEqual(mergedReply.message.segments, [reply.segments[0], image.segments[0]]);
+    assert.equal(tools.type, "tools");
+    assert.deepEqual(finalReply.message, followUp);
+    assert.deepEqual(reply.segments, [{ type: "text", data: { text: "稍等" } }]);
+    assert.deepEqual(groupTimeline(messages).filter((entry) => entry.type === "message").map((entry) => entry.message),
+        [ask, reply, image, followUp]);
 });

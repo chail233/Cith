@@ -6,7 +6,7 @@ import { BrandMark } from '@cith/ui'
 import { Message } from './Message'
 import { Composer } from './Composer'
 import { ToolTrace, ToolTraceGroup } from './ToolTrace'
-import { groupToolTraces, standaloneTrace } from '../toolTraces'
+import { groupTimeline, standaloneTrace } from '../toolTraces'
 import './Chat.css'
 
 type Props = {
@@ -34,7 +34,7 @@ export function ChatArea({ conversation, pending, connected, settings, onSend, o
             {messages?.length ? (
                 <MessageList messages={messages} pending={pending} settings={settings} />
             ) : (
-                <EmptyState avatar={settings.agentAvatar} hasConversation={Boolean(conversation)} />
+                <EmptyState settings={settings} hasConversation={Boolean(conversation)} />
             )}
 
             {conversation && (
@@ -118,13 +118,13 @@ function MessageList({ messages: timeline, pending, settings }: { messages: Chat
     return (
         <div className="msgs" ref={ref}>
             <div className="msgs-col chat-rail" ref={contentRef}>
-                {groupToolTraces(timeline).map((entry) => {
+                {groupTimeline(timeline, !settings.pacedReplies).map((entry) => {
                     if (entry.type === 'tools') return (
                         <ToolTraceGroup key={entry.id} running={entry.rows.some((row) => row.data.status === 'running')}>
                             {entry.rows.map(({ id, data }) => <ToolTrace key={id} data={data} />)}
                         </ToolTraceGroup>
                     )
-                    const reply = visible.get(entry.message.id)
+                    const reply = instant ? entry.message : visible.get(entry.message.id)
                     return reply && <Message key={reply.id} msg={reply} settings={settings} />
                 })}
                 {!hasRunningTools && (next || (pending && messages[messages.length - 1]?.role === 'user'))
@@ -144,10 +144,10 @@ function ThinkingRow() {
     )
 }
 
-function EmptyState({ hasConversation, avatar }: { hasConversation: boolean; avatar: string }) {
+function EmptyState({ hasConversation, settings }: { hasConversation: boolean; settings: UiSettings }) {
     return (
         <div className="empty">
-            <Avatar role="agent" src={avatar} size={40} />
+            {settings.showAvatars && <Avatar role="agent" src={settings.agentAvatar} size={40} />}
             <h2 className="empty-title">{hasConversation ? '向 Cith 说点什么' : '新建一个对话'}</h2>
         </div>
     )

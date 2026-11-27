@@ -19,7 +19,10 @@
     object-fit: cover;
 }
 
-.msg.user .msg-segs { max-width: 83%; }
+.msg.user .msg-segs {
+    align-items: flex-start;
+    max-width: 83%;
+}
 
 .msg.bubbled .msg-segs {
     width: fit-content;
@@ -42,7 +45,7 @@
     margin-bottom: 6px;
 }
 
-.msg.agent .msg-segs {
+.msg-segs {
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -66,17 +69,6 @@
     background: var(--bg-3);
     border-radius: 6px;
     padding: 1px 6px;
-}
-
-.msg-time {
-    font-size: 11px;
-    color: var(--text-3);
-    margin-top: 4px;
-    user-select: none;
-}
-
-.msg.user .msg-time {
-    text-align: right;
 }
 
 /* 图片段：随内容等比缩放，轻圆角与气泡语言一致 */

@@ -2,6 +2,7 @@
 export type UiSettings = {
     userAvatar: string
     agentAvatar: string
+    showAvatars: boolean
     chatBubbles: boolean
     pacedReplies: boolean
     showToolCalls: boolean
@@ -28,6 +29,7 @@ export type UiSettings = {
 export const defaultSettings: UiSettings = {
     userAvatar: '',
     agentAvatar: '',
+    showAvatars: true,
     chatBubbles: true,
     pacedReplies: false,
     showToolCalls: true,
