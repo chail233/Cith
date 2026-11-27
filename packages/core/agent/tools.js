@@ -1,6 +1,7 @@
 import config from "../config.js";
 import logger from "../utils/logger.js";
 import { hold } from "./tool-approval.ts";
+import { onToolStart, onToolEnd } from "./tool-hooks.ts";
 import { checkShellCommand } from "./shell-guard.ts";
 
 import getMemoryTool from "./tools/get-memory.ts";
@@ -45,33 +46,47 @@ const TIMEOUT_GRACE_MS = 10_000;
  * 给一次工具执行加超时与中断：超时/用户中断时立即放弃等待并回填说明文本
  * 执行自身抛错时原样透传，不改变调用方的错误语义
  * @param {string} name 工具名
- * @param {Promise<unknown>} task 工具执行
+ * @param {() => Promise<string>} execute 工具执行
  * @param {number} budgetMs 超时（毫秒），非正数表示不限
  * @param {AbortSignal} [signal] 本轮中断信号
- * @returns {Promise<unknown>}
+ * @returns {Promise<{status: "returned" | "aborted" | "timeout", output: string}>}
  */
-function withToolTimeout(name, task, budgetMs, signal) {
+function withToolTimeout(name, execute, budgetMs, signal) {
     const limited = Number.isFinite(budgetMs) && budgetMs > 0;
-    if (!limited && !signal) return task;
     return new Promise((resolve, reject) => {
         let timer = null;
-        const onAbort = () => resolve(`${name} 已被中断，已停止等待`);
+        const cleanup = () => {
+            if (timer) clearTimeout(timer);
+            signal?.removeEventListener("abort", onAbort);
+        };
+        const onAbort = () => {
+            cleanup();
+            resolve({ status: "aborted", output: `${name} 已被中断，已停止等待` });
+        };
         if (signal?.aborted) return onAbort();
         if (limited) {
             timer = setTimeout(() => {
-                resolve(`${name} 执行超时（${Math.round(budgetMs / 1000)} 秒），已放弃等待；命令可能仍在后台运行，需要结果时请稍后用其它工具确认`);
+                cleanup();
+                resolve({
+                    status: "timeout",
+                    output: `${name} 执行超时（${Math.round(budgetMs / 1000)} 秒），已放弃等待；命令可能仍在后台运行，需要结果时请稍后用其它工具确认`,
+                });
             }, budgetMs);
             timer.unref?.();
         }
-        const settle = (fn, value) => {
-            if (timer) clearTimeout(timer);
-            signal?.removeEventListener("abort", onAbort);
-            fn(value);
-        };
         signal?.addEventListener("abort", onAbort, { once: true });
-        task.then(
-            (value) => settle(resolve, value),
-            (err) => settle(reject, err),
+        Promise.resolve().then(() => {
+            signal?.throwIfAborted();
+            return execute();
+        }).then(
+            (output) => {
+                cleanup();
+                resolve({ status: "returned", output });
+            },
+            (err) => {
+                cleanup();
+                reject(err);
+            },
         );
     });
 }
@@ -126,6 +141,17 @@ export async function callTool(tool_call, ctx, confirmed = false){
     }
     // run_shell 自己到点强杀子进程，外层多留余量再放弃等待
     const budget = name === "run_shell" ? config.toolTimeout + TIMEOUT_GRACE_MS : config.toolTimeout;
-    const output = await withToolTimeout(name, Promise.resolve().then(() => tool(parameter, ctx)), budget, signal);
-    return `${name}调用结果:\n${output}`;
+    let start;
+    /** @type {Parameters<typeof onToolEnd>[2]} */
+    let status = "error";
+    try {
+        const result = await withToolTimeout(name, () => {
+            start = onToolStart(ctx, tool_call);
+            return tool(parameter, ctx);
+        }, budget, signal);
+        status = result.status;
+        return `${name}调用结果:\n${result.output}`;
+    } finally {
+        if (start) onToolEnd(ctx, start, status);
+    }
 }

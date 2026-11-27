@@ -1,4 +1,4 @@
-import type { CtxEvent, MessageSegment, Space } from "../../types/index.ts";
+import type { CtxEvent, MessageSegment, Space, ToolExecutionEvent } from "../../types/index.ts";
 import { buildReplyTool } from "./reply-tool.ts";
 import type { ReplyDelivery, ReplySegmentCap, ReplyTool } from "./reply-tool.ts";
 
@@ -25,6 +25,8 @@ export default abstract class BaseAdapter {
 
 
     public abstract sendReply(space: Space, acts: MessageSegment[]): Promise<ReplyDelivery>;
+
+    public sendToolEvent?(space: Space, event: ToolExecutionEvent): void | Promise<void>;
 
 
     protected abstract replyCapabilities(): ReplySegmentCap[];

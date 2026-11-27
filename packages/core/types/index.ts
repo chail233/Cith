@@ -8,6 +8,16 @@ export interface Space {
     conversationId?: string;
 }
 
+export type ToolExecutionEvent = {
+    executionId: string;
+    toolCallId: string;
+    toolName: string;
+    startedAt: number;
+} & (
+    | { type: "tool.start" }
+    | { type: "tool.end"; status: "returned" | "error" | "timeout" | "aborted"; durationMs: number }
+);
+
 export interface MessageSegment {
     type: string;
     data: Record<string, unknown> & {
