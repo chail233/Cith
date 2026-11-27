@@ -48,7 +48,7 @@ export function Message({ msg, settings }: { msg: ChatMessage; settings: UiSetti
 }
 
 
-function useMediaSource({ bytes, mime, base64, media }: MediaSegmentData, fallbackMime: string) {
+function useMediaSource({ bytes, mime, media }: MediaSegmentData, fallbackMime: string) {
     const [blob, setBlob] = useState<{ bytes: ArrayBuffer; url: string }>()
     const contentType = mime ?? fallbackMime
     useEffect(() => {
@@ -59,7 +59,7 @@ function useMediaSource({ bytes, mime, base64, media }: MediaSegmentData, fallba
     }, [bytes, contentType])
 
     if (bytes) return blob?.bytes === bytes ? blob.url : undefined
-    return base64 ? `data:${contentType};base64,${base64}` : media?.uri
+    return media?.uri
 }
 
 function ImageSegment({ data }: { data: MediaSegmentData }) {
@@ -104,14 +104,14 @@ function VoiceSegment({ data }: { data: VoiceSegmentData }) {
     )
 }
 
-/** 文件段：base64 可直接保存到本地；纯链接交给系统打开 */
+/** 文件段：原始字节可直接保存到本地；纯链接交给系统打开 */
 function FileSegment({ data }: { data: MediaSegmentData }) {
     const [saved, setSaved] = useState(false)
     const name = data.name ?? '文件'
 
     async function save() {
-        if (!data.base64) return
-        const path = await window.desktop?.saveFile?.(name, data.base64)
+        if (!data.bytes) return
+        const path = await window.desktop?.saveFile?.(name, data.bytes)
         if (path) setSaved(true)
     }
 
@@ -122,7 +122,7 @@ function FileSegment({ data }: { data: MediaSegmentData }) {
                 <span className="msg-file-name">{name}</span>
                 {data.size ? <span className="msg-file-size">{fmtSize(data.size)}</span> : null}
             </span>
-            {data.base64 ? (
+            {data.bytes ? (
                 <button className="msg-file-act" onClick={save} disabled={saved}>
                     {saved ? '已保存' : '保存'}
                 </button>

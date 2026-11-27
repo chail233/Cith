@@ -6,6 +6,7 @@ import test from "node:test";
 import DesktopAdapter from "../packages/core/bot/adapters/DesktopAdapter.ts";
 import { BackendConnection } from "../packages/desktop/src/main/backend.ts";
 import { restoreSessions, snapshotOf } from "../packages/desktop/src/renderer/src/sessionSnapshot.ts";
+import { clearSessions, loadSessions, saveSessions } from "../packages/desktop/src/main/sessions.ts";
 
 test("桌面回复单帧混发文字、图片和音频，二进制负载按段顺序解包", { timeout: 5000 }, async (t) => {
     const dir = await mkdtemp(join(tmpdir(), "cith-desktop-image-"));
@@ -66,9 +67,12 @@ test("桌面回复单帧混发文字、图片和音频，二进制负载按段�
     assert.deepEqual(delivery, { attempts: 1, failures: [] });
     const linked = await adapter.replyTool().execute({ segments: [remoteVoice, remoteAudioFile] }, { adapter, space });
     assert.equal(linked.receipt, "消息已发送");
+    socket.send(JSON.stringify({ type: "message", space, segments: [
+        { type: "file", data: { name: "旧附件.bin", base64: "AP/w" } },
+    ] }));
 
-    assert.deepEqual(sentTypes, ["object", "object", "string"]);
-    assert.equal(received.length, 2);
+    assert.deepEqual(sentTypes, ["object", "object", "string", "string"]);
+    assert.equal(received.length, 3);
     const reply = received[0];
     assert.equal(reply.space.conversationId, "聊天");
     const [text, png, wav, url, gif] = reply.segments;
@@ -87,9 +91,15 @@ test("桌面回复单帧混发文字、图片和音频，二进制负载按段�
     assert.equal(gif.data.mime, "image/gif");
     assert.deepEqual(Buffer.from(gif.data.bytes), second);
     assert.deepEqual(received[1].segments, [remoteVoice, { ...remoteAudioFile, data: { ...remoteAudioFile.data, mime: "audio/mp4" } }]);
+    assert.deepEqual(received[2].segments, [{ type: "file", data: { name: "旧附件.bin" } }]);
 });
 
-test("二进制图片和音频沿用历史快照的缓存大小限制", () => {
+test("二进制快照保留图片和音频的原始字节，超限时只保留元信息", async (t) => {
+    const dir = await mkdtemp(join(tmpdir(), "cith-desktop-snapshot-"));
+    t.after(async () => {
+        clearSessions(dir);
+        await rmdir(dir);
+    });
     const bytes = Uint8Array.of(0x00, 0xff, 0xf0).buffer;
     const image = { type: "image", data: { bytes, mime: "image/png", name: "小图.png" } };
     const large = { type: "image", data: { bytes: new ArrayBuffer(2 * 1024 * 1024), name: "大图.png" } };
@@ -101,12 +111,15 @@ test("二进制图片和音频沿用历史快照的缓存大小限制", () => {
     };
 
     const snapshot = snapshotOf({ conversations: [conversation], archived: [], activeId: conversation.id });
-    const restored = restoreSessions(JSON.parse(JSON.stringify(snapshot)));
+    saveSessions(dir, snapshot);
+    const restored = restoreSessions(loadSessions(dir));
     const [cached, uncached, cachedVoice, uncachedVoice] = restored.conversations[0].messages[0].segments;
-    assert.deepEqual(cached.data, { base64: "AP/w", mime: "image/png", name: "小图.png" });
+    assert.deepEqual(cached.data, { bytes, mime: "image/png", name: "小图.png" });
     assert.deepEqual(uncached.data, { name: "大图.png" });
     assert.equal(image.data.bytes, bytes);
-    assert.deepEqual(cachedVoice, { type: "voice", data: { name: "录音.wav", mime: "audio/wav", base64: "AP/w", text: "转写" } });
+    assert.deepEqual(cachedVoice, { type: "voice", data: { name: "录音.wav", mime: "audio/wav", bytes, text: "转写" } });
     assert.deepEqual(uncachedVoice, { type: "voice", data: { name: "长录音.wav", text: "长录音转写" } });
     assert.equal(voice.data.bytes, bytes);
+    clearSessions(dir);
+    assert.equal(loadSessions(dir), null);
 });

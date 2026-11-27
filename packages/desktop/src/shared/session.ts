@@ -5,7 +5,7 @@ export type PersistedSessions = {
     activeId: string
 }
 
-export const SESSIONS_VERSION = 1
+export const SESSIONS_VERSION = 2
 
-/** 快照文件体积上限（base64 媒体是大头），超出拒绝写入 */
+/** 快照文件体积上限，超出拒绝写入 */
 export const MAX_SNAPSHOT_BYTES = 16 * 1024 * 1024

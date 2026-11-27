@@ -306,11 +306,12 @@ app.whenReady().then(() => {
             typeof req.conversationId === 'string' && req.conversationId !== '' ? req.conversationId : undefined
         return backend.send({ type: 'abort', userId, ...(conversationId ? { conversationId } : {}) })
     })
-    ipcMain.handle('sessions:get', () => loadSessions())
-    ipcMain.handle('sessions:save', (_e, raw: unknown) => saveSessions(raw))
-    ipcMain.handle('sessions:clear', () => clearSessions())
+    const sessionsDir = app.getPath('userData')
+    ipcMain.handle('sessions:get', () => loadSessions(sessionsDir))
+    ipcMain.handle('sessions:save', (_e, raw: unknown) => saveSessions(sessionsDir, raw))
+    ipcMain.handle('sessions:clear', () => clearSessions(sessionsDir))
     // 关窗前的补写走单向通道：退出路径上不等回执
-    ipcMain.on('sessions:flush', (_e, raw: unknown) => saveSessions(raw))
+    ipcMain.on('sessions:flush', (_e, raw: unknown) => saveSessions(sessionsDir, raw))
     // 打开数据目录：会话快照、设置、日志都在这下面
     ipcMain.handle('system:open-data-dir', async () => {
         const dir = app.getPath('userData')
@@ -323,7 +324,7 @@ app.whenReady().then(() => {
         if (!error) return
         // openPath 被系统拒绝时退一步：在资源管理器里选中目录内已存在的文件，同样能到达该目录
         console.warn('打开数据目录失败，改用在文件夹中显示:', error)
-        const anchor = [join(dir, 'settings.json'), join(dir, 'sessions.json')].find((p) => existsSync(p))
+        const anchor = [join(dir, 'settings.json'), join(dir, 'sessions.bin')].find((p) => existsSync(p))
         if (!anchor) throw new Error(error)
         shell.showItemInFolder(anchor)
     })

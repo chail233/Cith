@@ -1,64 +1,68 @@
 import { readFileSync, renameSync, unlinkSync, writeFileSync } from 'fs'
 import { join } from 'path'
-import { app } from 'electron'
+import { deserialize, serialize } from 'node:v8'
 import { MAX_SNAPSHOT_BYTES, SESSIONS_VERSION, type PersistedSessions } from '../shared/session.ts'
 
-
-function file(): string {
-    return join(app.getPath('userData'), 'sessions.json')
+function toSessions(raw: unknown): PersistedSessions | null {
+    const snapshot = raw as Partial<PersistedSessions> | null
+    if (!Array.isArray(snapshot?.conversations) || !Array.isArray(snapshot.archived)) return null
+    return {
+        version: SESSIONS_VERSION,
+        conversations: snapshot.conversations,
+        archived: snapshot.archived,
+        activeId: typeof snapshot.activeId === 'string' ? snapshot.activeId : '',
+    }
 }
 
-/** 读取快照；文件缺失、损坏或版本不认识时返回 null（渲染层按空会话起步） */
-export function loadSessions(): PersistedSessions | null {
+/** 读取当前版本的二进制快照。 */
+export function loadSessions(directory: string): PersistedSessions | null {
     try {
-        const raw = JSON.parse(readFileSync(file(), 'utf8')) as Partial<PersistedSessions>
-        if (!Array.isArray(raw.conversations) || !Array.isArray(raw.archived)) return null
-        return {
-            version: SESSIONS_VERSION,
-            conversations: raw.conversations,
-            archived: raw.archived,
-            activeId: typeof raw.activeId === 'string' ? raw.activeId : '',
-        }
+        const raw = deserialize(readFileSync(join(directory, 'sessions.bin')))
+        return raw?.version === SESSIONS_VERSION ? toSessions(raw) : null
     }
     catch {
         return null
     }
 }
 
-/** 写入快照：先写临时文件再改名，避免写到一半退出留下半截 JSON */
-export function saveSessions(raw: unknown): void {
-    if (typeof raw !== 'object' || raw === null) return
-    let text: string
+/** 原子替换二进制快照。 */
+export function saveSessions(directory: string, raw: unknown): void {
+    const snapshot = toSessions(raw)
+    if (!snapshot) return
+    let bytes: Buffer
     try {
-        text = JSON.stringify(raw)
+        bytes = serialize(snapshot)
     }
     catch (err) {
-        console.warn('会话快照序列化失败，已跳过落盘:', err)
+        process.emitWarning(`会话快照序列化失败，已跳过落盘: ${String(err)}`)
         return
     }
-    if (Buffer.byteLength(text, 'utf8') > MAX_SNAPSHOT_BYTES) {
-        console.warn(`会话快照超过体积上限（${MAX_SNAPSHOT_BYTES} 字节），已跳过落盘`)
+    if (bytes.byteLength > MAX_SNAPSHOT_BYTES) {
+        process.emitWarning(`会话快照超过体积上限（${MAX_SNAPSHOT_BYTES} 字节），已跳过落盘`)
         return
     }
-    const target = file()
+    const target = join(directory, 'sessions.bin')
     const temp = `${target}.tmp`
     try {
-        writeFileSync(temp, text)
+        writeFileSync(temp, bytes)
         renameSync(temp, target)
     }
     catch (err) {
-        console.warn('会话快照落盘失败:', err)
+        process.emitWarning(`会话快照落盘失败: ${String(err)}`)
     }
 }
 
-export function clearSessions(): void {
-    for (const path of [file(), `${file()}.tmp`]) {
-        try {
-            unlinkSync(path)
-        }
-        catch (err) {
-            // 文件本就不存在时不必吭声
-            if ((err as NodeJS.ErrnoException).code !== 'ENOENT') console.warn('会话快照删除失败:', err)
-        }
+export function clearSessions(directory: string): void {
+    for (const name of ['sessions.bin', 'sessions.bin.tmp']) {
+        removeSnapshot(join(directory, name))
+    }
+}
+
+function removeSnapshot(path: string): void {
+    try {
+        unlinkSync(path)
+    }
+    catch (err) {
+        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') process.emitWarning(`会话快照删除失败: ${String(err)}`)
     }
 }

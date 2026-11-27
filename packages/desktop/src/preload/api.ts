@@ -14,14 +14,14 @@ export type BackendStatus = {
 /** 消息通道连接配置 */
 export type BackendConfig = { url: string; token: string }
 
-/** 选取的本地文件：内容已读成 base64，kind 标记它来自哪个选择对话框 */
+/** 选取的本地文件：内容以原始字节返回，kind 标记所用的选择对话框 */
 export type PickedFile = {
     kind: 'image' | 'file'
     name: string
     path: string
     mime: string
     size: number
-    base64: string
+    bytes: ArrayBuffer
 }
 
 /** 占位协议帧段：统一段直传，正式协议定型后替换 */
@@ -36,7 +36,7 @@ export type OutgoingMessageFrame = {
     segments: FrameSegment[]
 }
 
-/** 入站消息：主进程解包后，本地图片和语音的原始字节在对应段的 data.bytes 中 */
+/** 入站消息：主进程解包后，各本地媒体的原始字节在对应段的 data.bytes 中 */
 export type IncomingMessageFrame = {
     type: 'message'
     space: { from: string; id: string; conversationId?: string }
@@ -133,11 +133,11 @@ export const desktopApi = {
         ipcRenderer.on('backend:tool-event', listener)
         return () => ipcRenderer.removeListener('backend:tool-event', listener)
     },
-    /** 弹出文件/图片选择对话框，选中内容读成 base64 返回 */
+    /** 弹出文件/图片选择对话框并返回原始字节 */
     pickFiles: (kind: 'image' | 'file'): Promise<PickedFile[]> => ipcRenderer.invoke('dialog:pick', kind),
     /** 保存收到的文件：弹保存对话框，返回最终路径；取消为 null */
-    saveFile: (name: string, base64: string): Promise<string | null> =>
-        ipcRenderer.invoke('file:save', { name, base64 }),
+    saveFile: (name: string, bytes: ArrayBuffer): Promise<string | null> =>
+        ipcRenderer.invoke('file:save', { name, bytes }),
     /** 用系统默认程序打开 http(s) 链接 */
     openExternal: (uri: string): Promise<void> => ipcRenderer.invoke('file:open-external', uri),
     // ===== 本地内置核心 =====

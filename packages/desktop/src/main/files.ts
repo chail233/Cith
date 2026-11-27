@@ -1,9 +1,9 @@
 import { basename } from 'path'
-import { readFile, statSync, writeFile } from 'fs'
+import { readFile, stat, writeFile } from 'fs/promises'
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import type { PickedFile } from '../preload/api.ts'
 
-/** 单个选取文件的体积上限；超出直接不返回（base64 随帧携带，别撑爆 WS） */
+/** 单个选取文件的原始字节数上限 */
 const MAX_PICK_BYTES = 25 * 1024 * 1024
 
 const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp']
@@ -41,7 +41,7 @@ function currentWindow(): BrowserWindow | null {
 
 
 export function registerFileHandlers(): void {
-    // 选取文件并读成 base64；kind 决定图片过滤
+    // 选取文件并读取原始字节；kind 决定图片过滤
     ipcMain.handle('dialog:pick', async (_e, kind: unknown): Promise<PickedFile[]> => {
         const win = currentWindow()
         if (!win) return []
@@ -54,21 +54,20 @@ export function registerFileHandlers(): void {
         if (result.canceled || result.filePaths.length === 0) return []
         const files: PickedFile[] = []
         for (const path of result.filePaths) {
-            const size = statSync(path).size
+            const size = (await stat(path)).size
             if (size > MAX_PICK_BYTES) {
                 console.warn(`选取的文件过大，已跳过: ${path} (${size} 字节)`)
                 continue
             }
-            const base64 = await new Promise<string>((resolve, reject) => {
-                readFile(path, (err, buf) => (err ? reject(err) : resolve(buf.toString('base64'))))
-            })
+            const bytes = await readFile(path)
+            if (bytes.byteLength > MAX_PICK_BYTES) continue
             files.push({
                 kind: isImage ? 'image' : 'file',
                 name: basename(path),
                 path,
                 mime: mimeFromName(basename(path)),
-                size,
-                base64,
+                size: bytes.byteLength,
+                bytes: Uint8Array.from(bytes).buffer,
             })
         }
         return files
@@ -84,22 +83,20 @@ export function registerFileHandlers(): void {
             defaultPath: `${app.getPath('downloads')}/${file.name}`,
         })
         if (result.canceled || !result.filePath) return null
-        await new Promise<void>((resolve, reject) => {
-            writeFile(result.filePath!, Buffer.from(file.base64, 'base64'), (err) => (err ? reject(err) : resolve()))
-        })
+        await writeFile(result.filePath, new Uint8Array(file.bytes))
         return result.filePath
     })
 
-    // 没有 base64 的文件（http 引用）交给系统浏览器/关联程序
+    // 网络链接交给系统浏览器或关联程序
     ipcMain.handle('file:open-external', (_e, uri: unknown): void => {
         if (typeof uri === 'string' && /^https?:\/\//i.test(uri)) void shell.openExternal(uri)
     })
 }
 
-function asFilePayload(raw: unknown): { name: string; base64: string } | null {
+function asFilePayload(raw: unknown): { name: string; bytes: ArrayBuffer } | null {
     if (typeof raw !== 'object' || raw === null) return null
     const f = raw as Record<string, unknown>
-    if (typeof f.name !== 'string' || f.name === '' || typeof f.base64 !== 'string' || f.base64 === '') return null
+    if (typeof f.name !== 'string' || f.name === '' || !(f.bytes instanceof ArrayBuffer)) return null
     // 限制保存名只取文件名部分，防止路径穿越
-    return { name: basename(f.name), base64: f.base64 }
+    return { name: basename(f.name), bytes: f.bytes }
 }

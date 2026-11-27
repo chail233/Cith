@@ -1,4 +1,5 @@
-import type { BackendConfig, BackendStatus, IncomingMessageFrame, IncomingToolFrame } from '../preload/api.ts'
+import { decodeDesktopBinaryFrame, encodeDesktopFrame, isDesktopMediaSegment } from '../../../core/utils/desktop-frame.ts'
+import type { BackendConfig, BackendStatus, IncomingMessageFrame, IncomingToolFrame, OutgoingMessageFrame } from '../preload/api.ts'
 
 /** 重连间隔上限 */
 const RECONNECT_MAX_MS = 15_000
@@ -60,7 +61,7 @@ export class BackendConnection {
         const ws = this.ws
         if (!ws || ws.readyState !== WebSocket.OPEN) return false
         try {
-            ws.send(JSON.stringify(frame))
+            ws.send(encodeOutgoingFrame(frame))
             return true
         }
         catch {
@@ -118,7 +119,7 @@ export class BackendConnection {
             try {
                 frame = typeof ev.data === 'string'
                     ? parseTextFrame(ev.data)
-                    : ev.data instanceof ArrayBuffer ? decodeBinaryFrame(ev.data) : null
+                    : ev.data instanceof ArrayBuffer ? parseMessageFrame(decodeDesktopBinaryFrame(Buffer.from(ev.data))) : null
             }
             catch {
                 return
@@ -210,6 +211,12 @@ function parseMessageFrame(payload: unknown): IncomingMessageFrame | null {
     const frame = payload as Partial<IncomingMessageFrame> | null
     if (frame?.type !== 'message' || !frame.space || typeof frame.space !== 'object'
         || !Array.isArray(frame.segments) || !frame.segments.every((seg) => typeof seg?.type === 'string')) return null
+    for (const segment of frame.segments) {
+        if (!isDesktopMediaSegment(segment.type) || !segment.data) continue
+        const { bytes, base64, ...data } = segment.data
+        if (Buffer.isBuffer(bytes)) segment.data = { ...data, bytes: Uint8Array.from(bytes).buffer }
+        else if (base64 !== undefined) segment.data = data
+    }
     return frame as IncomingMessageFrame
 }
 
@@ -226,28 +233,20 @@ function parseToolFrame(payload: unknown): IncomingToolFrame | null {
     return frame as IncomingToolFrame
 }
 
-/** 二进制消息由 4 字节大端头部长度、UTF-8 JSON 头部及按段顺序排列的媒体字节组成 */
-function decodeBinaryFrame(buffer: ArrayBuffer): IncomingMessageFrame | null {
-    const prefixLength = 4
-    if (buffer.byteLength <= prefixLength) return null
-    const headerLength = new DataView(buffer).getUint32(0, false)
-    let offset = prefixLength + headerLength
-    if (offset >= buffer.byteLength) return null
+/** 上传图片在 WebSocket 边界编码，其他附件直接随帧传输原始字节。 */
+function encodeOutgoingFrame(raw: unknown): string | Buffer {
+    const frame = raw as Partial<OutgoingMessageFrame> | null
+    if (frame?.type !== 'message' || !Array.isArray(frame.segments)) return JSON.stringify(raw)
 
-    const header = Buffer.from(buffer, prefixLength, headerLength).toString('utf8')
-    const frame = parseMessageFrame(JSON.parse(header))
-    if (!frame) return null
-
-    for (const segment of frame.segments) {
-        if ((segment.type !== 'image' && segment.type !== 'voice')
-            || !segment.data || !Object.hasOwn(segment.data, 'binaryLength')) continue
-        const { binaryLength, ...data } = segment.data
-        if (typeof binaryLength !== 'number' || !Number.isSafeInteger(binaryLength)
-            || binaryLength <= 0 || binaryLength > buffer.byteLength - offset) return null
-
-        const end = offset + binaryLength
-        segment.data = { ...data, size: binaryLength, bytes: buffer.slice(offset, end) }
-        offset = end
-    }
-    return offset === buffer.byteLength ? frame : null
+    const payloads: Buffer[] = []
+    const segments = frame.segments.map((segment) => {
+        if (!isDesktopMediaSegment(segment.type) || !segment.data) return segment
+        const { bytes, base64: _base64, ...data } = segment.data
+        if (!(bytes instanceof ArrayBuffer)) return { ...segment, data }
+        const buffer = Buffer.from(bytes)
+        if (segment.type === 'image') return { ...segment, data: { ...data, base64: buffer.toString('base64') } }
+        payloads.push(buffer)
+        return { ...segment, data: { ...data, binaryLength: buffer.byteLength } }
+    })
+    return encodeDesktopFrame({ ...frame, segments }, payloads)
 }

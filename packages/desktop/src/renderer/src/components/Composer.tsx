@@ -42,8 +42,8 @@ export function Composer({ onSend, onStop, disabled, pending, sendKey, hint }: P
         if (disabled || (text === '' && files.length === 0)) return
         const extras: Segment[] = files.map((f) =>
             f.kind === 'image'
-                ? { type: 'image', data: { base64: f.base64, mime: f.mime, name: f.name } }
-                : { type: 'file', data: { base64: f.base64, mime: f.mime, name: f.name, size: f.size } },
+                ? { type: 'image', data: { bytes: f.bytes, mime: f.mime, name: f.name } }
+                : { type: 'file', data: { bytes: f.bytes, mime: f.mime, name: f.name, size: f.size } },
         )
         onSend(text, extras)
         setValue('')

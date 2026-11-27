@@ -20,7 +20,7 @@ export function nowTime() {
 
 /**
  * 会话集合状态：列表 / 归档 / 激活会话及其增删改。
- * 会话只在本机缓存（userData/sessions.json），真源仍在 core 的记忆里；
+ * 会话只在本机缓存（userData/sessions.bin），真源仍在 core 的记忆里；
  * 无主进程（dev:web）时放弃持久化，只在内存里跑。
  * 消息段在缝内按协议段构建：出站段数组从这里交出去，不做二次转换。
  * @param historyLimit 每条对话落盘保留的消息条数（设置页「会话」里可调）

@@ -6,6 +6,7 @@ import BaseServer from "./BaseServer.ts";
 import type { PlatformEventMeta } from "./BaseServer.ts";
 import DesktopAdapter from "../adapters/DesktopAdapter.ts";
 import { saveMediaFile } from "../../utils/media-store.ts";
+import { decodeDesktopBinaryFrame, isDesktopMediaSegment } from "../../utils/desktop-frame.ts";
 import { registerAdapter, unregisterAdapter } from "../../services/adapter-registry.js";
 import { abortSession, sessionIdOf } from "../../agent/AgentManager.ts";
 import { runtimeState } from "../../api/runtime-state.ts";
@@ -31,7 +32,7 @@ const expectedToken = typeof config.token === "string" ? config.token.trim() : "
 const authEnabled = !isPlaceholder(expectedToken);
 
 const UPLOAD_DIR = "data/desktop";
-/** 单个上传媒体的体积上限（base64 随帧携带，别撑爆 WS） */
+/** 单个上传媒体的原始字节数上限 */
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 
 
@@ -78,7 +79,7 @@ class DesktopServer extends BaseServer<DesktopFrame> {
             // 主动链路（定时苏醒）需要拿到发送通道
             registerAdapter("desktop", adapter);
 
-            ws.on("message", (data) => this.onRawMessage(data, adapter));
+            ws.on("message", (data, isBinary) => this.onRawMessage(data, isBinary, adapter));
 
             ws.on("close", () => {
                 logger.info("桌面客户端连接关闭");
@@ -110,20 +111,21 @@ class DesktopServer extends BaseServer<DesktopFrame> {
         return wss;
     }
 
-    private async onRawMessage(data: unknown, adapter: DesktopAdapter) {
+    private async onRawMessage(data: unknown, isBinary: boolean, adapter: DesktopAdapter) {
         try {
-            const frame = JSON.parse(String(data)) as DesktopFrame;
-            logger.debug("收到桌面端消息:", frame);
+            const frame = (isBinary ? Buffer.isBuffer(data) && decodeDesktopBinaryFrame(data) : JSON.parse(String(data))) as DesktopFrame | null;
+            if (!frame || typeof frame !== "object") return;
             if (frame.type === "abort") {
                 this.abort(frame);
                 return;
             }
             // 占位阶段只认消息帧，其余（握手 / 心跳）待正式协议定型
             if (frame.type !== "message") return;
+            logger.debug("收到桌面端消息:", frame.messageId, frame.conversationId);
             await this.dispatch(frame, adapter);
         }
         catch (err) {
-            logger.error("解析桌面端消息 JSON 失败:", err);
+            logger.error("处理桌面端消息失败:", err);
         }
     }
 
@@ -144,23 +146,24 @@ class DesktopServer extends BaseServer<DesktopFrame> {
     }
 
     /**
-     * 客户端传来的媒体段（base64 随帧携带）就地落地成本地文件，改写成带 media.localPath 的统一段——
-     * 之后的识图、shell、记忆链路都按本地路径取用；base64 不进上下文
+     * 上传媒体按原始字节落地，改写成带 media.localPath 的统一段。
+     * 仅图片上传使用 base64，其余附件从二进制帧读取。
      */
     private async landSegment(seg: unknown): Promise<MessageSegment | null> {
         if (!seg || typeof seg !== "object") return null;
         const { type, data } = seg as { type?: unknown; data?: unknown };
         if (typeof type !== "string" || type === "") return null;
-        const segData = (data ?? {}) as { base64?: unknown; name?: unknown; mime?: unknown };
-        if (type !== "image" && type !== "file") {
-            return { type, data: segData as MessageSegment["data"] };
+        const segData = (data ?? {}) as MessageSegment["data"];
+        if (!isDesktopMediaSegment(type)) {
+            return { type, data: segData };
         }
-        if (typeof segData.base64 !== "string" || segData.base64 === "") {
-            // 没有 base64 的媒体段（http 引用等）原样放行
-            return { type, data: segData as MessageSegment["data"] };
+        const { bytes, base64, ...metadata } = segData;
+        const buf = Buffer.isBuffer(bytes) ? bytes
+            : type === "image" && typeof base64 === "string" ? Buffer.from(base64, "base64") : null;
+        if (!buf) {
+            return base64 === undefined ? { type, data: metadata } : null;
         }
-        const buf = Buffer.from(segData.base64, "base64");
-        if (buf.length === 0 || buf.length > MAX_UPLOAD_BYTES) {
+        if ((buf.length === 0 && type !== "file") || buf.length > MAX_UPLOAD_BYTES) {
             logger.warn(`桌面端上传媒体为空或超出上限，已丢弃 (${buf.length} 字节)`);
             return null;
         }
@@ -177,6 +180,7 @@ class DesktopServer extends BaseServer<DesktopFrame> {
                     media,
                     ...(typeof segData.name === "string" && segData.name !== "" ? { name: segData.name } : {}),
                     ...(typeof segData.mime === "string" && segData.mime !== "" ? { mime: segData.mime } : {}),
+                    ...(type === "voice" && typeof segData.text === "string" ? { text: segData.text } : {}),
                 } as MessageSegment["data"],
             };
         }

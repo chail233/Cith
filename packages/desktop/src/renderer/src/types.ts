@@ -17,7 +17,6 @@ export type TraceData = {
 export type MediaSegmentData = {
     media?: { uri?: string; localPath?: string }
     bytes?: ArrayBuffer
-    base64?: string
     mime?: string
     name?: string
     size?: number

@@ -5,11 +5,12 @@ import { FINISH_TURN_TOOL_NAME } from "../../agent/tools/finish-turn.ts";
 import logger from "../../utils/logger.js";
 import { renderApprovalNotice, toApprovalData } from "../../utils/approval-notice.ts";
 import { mediaBasename, normalizeMedia, resolveSendablePath } from "../../utils/segment-media.ts";
+import { encodeDesktopFrame } from "../../utils/desktop-frame.ts";
 import { WebSocket } from "ws";
 import { fileCap, imageCap, textCap, voiceCap } from "./reply-segment-caps.ts";
 import type { ReplyDelivery, ReplySegmentCap } from "./reply-tool.ts";
 
-/** 桌面客户端能力：本地图片和音频随消息发送，网络媒体透传链接 */
+/** 桌面客户端能力：本地媒体随消息发送，网络媒体透传链接 */
 const DESKTOP_CAPS: ReplySegmentCap[] = [textCap(), imageCap(), fileCap(), voiceCap()];
 
 /** 单个本地媒体的原始字节数上限，超出跳过 */
@@ -106,16 +107,7 @@ export default class DesktopAdapter extends BaseAdapter {
         if (segments.length === 0) return;
         const frameSpace: { from: string; id: string; conversationId?: string } = { from: space.from, id: space.id };
         if (space.conversationId) frameSpace.conversationId = space.conversationId;
-        const json = JSON.stringify({ type: "message", space: frameSpace, segments });
-        if (mediaBytes.length === 0) {
-            this.ws.send(json);
-            return;
-        }
-        // 二进制消息：4 字节大端头部长度、UTF-8 JSON 头部、按段顺序拼接的媒体字节。
-        const header = Buffer.from(json, "utf8");
-        const headerLength = Buffer.alloc(4);
-        headerLength.writeUInt32BE(header.length);
-        this.ws.send(Buffer.concat([headerLength, header, ...mediaBytes]));
+        this.ws.send(encodeDesktopFrame({ type: "message", space: frameSpace, segments }, mediaBytes));
     }
 
     private async toFrameSegment(message: string | MessageSegment): Promise<DesktopFrameSegment | null> {
@@ -139,14 +131,11 @@ export default class DesktopAdapter extends BaseAdapter {
                 const details = { media, name, ...(text ? { text } : {}) };
                 if (media.localPath) {
                     const bytes = await readSendableMedia(media.localPath);
-                    if (!bytes?.length) return null;
-                    if (message.type !== "file") {
-                        return {
-                            segment: { type: message.type, data: { ...details, mime, binaryLength: bytes.length } },
-                            bytes,
-                        };
-                    }
-                    return { segment: { type: "file", data: { media, name, mime, base64: bytes.toString("base64") } } };
+                    if (!bytes || (bytes.length === 0 && message.type !== "file")) return null;
+                    return {
+                        segment: { type: message.type, data: { ...details, mime, binaryLength: bytes.length } },
+                        bytes,
+                    };
                 }
                 // http 链接原样透传，客户端自己加载
                 if (media.uri) {
